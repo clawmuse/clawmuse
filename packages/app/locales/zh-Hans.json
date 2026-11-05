@@ -1,0 +1,9 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "允许 ClawMuse 访问相机，用于扫描配对二维码。",
+    "NSMicrophoneUsageDescription": "ClawMuse 需要访问麦克风以使用语音指令。",
+    "NSPhotoLibraryUsageDescription": "显示你最近的照片，以便附加到智能体对话中。",
+    "NSLocalNetworkUsageDescription": "连接你局域网上的编程智能体主机。",
+    "NSFaceIDUsageDescription": "允许 ClawMuse 访问你的面容 ID 生物识别数据。"
+  }
+}

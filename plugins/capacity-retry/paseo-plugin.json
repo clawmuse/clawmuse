@@ -1,0 +1,7 @@
+{
+  "id": "capacity-retry",
+  "name": "模型满载自动重试",
+  "setupScreen": "retry",
+  "description": "模型提示 Selected model is at capacity 时按设置的次数和间隔自动继续，会话中显示重试进度与结束提醒。",
+  "requirements": { "paseo": ">=1.1.0" }
+}

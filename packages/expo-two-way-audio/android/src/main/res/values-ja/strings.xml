@@ -1,0 +1,6 @@
+<resources>
+    <string name="voice_capture_channel">音声会話</string>
+    <string name="voice_capture_title">音声会話中</string>
+    <string name="voice_capture_body">マイクを使用中です。タップして会話に戻ります。</string>
+    <string name="voice_capture_stop">会話を終了</string>
+</resources>

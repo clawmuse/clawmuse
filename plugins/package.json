@@ -1,0 +1,22 @@
+{
+  "name": "@getpaseo/builtin-plugins",
+  "version": "1.5.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsgo -p tsconfig.json --noEmit",
+    "test": "vitest run --exclude \"usage-auto-resume/**\" && node --import tsx --test usage-auto-resume/client/*.test.ts usage-auto-resume/server/*.test.ts"
+  },
+  "dependencies": {
+    "@getpaseo/plugin": "*",
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "@types/pngjs": "^6.0.5",
+    "tsx": "^4.6.0",
+    "vitest": "^4.1.6"
+  }
+}

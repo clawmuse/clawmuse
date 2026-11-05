@@ -1,0 +1,43 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+jobs:
+  source:
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:server
+      - run: npm run build:app-deps
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - name: Verify encrypted transport
+        run: npm run test --workspace=@getpaseo/relay -- --maxWorkers=2
+      - name: Verify build orchestration
+        run: node --test scripts/build-desktop.test.mjs
+      - name: Export browser client
+        run: npm run build:web --workspace=@getpaseo/app
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: browser-client
+          path: packages/app/dist
+          retention-days: 3

@@ -1,0 +1,39 @@
+import { Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { StyleSheet } from "react-native-unistyles";
+import type { HighlightStyle } from "@getpaseo/highlight";
+import type { WorkspaceFileLocation } from "@/workspace/file-open";
+import type { FileEditorModel } from "./model";
+
+export function FileEditorView(_props: {
+  model: FileEditorModel;
+  filename: string;
+  location: WorkspaceFileLocation;
+  navigationRevision: number;
+  vimEnabled: boolean;
+  theme: {
+    background: string;
+    foreground: string;
+    foregroundMuted: string;
+    border: string;
+    selection: string;
+    monoFont: string;
+    codeFontSize: number;
+    syntax: Record<HighlightStyle, string>;
+  };
+  onCursorChange(position: { line: number; column: number }): void;
+  onVimModeChange(mode: string | null): void;
+  onReady(): void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>{t("panels.file.editor.unsupported")}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create((theme) => ({
+  container: { flex: 1, alignItems: "center", justifyContent: "center" },
+  text: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.base },
+}));

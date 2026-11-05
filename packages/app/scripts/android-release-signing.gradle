@@ -1,0 +1,25 @@
+// Keep signing secrets outside the generated Android project and the repository.
+allprojects { project ->
+    // Native libraries without an explicit NDK otherwise inherit the AGP default.
+    project.plugins.withId('com.android.library') {
+        if (project.rootProject.ext.has('ndkVersion')) {
+            project.extensions.getByName('android').ndkVersion = project.rootProject.ext.ndkVersion
+        }
+    }
+    project.afterEvaluate {
+        if (project.plugins.hasPlugin('com.android.application')) {
+            // Metro workers have their own Node heaps; bound them independently of Gradle.
+            def react = project.extensions.findByName('react')
+            if (react != null) {
+                react.extraPackagerArgs.addAll(['--max-workers', '2'])
+            }
+            def android = project.extensions.getByName('android')
+            def signing = android.signingConfigs.create('clawmuseRelease')
+            signing.storeFile = new File(System.getenv('CLAWMUSE_ANDROID_KEYSTORE_PATH'))
+            signing.storePassword = System.getenv('CLAWMUSE_ANDROID_KEYSTORE_PASSWORD')
+            signing.keyAlias = System.getenv('CLAWMUSE_ANDROID_KEY_ALIAS')
+            signing.keyPassword = System.getenv('CLAWMUSE_ANDROID_KEY_PASSWORD')
+            android.buildTypes.getByName('release').signingConfig = signing
+        }
+    }
+}

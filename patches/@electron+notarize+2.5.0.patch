@@ -1,0 +1,11 @@
+diff --git a/node_modules/@electron/notarize/lib/notarytool.js b/node_modules/@electron/notarize/lib/notarytool.js
+--- a/node_modules/@electron/notarize/lib/notarytool.js
++++ b/node_modules/@electron/notarize/lib/notarytool.js
+@@ -127,6 +127,7 @@
+                 'submit',
+                 filePath,
+                 ...authorizationArgs(opts),
++                '--no-s3-acceleration',
+                 '--wait',
+                 '--output-format',
+                 'json',

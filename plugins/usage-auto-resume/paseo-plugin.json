@@ -1,0 +1,9 @@
+{
+  "id": "usage-auto-resume",
+  "name": "Usage Auto Resume",
+  "description": "额度恢复后继续原任务，再逐条处理已保存的补充消息",
+  "requirements": {
+    "paseo": ">=0.12.0"
+  },
+  "media": ["assets/auto-resume.png", "assets/provider-settings.png"]
+}

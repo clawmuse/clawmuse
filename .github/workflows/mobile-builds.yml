@@ -1,0 +1,70 @@
+name: Mobile Builds
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+  APP_VARIANT: development
+jobs:
+  android:
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:app-deps
+      - run: npx expo prebuild --platform android --no-install
+        working-directory: packages/app
+      - name: Build debug APK
+        working-directory: packages/app/android
+        run: ./gradlew assembleDebug --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a -Dorg.gradle.parallel=false
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-debug-arm64
+          path: packages/app/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 3
+  ios:
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:app-deps
+      - run: npx expo prebuild --platform ios --no-install
+        working-directory: packages/app
+      - run: pod install
+        working-directory: packages/app/ios
+      - name: Build simulator app
+        working-directory: packages/app/ios
+        run: |
+          workspace=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          scheme=$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; names=json.load(sys.stdin)["workspace"]["schemes"]; print(next(n for n in names if "ClawMuse" in n))')
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+          ditto -c -k --keepParent build/Build/Products/Debug-iphonesimulator/*.app simulator-app.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ios-simulator
+          path: packages/app/ios/simulator-app.zip
+          if-no-files-found: error
+          retention-days: 3

@@ -1,0 +1,9 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "اسمح لتطبيق ClawMuse بالوصول إلى الكاميرا لمسح رموز QR الخاصة بالإقران.",
+    "NSMicrophoneUsageDescription": "يحتاج ClawMuse إلى الوصول إلى الميكروفون للأوامر الصوتية.",
+    "NSPhotoLibraryUsageDescription": "اعرض أحدث صورة لديك لإرفاقها بمحادثة مع الوكيل.",
+    "NSLocalNetworkUsageDescription": "اتصل بمضيفي وكلاء البرمجة على شبكتك المحلية.",
+    "NSFaceIDUsageDescription": "اسمح لتطبيق ClawMuse بالوصول إلى بيانات Face ID الحيوية."
+  }
+}

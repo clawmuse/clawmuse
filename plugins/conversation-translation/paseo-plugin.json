@@ -1,0 +1,7 @@
+{
+  "id": "conversation-translation",
+  "name": "会话翻译",
+  "setupScreen": "translation",
+  "description": "ClawMuse 官方插件。使用独立的本机 Agent CLI 模型，将输入译成英文、回复显示中文；代码和工具内容保持原样。",
+  "requirements": { "paseo": ">=0.13.0" }
+}

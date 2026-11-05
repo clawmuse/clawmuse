@@ -1,0 +1,9 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "ペアリング用QRコードをスキャンするため、ClawMuseのカメラへのアクセスを許可してください。",
+    "NSMicrophoneUsageDescription": "ClawMuseは音声コマンドのためにマイクへのアクセスが必要です。",
+    "NSPhotoLibraryUsageDescription": "最新の写真を表示して、エージェントとの会話に添付できます。",
+    "NSLocalNetworkUsageDescription": "ローカルネットワーク上のコーディングエージェントホストに接続します。",
+    "NSFaceIDUsageDescription": "ClawMuseがFace IDの生体認証データにアクセスすることを許可します。"
+  }
+}

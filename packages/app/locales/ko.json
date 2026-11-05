@@ -1,0 +1,9 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "페어링 QR 코드를 스캔하기 위해 ClawMuse의 카메라 접근을 허용해 주세요.",
+    "NSMicrophoneUsageDescription": "ClawMuse는 음성 명령을 위해 마이크 접근 권한이 필요합니다.",
+    "NSPhotoLibraryUsageDescription": "최근 사진을 표시하여 에이전트 대화에 첨부할 수 있게 합니다.",
+    "NSLocalNetworkUsageDescription": "로컬 네트워크의 코딩 에이전트 호스트에 연결합니다.",
+    "NSFaceIDUsageDescription": "ClawMuse가 Face ID 생체 인증 데이터에 접근하도록 허용합니다."
+  }
+}

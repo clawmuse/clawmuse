@@ -1,0 +1,19 @@
+{
+  "name": "usage-auto-resume",
+  "version": "1.2.1-clawmuse.1",
+  "private": true,
+  "description": "Resume limited agents and send durable queued follow-ups after the resumed turn completes",
+  "homepage": "https://github.com/babo-jeonguk/paseo-usage-auto-resume#readme",
+  "bugs": {
+    "url": "https://github.com/babo-jeonguk/paseo-usage-auto-resume/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babo-jeonguk/paseo-usage-auto-resume.git"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test client/*.test.ts server/*.test.ts"
+  }
+}

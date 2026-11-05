@@ -1,0 +1,9 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Permite que ClawMuse acceda a tu cámara para escanear códigos QR de vinculación.",
+    "NSMicrophoneUsageDescription": "ClawMuse necesita acceso al micrófono para los comandos de voz.",
+    "NSPhotoLibraryUsageDescription": "Muestra tu foto más reciente para adjuntarla a una conversación con el agente.",
+    "NSLocalNetworkUsageDescription": "Conéctate a hosts de agentes de programación en tu red local.",
+    "NSFaceIDUsageDescription": "Permite que ClawMuse acceda a tus datos biométricos de Face ID."
+  }
+}

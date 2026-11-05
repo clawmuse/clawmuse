@@ -1,0 +1,54 @@
+name: Desktop Packages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+  CLAWMUSE_UNSIGNED_BUILD: "1"
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+  EP_GH_IGNORE_TIME: "true"
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: --linux AppImage --x64
+            name: linux-x64
+          - os: windows-2025
+            target: --win zip --x64
+            name: windows-x64
+          - os: macos-15
+            target: --mac zip --arm64
+            name: macos-arm64
+    if: ${{ !github.event.repository.private }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:desktop -- --publish never ${{ matrix.target }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: desktop-${{ matrix.name }}
+          path: |
+            packages/desktop/release/*.zip
+            packages/desktop/release/*.AppImage
+          if-no-files-found: error
+          retention-days: 3

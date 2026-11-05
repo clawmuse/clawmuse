@@ -1,0 +1,14 @@
+ClawMuse includes prompt recommendation code from Cindy:
+https://github.com/makecindy/cindy
+Source revision: da94e838e
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Cindy
+Copyright 2026 XD Inc.
+This product includes software developed by XD Inc.
+
+The conversation extraction, prediction prompts, output validation, and
+recommendation state transitions are derived from Cindy's promptPrediction.ts,
+title-output-validation.ts, promptRecommendationStore.ts, and mobile prompt
+recommendation hooks. They have been adapted for Paseo's daemon-owned history,
+WebSocket RPCs, host configuration, and shared React Native composer.

@@ -1,0 +1,113 @@
+import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { discoverProviders } from "./server/providers";
+import { createResumer } from "./server/resumer";
+import { createJobStore } from "./server/store";
+import { createQueueStore } from "./server/queue-store";
+import {
+  addQueuedMessageRpc,
+  listProvidersRpc,
+  listQueuesRpc,
+  listScheduledRpc,
+  pauseQueueRpc,
+  removeQueuedMessageRpc,
+  rescheduleRpc,
+  resumeQueueRpc,
+  setAllEnabledRpc,
+  setEnabledRpc,
+} from "./shared/rpc";
+import { providerSettings } from "./shared/settings";
+
+const TICK_MS = 30_000;
+
+export default function contribute(server: PluginServerContext) {
+  const settings = server.registerSettings(providerSettings);
+  const resumer = createResumer({
+    store: createJobStore(),
+    queueStore: createQueueStore(),
+    readSettings: async () => {
+      const current = await settings.read();
+      if (current.status === "ready") return current.values;
+      console.error(
+        "[usage-auto-resume] settings unreadable; automatic resumes are waiting",
+        current.error,
+      );
+      return null;
+    },
+  });
+  const report = (error: unknown) =>
+    console.error("[usage-auto-resume] hook failed", String(error));
+  void resumer.recover().catch(report);
+
+  // Hooks return at once: detection reads the agent and usage, which must not hold up the daemon.
+  const stops = [
+    server.before("agent.session_open", ({ request }) => resumer.rememberSession(request)),
+    settings.subscribe(() => void resumer.reconcileProviders().catch(report)),
+    server.on("agent.turn_started", (event, { paseo }) => {
+      void resumer.attach(paseo);
+      void resumer.onTurnStarted(event.agent.id, event.turnId, paseo).catch(report);
+    }),
+    server.on("agent.turn_ended", (event, { paseo }) => {
+      void resumer.attach(paseo);
+      void resumer.onTurnEnded(event, paseo).catch(report);
+    }),
+    server.on("agent.archived", (event, { paseo }) => {
+      void resumer.attach(paseo);
+      void resumer.forget(event.agent.id).catch(report);
+    }),
+    server.on("agent.permission_requested", (_event, { paseo }) => void resumer.attach(paseo)),
+    server.on("agent.created", (_event, { paseo }) => void resumer.attach(paseo)),
+    server.on("agent.closed", (event, { paseo }) => {
+      void resumer.attach(paseo);
+      void resumer.forget(event.agent.id).catch(report);
+    }),
+  ];
+  // Opening the screen also hands over the API, so a restart never waits on agent activity alone.
+  server.handle(listScheduledRpc, async (_input, { paseo }) => {
+    void resumer.attach(paseo);
+    return { jobs: await resumer.listScheduled(paseo) };
+  });
+  server.handle(listProvidersRpc, async (_input, { paseo }) => {
+    void resumer.attach(paseo);
+    return { providers: await discoverProviders(paseo) };
+  });
+  server.handle(setEnabledRpc, async ({ agentId, dueAt, enabled }, { paseo }) => {
+    void resumer.attach(paseo);
+    return { changed: await resumer.setEnabled(agentId, dueAt, enabled) };
+  });
+  server.handle(setAllEnabledRpc, async ({ enabled, jobs }, { paseo }) => {
+    void resumer.attach(paseo);
+    return { changed: await resumer.setAllEnabled(enabled, jobs) };
+  });
+  server.handle(rescheduleRpc, async ({ agentId, dueAt, newDueAt }, { paseo }) => {
+    void resumer.attach(paseo);
+    return resumer.reschedule(agentId, dueAt, newDueAt);
+  });
+  server.handle(listQueuesRpc, async ({ agentId }, { paseo }) => {
+    await resumer.attach(paseo);
+    return { queues: await resumer.listQueues(paseo, agentId) };
+  });
+  server.handle(addQueuedMessageRpc, async ({ agentId, id, text }, { paseo }) => {
+    await resumer.attach(paseo);
+    return { queue: await resumer.addQueuedMessage(paseo, agentId, id, text) };
+  });
+  server.handle(removeQueuedMessageRpc, async ({ agentId, id }, { paseo }) => {
+    await resumer.attach(paseo);
+    return resumer.removeQueuedMessage(paseo, agentId, id);
+  });
+  server.handle(resumeQueueRpc, async ({ agentId, uncertain }, { paseo }) => {
+    await resumer.attach(paseo);
+    const queue = await resumer.resumeQueue(paseo, agentId, uncertain);
+    void resumer.tick().catch(report);
+    return { queue };
+  });
+  server.handle(pauseQueueRpc, async ({ agentId }, { paseo }) => {
+    await resumer.attach(paseo);
+    return { queue: await resumer.pauseQueue(paseo, agentId) };
+  });
+  const timer = setInterval(() => void resumer.tick().catch(report), TICK_MS);
+
+  return () => {
+    clearInterval(timer);
+    for (const stop of stops) stop();
+  };
+}

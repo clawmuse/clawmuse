@@ -1,0 +1,6 @@
+{
+  "id": "device-preview",
+  "name": "设备预览",
+  "description": "查看当前主机的 iOS 与 Android 模拟器，使用低频截图和有限控制。",
+  "requirements": { "paseo": ">=0.13.0" }
+}

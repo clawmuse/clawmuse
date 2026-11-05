@@ -1,0 +1,9 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Разрешите ClawMuse доступ к камере для сканирования QR-кодов сопряжения.",
+    "NSMicrophoneUsageDescription": "ClawMuse требуется доступ к микрофону для голосовых команд.",
+    "NSPhotoLibraryUsageDescription": "Покажите ваше последнее фото, чтобы прикрепить его к диалогу с агентом.",
+    "NSLocalNetworkUsageDescription": "Подключайтесь к хостам агентов программирования в локальной сети.",
+    "NSFaceIDUsageDescription": "Разрешите ClawMuse доступ к биометрическим данным Face ID."
+  }
+}

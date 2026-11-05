@@ -1,0 +1,9 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Autorisez ClawMuse à accéder à votre appareil photo pour scanner les QR codes d’appairage.",
+    "NSMicrophoneUsageDescription": "ClawMuse a besoin d’accéder au micro pour les commandes vocales.",
+    "NSPhotoLibraryUsageDescription": "Affichez votre photo la plus récente pour l’ajouter à une conversation avec l’agent.",
+    "NSLocalNetworkUsageDescription": "Connectez-vous aux hôtes d’agents de codage sur votre réseau local.",
+    "NSFaceIDUsageDescription": "Autorisez ClawMuse à accéder à vos données biométriques Face ID."
+  }
+}

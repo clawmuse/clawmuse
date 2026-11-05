@@ -1,0 +1,57 @@
+appId: ${APP_ID}
+---
+# Use a host with an expendable local workspace near the top of its sidebar.
+# WORKSPACE_ROW and ANCHOR_ROW are sidebar-workspace-row-* testIDs.
+# ROW_Y is the target row's vertical center as a screen percentage.
+# Render coordinate placeholders before replaying, as in the Maestro harnesses.
+# Run for project, status, and pinned rows; the header/blank-area close gesture
+# is covered separately by maestro/ios-sidebar-close-regression.yaml.
+- launchApp
+- runFlow:
+    when:
+      notVisible:
+        id: ${ANCHOR_ROW}
+    commands:
+      - tapOn:
+          id: "menu-button"
+- extendedWaitUntil:
+    visible:
+      id: ${WORKSPACE_ROW}
+    timeout: 10000
+- assertVisible:
+    id: ${WORKSPACE_ROW}
+- assertVisible:
+    id: ${ANCHOR_ROW}
+
+# A right swipe must neither archive nor open the workspace.
+- swipe:
+    start: "60%,${ROW_Y}"
+    end: "70%,${ROW_Y}"
+    duration: 150
+- assertVisible:
+    id: ${WORKSPACE_ROW}
+- assertVisible:
+    id: ${ANCHOR_ROW}
+
+# A short slow drag reveals archive feedback, then restores the row.
+- swipe:
+    start: "70%,${ROW_Y}"
+    end: "65%,${ROW_Y}"
+    duration: 600
+- assertVisible:
+    id: ${WORKSPACE_ROW}
+- assertVisible:
+    id: ${ANCHOR_ROW}
+
+# A deliberate left swipe finishes its animation and archives without a tap.
+# The panel must remain open; repeat on project, status, and pinned rows.
+- swipe:
+    start: "70%,${ROW_Y}"
+    end: "35%,${ROW_Y}"
+    duration: 400
+- extendedWaitUntil:
+    notVisible:
+      id: ${WORKSPACE_ROW}
+    timeout: 10000
+- assertVisible:
+    id: ${ANCHOR_ROW}

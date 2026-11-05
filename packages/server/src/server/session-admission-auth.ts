@@ -1,0 +1,46 @@
+import { compare } from "bcryptjs";
+import type { WSHelloMessage } from "@getpaseo/protocol/messages";
+import { OWNER_PERMISSIONS } from "./authorization/index.js";
+import { matchesLocalCredential } from "./local-credential.js";
+import type { SessionAdmission } from "./websocket-server.js";
+
+export type AdmissionFailure = "password_required" | "incorrect_password";
+
+type AdmissionResolution = { admission: SessionAdmission } | { rejection: AdmissionFailure };
+
+export async function resolveSessionAdmission(input: {
+  credential: WSHelloMessage["auth"];
+  passwordHash: string | undefined;
+  localCredential: string | null;
+  isRelay?: boolean;
+  supportsHelloRejection?: boolean;
+}): Promise<AdmissionResolution> {
+  const {
+    credential,
+    passwordHash,
+    localCredential,
+    isRelay = false,
+    supportsHelloRejection = false,
+  } = input;
+  if (credential?.kind === "controller") return { rejection: "incorrect_password" };
+  if (!passwordHash) {
+    return { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } };
+  }
+  if (!credential) {
+    // COMPAT(relayPasswordOptional): added in v0.9.1; remove after 2027-03-09
+    // once the supported mobile floor advertises hello_rejection.
+    if (isRelay && !supportsHelloRejection) {
+      return { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } };
+    }
+    return { rejection: "password_required" };
+  }
+  if (credential.kind === "localCredential") {
+    if (localCredential && matchesLocalCredential(localCredential, credential.token)) {
+      return { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } };
+    }
+    return { rejection: "incorrect_password" };
+  }
+  return (await compare(credential.password, passwordHash))
+    ? { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } }
+    : { rejection: "incorrect_password" };
+}

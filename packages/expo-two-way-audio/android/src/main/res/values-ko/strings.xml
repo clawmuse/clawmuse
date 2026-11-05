@@ -1,0 +1,6 @@
+<resources>
+    <string name="voice_capture_channel">음성 대화</string>
+    <string name="voice_capture_title">음성 대화 중</string>
+    <string name="voice_capture_body">마이크 사용 중입니다. 탭하여 대화로 돌아갑니다.</string>
+    <string name="voice_capture_stop">대화 종료</string>
+</resources>

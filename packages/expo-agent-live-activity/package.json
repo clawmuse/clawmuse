@@ -1,0 +1,17 @@
+{
+  "name": "@clawmuse/expo-agent-live-activity",
+  "version": "1.5.5",
+  "private": true,
+  "description": "Native ActivityKit bridge for ClawMuse agent Live Activities",
+  "license": "MIT",
+  "author": "ClawMuse contributors",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsgo --noEmit"
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react-native": "*"
+  }
+}

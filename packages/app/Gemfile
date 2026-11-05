@@ -1,0 +1,10 @@
+source "https://rubygems.org"
+
+gem "fastlane", "~> 2.234"
+gem "multi_json"
+
+# The fastlane helper tests (`ruby fastlane/<name>_test.rb`) run on minitest.
+# Ruby 3.4 unbundled it, so `bundle exec` only sees it when it is declared.
+group :test do
+  gem "minitest", "~> 5.25"
+end

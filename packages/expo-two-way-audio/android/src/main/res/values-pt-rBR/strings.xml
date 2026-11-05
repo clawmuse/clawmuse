@@ -1,0 +1,6 @@
+<resources>
+    <string name="voice_capture_channel">Conversas por voz</string>
+    <string name="voice_capture_title">Conversa por voz ativa</string>
+    <string name="voice_capture_body">Microfone ativo. Toque para voltar à conversa.</string>
+    <string name="voice_capture_stop">Encerrar conversa</string>
+</resources>
