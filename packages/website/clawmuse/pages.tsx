@@ -751,14 +751,14 @@ function Changelog({ language }: Localized) {
         title={t("changelog.aLittleBetterOneStepAtATime")}
       />
       <section className="container changelog-list">
-        {releases.map((release) => (
-          <article key={release.version}>
+        {releases.map((entry) => (
+          <article key={entry.version}>
             <div>
-              <time dateTime={release.date}>{release.date.replaceAll("-", ".")}</time>
+              <time dateTime={entry.date}>{entry.date.replaceAll("-", ".")}</time>
             </div>
             <div>
-              <h2>ClawMuse {release.version}</h2>
-              {release.sections.map((section) => (
+              <h2>ClawMuse {entry.version}</h2>
+              {entry.sections.map((section) => (
                 <section key={section.title}>
                   <span className="eyebrow">{section.title}</span>
                   <ul>
@@ -768,7 +768,7 @@ function Changelog({ language }: Localized) {
                   </ul>
                 </section>
               ))}
-              {release.notes.map((note) => (
+              {entry.notes.map((note) => (
                 <p key={note}>{note}</p>
               ))}
             </div>
