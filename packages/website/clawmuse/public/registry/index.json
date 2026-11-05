@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "registry": {
+    "name": "ClawMuse",
+    "url": "https://clawmuse.com/registry"
+  },
+  "categories": [
+    {
+      "slug": "development",
+      "label": "开发工具",
+      "description": "主机开发与预览"
+    }
+  ],
+  "plugins": [
+    {
+      "id": "clawmuse/device-preview",
+      "name": "Device preview (preview)",
+      "description": "View and interact with iOS and Android simulators on your daemon host. Preview release: native SDK capture and input still require manual verification.",
+      "translations": {
+        "zh-CN": {
+          "name": "设备预览（预览版）",
+          "description": "在右侧面板查看和操作主机上的 iOS、Android 模拟器。支持独立安装和更新；原生采集、触控和远程性能仍待手动验证。"
+        }
+      },
+      "license": "Apache-2.0",
+      "categories": ["development"],
+      "author": {
+        "github": "endvin",
+        "name": "ClawMuse"
+      },
+      "repository": {
+        "url": "https://github.com/endvin/clawmuse-plugins",
+        "commit": "f0ff4dc8eeed42c1922aec233c54bc2f26ee92e4"
+      },
+      "artifact": {
+        "kind": "git",
+        "remote": "https://github.com/endvin/clawmuse-plugins.git",
+        "commit": "f0ff4dc8eeed42c1922aec233c54bc2f26ee92e4",
+        "pluginPath": "device-preview"
+      },
+      "media": ["https://clawmuse.com/registry/media/device-preview.png"],
+      "submittedAt": "2026-11-03T10:27:00Z",
+      "reviewedAt": "2026-11-03T10:27:00Z",
+      "updatedAt": "2026-11-03T10:27:00Z",
+      "publishedAt": "2026-11-03T10:27:00Z"
+    }
+  ],
+  "featured": ["clawmuse/device-preview"],
+  "generatedAt": "2026-11-03T10:27:00Z"
+}

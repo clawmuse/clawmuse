@@ -1,0 +1,440 @@
+.plugin-hero {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 80px;
+  align-items: center;
+  padding-block: 90px 86px;
+}
+.plugin-hero h1 {
+  white-space: pre-line;
+  font-size: clamp(36px, 4.3vw, 58px);
+  line-height: 1.14;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  margin: 0 0 26px;
+}
+.plugin-hero-copy > p {
+  font-size: 17px;
+  line-height: 1.85;
+  color: var(--muted);
+  max-width: 570px;
+}
+.plugin-included {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.plugin-hero-index {
+  border-top: 1px solid var(--line);
+}
+.plugin-hero-index a {
+  display: flex;
+  gap: 17px;
+  align-items: center;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
+}
+.plugin-card-number {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.plugin-hero-index a > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.plugin-hero-index a > svg:last-child {
+  margin-inline-start: auto;
+}
+.plugin-hero-index strong,
+.plugin-hero-index small {
+  display: block;
+}
+.plugin-hero-index strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+.plugin-hero-index small {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.plugin-story {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 86px;
+  align-items: center;
+  padding-block: 80px;
+  border-top: 1px solid var(--line);
+}
+.plugin-story:nth-child(even) .plugin-story-copy {
+  order: 2;
+}
+.plugin-story-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--accent);
+}
+.plugin-story-meta > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.plugin-story-meta h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.plugin-default {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 16px 0 10px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.plugin-story h3 {
+  font-size: clamp(27px, 2.7vw, 35px);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+  margin: 10px 0 20px;
+}
+.plugin-story-copy > p {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.85;
+}
+.plugin-story-copy ul {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0;
+}
+.plugin-story-copy li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.8;
+  margin-block: 9px;
+}
+.plugin-story-copy li > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.plugin-story-copy .plugin-requirement {
+  font-size: 12px;
+  border-inline-start: 2px solid var(--line);
+  padding-inline-start: 14px;
+}
+.plugin-illustration {
+  margin: 0;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.plugin-illustration figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 20px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.plugin-window-dots {
+  font-size: 9px;
+  letter-spacing: 3px;
+  opacity: 0.5;
+}
+.plugin-demo-body {
+  padding: 32px;
+  min-height: 310px;
+}
+.plugin-demo-body p {
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.plugin-demo-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.plugin-translation-demo > svg {
+  display: block;
+  margin: 18px 0;
+  color: var(--accent);
+}
+.plugin-translation-demo > p {
+  margin: 8px 0;
+}
+.plugin-demo-reply {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 17px;
+  margin-top: 25px;
+}
+.plugin-demo-reply strong {
+  font-size: 11px;
+  color: var(--accent);
+}
+.plugin-demo-reply summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+}
+.plugin-demo-reply details p {
+  font-size: 12px;
+}
+.plugin-capacity-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--accent);
+}
+.plugin-capacity-error strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+.plugin-retry-demo > p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 18px 0 30px;
+}
+.plugin-retry-demo ol {
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 20px;
+}
+.plugin-retry-demo li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.plugin-retry-demo li > span {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  flex-shrink: 0;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 10px;
+}
+.plugin-demo-continuation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  margin-top: 28px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 12px;
+}
+.plugin-demo-continuation svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.plugin-usage-demo > svg {
+  color: var(--accent);
+}
+.plugin-usage-demo > p {
+  margin-top: 16px;
+}
+.plugin-demo-balance {
+  display: block;
+  font-size: 70px;
+  letter-spacing: -0.06em;
+  font-weight: 450;
+  line-height: 1.2;
+}
+.plugin-demo-balance > span {
+  font-size: 25px;
+  color: var(--muted);
+  margin-inline-start: 7px;
+}
+.plugin-meter {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--line);
+  margin-block: 20px 12px;
+  overflow: hidden;
+}
+.plugin-meter > span {
+  display: block;
+  width: 68%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.plugin-demo-cost {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  margin-top: 30px;
+  padding-top: 20px;
+  font-size: 12px;
+}
+.plugin-demo-completed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.plugin-demo-completed svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.plugin-demo-draft {
+  margin-top: 35px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  border-radius: 8px;
+}
+.plugin-demo-draft .plugin-demo-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--accent);
+}
+.plugin-demo-draft p {
+  font-size: 18px;
+  margin-bottom: 0;
+}
+.plugin-demo-confirm {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.plugin-setup {
+  border-top: 1px solid var(--line);
+}
+.plugin-setup > ol {
+  list-style: none;
+  padding: 0;
+  margin: 36px 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 45px;
+}
+.plugin-setup li > span {
+  font-size: 12px;
+  color: var(--accent);
+}
+.plugin-setup h3 {
+  font-weight: 500;
+  font-size: 17px;
+  margin-block: 16px 12px;
+}
+.plugin-setup li p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.plugin-faq {
+  border-top: 1px solid var(--line);
+}
+.plugin-faq > h2 {
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  margin: 0 0 30px;
+}
+@media (max-width: 1000px) {
+  .plugin-hero,
+  .plugin-story {
+    gap: 40px;
+  }
+  .plugin-hero h1 {
+    font-size: 42px;
+  }
+}
+@media (max-width: 760px) {
+  .plugin-hero {
+    grid-template-columns: 1fr;
+    padding-block: 54px;
+    gap: 40px;
+  }
+  .plugin-hero h1 {
+    font-size: clamp(34px, 6.5vw, 48px);
+  }
+  .plugin-hero-copy > p {
+    font-size: 15px;
+  }
+  .plugin-story {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding-block: 48px;
+  }
+  .plugin-story:nth-child(even) .plugin-story-copy {
+    order: 0;
+  }
+  .plugin-story h3 {
+    font-size: 29px;
+  }
+  .plugin-setup > ol {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .plugin-demo-body {
+    padding: 24px;
+  }
+}
+@media (max-width: 380px) {
+  .plugin-hero-index a {
+    gap: 10px;
+  }
+}
+
+.plugin-install {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.plugin-install > p {
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 1rem 0;
+}
+.plugin-install .code-block {
+  margin: 1rem 0;
+}
+.plugin-install pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.plugin-install figure {
+  margin: 1.5rem 0 0;
+}
+.plugin-install img {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+.plugin-install figcaption {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}

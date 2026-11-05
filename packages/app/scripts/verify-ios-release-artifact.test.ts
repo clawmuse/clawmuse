@@ -1,3 +1,4 @@
+import { resolveUpdateTarget, verifyUpdateRuntime } from "./publish-ios-update.mjs";
 import { describe, expect, it } from "vitest";
 import {
   LIVE_ACTIVITY_EXTENSION_NAME,
@@ -103,5 +104,39 @@ describe("verify-ios-release-artifact", () => {
 
   it("rejects an archive with no app bundle at all", () => {
     expect(() => resolveIosArtifactEntries(["Payload/"])).toThrow(/main\.jsbundle/);
+  });
+});
+
+describe("iOS OTA archive compatibility", () => {
+  const fingerprint = "a".repeat(40);
+  const expo = {
+    EXUpdatesEnabled: true,
+    EXUpdatesURL: "https://u.expo.dev/2276731a-7ae3-461e-944c-91de136f8f49",
+    EXUpdatesRequestHeaders: { "expo-channel-name": "production" },
+  };
+  it("uses the installed archive's project, channel and build number", () => {
+    const target = resolveUpdateTarget({ CFBundleVersion: "13000008" }, expo, `${fingerprint}\n`);
+    expect(target).toEqual({
+      projectId: "2276731a-7ae3-461e-944c-91de136f8f49",
+      channel: "production",
+      runtime: fingerprint,
+      buildNumber: "13000008",
+    });
+    expect(() => verifyUpdateRuntime(target, { hash: fingerprint })).not.toThrow();
+    expect(() => verifyUpdateRuntime(target, { hash: "b".repeat(40) })).toThrow(
+      /fingerprint mismatch/,
+    );
+  });
+  it("rejects binaries that cannot receive OTA updates", () => {
+    expect(() =>
+      resolveUpdateTarget(
+        { CFBundleVersion: "13000008" },
+        { ...expo, EXUpdatesEnabled: false },
+        fingerprint,
+      ),
+    ).toThrow(/enabled EAS Update/);
+    expect(() => resolveUpdateTarget({ CFBundleVersion: "13000008" }, expo, "")).toThrow(
+      /fingerprint/,
+    );
   });
 });

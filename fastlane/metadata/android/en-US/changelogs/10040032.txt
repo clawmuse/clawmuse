@@ -1,0 +1,8 @@
+Automatic voice review and verified archive announcements require a host running 1.4.3 or later.
+
+Fixed
+- Honor the configured host password on relay connections.
+- Pace voice playback by actual device progress so long briefings keep playing without a playback timeout.
+- Review host tasks against their latest conversation and announce automatic archives only after the host confirms them. Keep running tasks and tasks awaiting your decision available.
+
+Full notes: https://paseo.sh/changelog

@@ -1,7 +1,6 @@
 {
   "name": "@getpaseo/plugin",
   "version": "1.5.5",
-  "private": true,
   "description": "Paseo plugin SDK package",
   "files": [
     "dist",
@@ -59,6 +58,9 @@
       "source": "./src/server/lifecycle.ts",
       "default": "./dist/server/lifecycle.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",

@@ -1,7 +1,6 @@
 {
   "name": "@getpaseo/relay",
   "version": "1.5.5",
-  "private": true,
   "description": "Paseo relay for bridging daemon and client connections",
   "files": [
     "dist",
@@ -17,7 +16,14 @@
     "./e2ee": {
       "types": "./dist/e2ee.d.ts",
       "default": "./dist/e2ee.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare-adapter.d.ts",
+      "default": "./dist/cloudflare-adapter.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",

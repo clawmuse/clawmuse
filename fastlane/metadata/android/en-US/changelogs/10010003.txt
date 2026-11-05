@@ -1,0 +1,7 @@
+ClawMuse 1.1 improves account access, connection recovery and desktop updates across desktop, mobile and web.
+
+Added
+- Add platform cloud spaces with off, account allowlist and all-account rollout modes. The feature stays off by default and waits for platform model configuration before provisioning a space.
+- Add account email password recovery and simplify registration.
+
+Full notes: https://paseo.sh/changelog

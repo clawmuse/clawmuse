@@ -43,7 +43,7 @@ export function isMacCodePath(file) {
 }
 
 export function resolveMacSigning({ version, env = process.env }) {
-  if (env.CLAWMUSE_UNSIGNED_BUILD === "1" || parseReleaseVersion(version).isBeta) {
+  if (parseReleaseVersion(version).isBeta) {
     return { identity: "-", forceCodeSigning: false, notarize: false };
   }
 
@@ -94,7 +94,7 @@ export function verifyMacDistribution({
   env = process.env,
   run = runVerification,
 }) {
-  if (env.CLAWMUSE_UNSIGNED_BUILD === "1" || parseReleaseVersion(version).isBeta) return;
+  if (parseReleaseVersion(version).isBeta) return;
   resolveMacSigning({ version, env });
   run("/usr/bin/codesign", ["--verify", "--deep", "--strict", appPath]);
   const signature = run("/usr/bin/codesign", ["--display", "--verbose=4", appPath]);

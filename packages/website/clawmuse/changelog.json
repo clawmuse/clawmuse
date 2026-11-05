@@ -1,0 +1,252 @@
+{
+  "en": [
+    {
+      "version": "1.5.5",
+      "date": "2026-11-05",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Translate interactive questions, option descriptions and plan confirmations while preserving original submitted answers.",
+            "Keep Markdown structure, prioritize current questions and allow retry with the original text available.",
+            "Complete the plugin migration reference and Chinese release notes for the translation update.",
+            "Keep copy-button feedback from leaving a stuck hover highlight; include main-branch connection recovery updates."
+          ]
+        }
+      ],
+      "notes": [
+        "This iOS/TestFlight update requires the updated conversation-translation plugin on the connected host for interactive card translations."
+      ]
+    },
+    {
+      "version": "1.5.4",
+      "date": "2026-11-05",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Translate interactive question labels, options and plan confirmations while preserving original submitted answers.",
+            "Preserve Markdown structure and prioritize current questions. Failed translations keep the original text and support retry.",
+            "Verify translated question navigation, option links, text selection and answer retries in the browser regression suite."
+          ]
+        }
+      ],
+      "notes": [
+        "This iOS/TestFlight update requires the updated conversation-translation plugin on the connected host for interactive card translations."
+      ]
+    },
+    {
+      "version": "1.5.3",
+      "date": "2026-11-05",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Start packaged desktop daemons from a stable, private data directory so quota plugins load when the app inherits an inaccessible working directory. Keep the same behavior after daemon restarts.",
+            "Recover inaccessible Linux desktop launch directories while preserving Node CLI working directories.",
+            "Complete the Chinese documentation for interactive card translation."
+          ]
+        },
+        {
+          "title": "Improved",
+          "items": [
+            "Refine the website's page hierarchy, cards and footer, and place Simplified and Traditional Chinese directly below English in the language menu."
+          ]
+        }
+      ],
+      "notes": [
+        "Includes the interactive question and plan confirmation translations introduced in 1.5.2. Update both the client and the connected host to use them."
+      ]
+    },
+    {
+      "version": "1.5.2",
+      "date": "2026-11-05",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Translate interactive question labels, options and plan confirmations without changing submitted answers.",
+            "Preserve Markdown structure, prioritize current questions and isolate translations after model changes. Failed translations remain retryable with original text available."
+          ]
+        }
+      ],
+      "notes": [
+        "This iOS/TestFlight update requires the updated conversation-translation plugin on the connected host for interactive card translations. Other platform installers remain on their existing versions."
+      ]
+    },
+    {
+      "version": "1.5.1",
+      "date": "2026-11-04",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Automatically discover managed hosts signed in to the same account and authorize each client independently. Invitation connections remain available without signing in and require host confirmation.",
+            "Enable the optional Device Preview plugin to watch iOS simulators and Android emulators on the connected host. Android supports single-finger taps, swipes and navigation keys; iOS supports viewing and appearance changes.",
+            "Browse models by provider and quickly return to recently used models.",
+            "Use official account speech services and view the shared trial allowance without configuring a provider key.",
+            "Track task dependencies, user decisions and acceptance evidence in the unified task board."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Show approval progress, verification codes, and errors for anonymous invitation links, and continue pairing when a password is required.",
+            "Keep chat controls under the pointer when opening completed turns instead of scrolling away before the click completes.",
+            "Keep custom dictation independent of official account connectivity and synchronize published speech configuration options.",
+            "Suppress task-reading progress speech, stop repeated queries, and ignore late audio after voice playback fails. The voice assistant uses Chinese task status descriptions.",
+            "Resize the Settings sidebar and preserve its width; correct safe-area spacing, touch targets and host-label density.",
+            "Reduce composer button sizes while retaining their touch targets.",
+            "Show clearer desktop errors without internal invocation prefixes, preserve real paths and technical identifiers, and explain Linux update authorization failures and cancellations.",
+            "Conversation translation uses the host's configured providers, including Grok, without requiring a separate CLI installation."
+          ]
+        }
+      ],
+      "notes": [
+        "Voice fixes require the updated host; late-audio protection also requires the updated client. Official speech and unified tasks depend on the corresponding account services. Device Preview requires existing simulator tools and leaves simulators running when a preview stops.",
+        "Same-account authorization requires the updated Hub, host and client. Existing managed hosts must sign in again to bind their account authority."
+      ]
+    },
+    {
+      "version": "1.4.6",
+      "date": "2026-11-02",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Generate new workspace titles in the creating client's selected language, or its detected device language when following the system. Keep technical identifiers unchanged and preserve the chosen title across connected hosts.",
+            "Make the x64 installer the primary Windows download on the website."
+          ]
+        }
+      ],
+      "notes": [
+        "Workspace title language requires both the client and host to run 1.4.6 or later. Existing workspace titles are preserved."
+      ]
+    }
+  ],
+  "zh-CN": [
+    {
+      "version": "1.5.5",
+      "date": "2026-11-05",
+      "sections": [
+        {
+          "title": "修复",
+          "items": [
+            "翻译交互题目、选项说明和计划确认内容，同时保留原始答案提交值。",
+            "保留 Markdown 结构，优先翻译当前提问；失败时保留原文并支持重试。",
+            "补齐翻译更新的插件迁移参考文档和中文更新日志。",
+            "修复复制反馈结束后按钮高亮残留，并包含主分支的网络恢复与消息重发改进。"
+          ]
+        }
+      ],
+      "notes": [
+        "本次为 iOS/TestFlight 更新，交互卡片翻译还需要连接主机上的新版会话翻译插件。"
+      ]
+    },
+    {
+      "version": "1.5.4",
+      "date": "2026-11-05",
+      "sections": [
+        {
+          "title": "修复",
+          "items": [
+            "翻译交互题目的标签、问题、选项和计划确认内容，同时保留原始答案提交值。",
+            "保留 Markdown 结构并优先翻译当前提问；失败时保留原文并支持重试。",
+            "通过浏览器回归用例验证翻译后的题目导航、选项链接、文本选择和答案重试。"
+          ]
+        }
+      ],
+      "notes": [
+        "本次为 iOS/TestFlight 更新，交互卡片翻译还需要连接主机上的新版会话翻译插件。"
+      ]
+    },
+    {
+      "version": "1.5.3",
+      "date": "2026-11-05",
+      "sections": [
+        {
+          "title": "修复",
+          "items": [
+            "从稳定且私有的数据目录启动桌面 daemon，让应用继承不可访问的工作目录时仍能加载额度插件，重启 daemon 后保持相同行为。",
+            "恢复 Linux 桌面启动时不可访问的工作目录，同时保留 Node CLI 的工作目录。",
+            "补齐交互卡片翻译的中文文档。"
+          ]
+        },
+        {
+          "title": "改进",
+          "items": [
+            "优化官网页面层级、卡片和页脚，将简体中文和繁体中文紧接英语排列。"
+          ]
+        }
+      ],
+      "notes": [
+        "包含 1.5.2 引入的交互题目与计划确认翻译，需要同时更新客户端和连接的主机。"
+      ]
+    },
+    {
+      "version": "1.5.2",
+      "date": "2026-11-05",
+      "sections": [
+        {
+          "title": "修复",
+          "items": [
+            "翻译交互题目的标签、问题、选项和计划确认内容，同时保留原始答案提交值。",
+            "保留 Markdown 结构，优先翻译当前提问，并在更换模型后隔离旧译文；失败时保留原文并支持重试。"
+          ]
+        }
+      ],
+      "notes": [
+        "本次仅发布 iOS/TestFlight。交互卡片翻译还需要连接主机上的新版会话翻译插件，其他平台安装包保持原有版本。"
+      ]
+    },
+    {
+      "version": "1.5.1",
+      "date": "2026-11-04",
+      "sections": [
+        {
+          "title": "新增",
+          "items": [
+            "自动发现同账号的受管主机，并为各客户端独立授权；邀请连接无需登录，仍需主机确认。",
+            "启用可选的「设备预览」插件后，可观看所连接主机的 iOS 或 Android 模拟器。Android 支持单指点击、滑动和导航按键；iOS 支持观看和明暗模式切换。",
+            "模型按供应商分类，并可快速选择最近使用的模型。",
+            "使用官方账号语音服务并查看共享试用额度，无需自行填写供应商密钥。",
+            "在统一任务面板跟进依赖、待决定事项和验收证据。"
+          ]
+        },
+        {
+          "title": "修复",
+          "items": [
+            "匿名邀请链接显示等待主机批准、校验码和失败原因，需要密码时继续配对。",
+            "修复点击已完成任务摘要时聊天自动滚动导致命令无法展开的问题。",
+            "自定义听写不再依赖官方账号网络，并同步公开的语音配置选项。",
+            "拦截“正在读取”等任务查询过程播报，停止重复查询，并在语音失败后忽略迟到音频。语音助理使用中文描述任务状态。",
+            "设置侧栏支持拖动并保留宽度，修正安全区留白、触摸目标和主机标签文字密度。",
+            "缩小输入栏按钮，同时保留便于点击的触摸范围。",
+            "桌面错误提示去掉内部调用前缀，保留真实文件路径和技术标识，并明确说明 Linux 更新授权失败或取消的原因。",
+            "会话翻译使用主机已配置的模型供应商，包括 Grok，无需单独安装命令行工具。"
+          ]
+        }
+      ],
+      "notes": [
+        "语音修复需要更新主机；迟到音频保护也需要更新客户端。官方语音和统一任务依赖对应的账号服务。设备预览需要预先安装模拟器工具，停止预览后模拟器继续运行。",
+        "同账号自动授权需要更新 Hub、主机和客户端；已有受管主机需重新登录，以绑定账号授权。"
+      ]
+    },
+    {
+      "version": "1.4.6",
+      "date": "2026-11-02",
+      "sections": [
+        {
+          "title": "修复",
+          "items": [
+            "新建工作区标题使用创建它的客户端所选语言；选择跟随系统时，使用检测到的设备语言。技术标识符保留原样，标题在连接不同主机时保持一致。",
+            "官网 Windows 下载优先提供 x64 安装包。"
+          ]
+        }
+      ],
+      "notes": [
+        "工作区标题语言需要客户端和主机均为 1.4.6 或更新版本。已有工作区标题保持不变。"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+Includes the interactive question and plan confirmation translations introduced in 1.5.2. Update both the client and the connected host to use them.
+
+Fixed
+- Start packaged desktop daemons from a stable, private data directory so quota plugins load when the app inherits an inaccessible working directory. Keep the same behavior after daemon restarts.
+- Recover inaccessible Linux desktop launch directories while preserving Node CLI working directories.
+
+Full notes: https://paseo.sh/changelog

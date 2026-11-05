@@ -23,7 +23,7 @@ describe("goalRepoDisplayName", () => {
   it("drops the GitHub host and keeps other hosts", () => {
     expect(goalRepoDisplayName("remote:github.com/acme/app")).toBe("acme/app");
     expect(goalRepoDisplayName("remote:github.com/acme/app.git")).toBe("acme/app");
-    expect(goalRepoDisplayName("remote:cnb.cool/example/project")).toBe("cnb.cool/example/project");
+    expect(goalRepoDisplayName("remote:git.example.com/acme/app")).toBe("git.example.com/acme/app");
     expect(goalRepoDisplayName("remote:github.com/acme/mono#subdir:packages/app")).toBe(
       "acme/mono/packages/app",
     );

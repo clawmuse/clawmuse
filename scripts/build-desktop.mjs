@@ -23,7 +23,6 @@ export function runDesktopBuild(args = process.argv.slice(2), run = spawnSync) {
         PASEO_WEB_PLATFORM: "electron",
       },
       stdio: "inherit",
-      shell: process.platform === "win32",
       ...options,
     });
     if (result.error) throw result.error;

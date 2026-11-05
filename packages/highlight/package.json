@@ -1,7 +1,6 @@
 {
   "name": "@getpaseo/highlight",
   "version": "1.5.5",
-  "private": true,
   "files": [
     "dist",
     "!dist/**/*.map",
@@ -16,6 +15,9 @@
       "source": "./src/index.ts",
       "default": "./dist/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",

@@ -1,0 +1,213 @@
+{
+  "as_of_utc": "2026-10-29",
+  "status": "scenarios_only_not_actual_bills",
+  "exclusions": [
+    "model API usage",
+    "tax and FX",
+    "refunds and disputes",
+    "acquisition",
+    "development",
+    "app-store fees",
+    "unpriced provider storage/egress and capacity upgrades"
+  ],
+  "rates": {
+    "stripe_card_pct": 0.029,
+    "stripe_card_fixed_usd": 0.3,
+    "stripe_billing_pct": 0.007,
+    "e2b_vcpu_second_usd": 1.4e-5,
+    "e2b_gib_second_usd": 4.5e-6,
+    "e2b_pro_month_usd": 150,
+    "deepgram_multilingual_recorded_minute_usd": 0.0052,
+    "deepgram_multilingual_streaming_regular_minute_usd": 0.0092,
+    "digitalocean_2vcpu_4gib_month_usd": 24,
+    "digitalocean_weekly_backup_fraction": 0.2
+  },
+  "assumptions": {
+    "pro_shared_service_month_usd": 60,
+    "pro_variable_service_per_payer_usd": 0.4,
+    "support_hour_usd": 12,
+    "pro_support_minutes_normal": 5,
+    "pro_support_minutes_heavy": 15,
+    "asr_retry_allowance_multiplier": 1.25,
+    "voice_pack_other_variable_usd": 0.4,
+    "cloud_storage_month_usd": 0.5,
+    "cloud_control_month_usd": 0.6,
+    "cloud_support_month_usd": 1,
+    "cloud_dedicated_support_month_usd": 2
+  },
+  "pro": [
+    {
+      "payers": 20,
+      "support_minutes": 5,
+      "price_usd": 9.0,
+      "cost_usd": 5.024,
+      "contribution_usd": 3.976,
+      "contribution_pct": 44.18
+    },
+    {
+      "payers": 20,
+      "support_minutes": 15,
+      "price_usd": 9.0,
+      "cost_usd": 7.024,
+      "contribution_usd": 1.976,
+      "contribution_pct": 21.96
+    },
+    {
+      "payers": 20,
+      "support_minutes": 5,
+      "price_usd": 12.0,
+      "cost_usd": 5.132,
+      "contribution_usd": 6.868,
+      "contribution_pct": 57.23
+    },
+    {
+      "payers": 20,
+      "support_minutes": 15,
+      "price_usd": 12.0,
+      "cost_usd": 7.132,
+      "contribution_usd": 4.868,
+      "contribution_pct": 40.57
+    },
+    {
+      "payers": 100,
+      "support_minutes": 5,
+      "price_usd": 9.0,
+      "cost_usd": 2.624,
+      "contribution_usd": 6.376,
+      "contribution_pct": 70.84
+    },
+    {
+      "payers": 100,
+      "support_minutes": 15,
+      "price_usd": 9.0,
+      "cost_usd": 4.624,
+      "contribution_usd": 4.376,
+      "contribution_pct": 48.62
+    },
+    {
+      "payers": 100,
+      "support_minutes": 5,
+      "price_usd": 12.0,
+      "cost_usd": 2.732,
+      "contribution_usd": 9.268,
+      "contribution_pct": 77.23
+    },
+    {
+      "payers": 100,
+      "support_minutes": 15,
+      "price_usd": 12.0,
+      "cost_usd": 4.732,
+      "contribution_usd": 7.268,
+      "contribution_pct": 60.57
+    }
+  ],
+  "cloud_hour_usd": 0.1656,
+  "cloud_compute_hours_to_usd": {
+    "20": 3.312,
+    "50": 8.28,
+    "100": 16.56,
+    "720": 119.232
+  },
+  "cloud_15usd_20hours": [
+    {
+      "cloud_payers": 20,
+      "included_hours": 20,
+      "price_usd": 15.0,
+      "cost_usd": 13.752,
+      "contribution_usd": 1.248,
+      "contribution_pct": 8.32
+    },
+    {
+      "cloud_payers": 100,
+      "included_hours": 20,
+      "price_usd": 15.0,
+      "cost_usd": 7.752,
+      "contribution_usd": 7.248,
+      "contribution_pct": 48.32
+    }
+  ],
+  "dedicated_cloud": [
+    {
+      "price_usd": 39.0,
+      "cost_usd": 33.104,
+      "contribution_usd": 5.896,
+      "contribution_pct": 15.12
+    },
+    {
+      "price_usd": 49.0,
+      "cost_usd": 33.464,
+      "contribution_usd": 15.536,
+      "contribution_pct": 31.71
+    }
+  ],
+  "voice": [
+    {
+      "mode": "recorded",
+      "minutes": 30,
+      "asr_cost_with_retry_usd": 0.195
+    },
+    {
+      "mode": "recorded",
+      "minutes": 100,
+      "asr_cost_with_retry_usd": 0.65
+    },
+    {
+      "mode": "recorded",
+      "minutes": 200,
+      "asr_cost_with_retry_usd": 1.3
+    },
+    {
+      "mode": "recorded",
+      "minutes": 300,
+      "asr_cost_with_retry_usd": 1.95
+    },
+    {
+      "mode": "recorded",
+      "minutes": 1000,
+      "asr_cost_with_retry_usd": 6.5
+    },
+    {
+      "mode": "streaming_regular",
+      "minutes": 30,
+      "asr_cost_with_retry_usd": 0.345
+    },
+    {
+      "mode": "streaming_regular",
+      "minutes": 100,
+      "asr_cost_with_retry_usd": 1.15
+    },
+    {
+      "mode": "streaming_regular",
+      "minutes": 200,
+      "asr_cost_with_retry_usd": 2.3
+    },
+    {
+      "mode": "streaming_regular",
+      "minutes": 300,
+      "asr_cost_with_retry_usd": 3.45
+    },
+    {
+      "mode": "streaming_regular",
+      "minutes": 1000,
+      "asr_cost_with_retry_usd": 11.5
+    }
+  ],
+  "voice_5usd_200minutes": [
+    {
+      "mode": "recorded",
+      "minutes": 200,
+      "price_usd": 5.0,
+      "cost_usd": 2.145,
+      "contribution_usd": 2.855,
+      "contribution_pct": 57.1
+    },
+    {
+      "mode": "streaming_regular",
+      "minutes": 200,
+      "price_usd": 5.0,
+      "cost_usd": 3.145,
+      "contribution_usd": 1.855,
+      "contribution_pct": 37.1
+    }
+  ]
+}

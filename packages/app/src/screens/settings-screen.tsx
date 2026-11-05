@@ -267,7 +267,16 @@ const HOST_SECTION_ITEMS: HostSectionItem[] = [
   { id: "host", labelKey: "settings.hostSections.host", icon: Server },
   { id: "projects", labelKey: "settings.hostSections.projects", icon: FolderGit2 },
   { id: "connections", labelKey: "settings.hostSections.connections", icon: Network },
-  { id: "pair-device", labelKey: "openProject.tiles.pairDevice.title", icon: Smartphone },
+  // Pairing another device goes through the relay; the open-source build has no hosted relay.
+  ...(brand.relayEndpoints.length > 0
+    ? [
+        {
+          id: "pair-device",
+          labelKey: "openProject.tiles.pairDevice.title",
+          icon: Smartphone,
+        } as const,
+      ]
+    : []),
   { id: "agents", labelKey: "settings.hostSections.agents", icon: Bot },
   { id: "metadata", labelKey: "settings.hostSections.metadata", icon: Sparkles },
   { id: "voice", labelKey: "settings.hostSections.voice", icon: Mic },

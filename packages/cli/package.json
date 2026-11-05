@@ -1,7 +1,6 @@
 {
   "name": "@getpaseo/cli",
   "version": "1.5.5",
-  "private": true,
   "description": "ClawMuse CLI - control your AI coding agents from the command line",
   "bin": {
     "clawmuse": "bin/paseo",
@@ -14,6 +13,9 @@
     "!dist/**/*.map"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "tsc -p tsconfig.json --incremental false",

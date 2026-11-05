@@ -1,0 +1,6 @@
+This iOS/TestFlight update requires the updated conversation-translation plugin on the connected host for interactive card translations. Other platform installers remain on their existing versions.
+
+Fixed
+- Translate interactive question labels, options and plan confirmations without changing submitted answers.
+
+Full notes: https://paseo.sh/changelog

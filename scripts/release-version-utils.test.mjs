@@ -136,7 +136,7 @@ test("workspace version sync preserves the desktop distribution's own branding",
       }),
     );
     const desktopFile = path.join(root, "packages/desktop/package.json");
-    const repository = { type: "git", url: "https://github.com/clawmuse/clawmuse.git" };
+    const repository = { type: "git", url: "https://github.com/endvin/clawmuse.git" };
     writeFileSync(
       desktopFile,
       JSON.stringify({

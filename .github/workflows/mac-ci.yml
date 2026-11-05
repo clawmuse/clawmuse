@@ -1,0 +1,53 @@
+# macOS 上才能验证的测试，跑在自己的 Mac（自托管 runner，不计费）。
+# 2026-10-21 起 Linux/Windows 的门禁与构建都在 CNB（.cnb.yml），这里只保留原 ci.yml 里
+# server-tests-macos 那部分：文件监听依赖平台实现（FSEvents），Linux 上测不到。
+# 原 job 写的标签是 clawmuse-mac，而 runner 只有 clawmuse-ios 标签，所以过去一直排队到被取消。
+# 按 docs/release.md「推 main 不触发任何 GitHub workflow」，只在 PR、ci/mac-* 分支和手动时跑。
+name: macOS 测试（自托管 Mac）
+
+on:
+  push:
+    branches: ["ci/mac-*"]
+    paths:
+      - "packages/server/**"
+      - "packages/protocol/**"
+      - "package-lock.json"
+      - ".github/workflows/mac-ci.yml"
+  pull_request:
+    paths:
+      - "packages/server/**"
+      - "packages/protocol/**"
+      - "package-lock.json"
+      - ".github/workflows/mac-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-file-observation:
+    runs-on: [self-hosted, macOS, ARM64, clawmuse-ios]
+    if: ${{ github.event.repository.private }}
+    timeout-minutes: 40
+    env:
+      ONNXRUNTIME_NODE_INSTALL: skip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: 安装依赖
+        run: node scripts/npm-retry.mjs ci
+      - name: 构建 server 依赖
+        run: npm run build:server-deps
+      - name: 文件监听测试（macOS）
+        run: >-
+          npm run test:unit --workspace=@getpaseo/server --
+          src/server/file-observer
+          src/server/workspace-git-service.observation.test.ts
+          src/server/workspace-git-service.observation.integration.test.ts
+          --bail=1

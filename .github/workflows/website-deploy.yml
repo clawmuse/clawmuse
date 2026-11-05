@@ -1,0 +1,113 @@
+# Builds and publishes the clawmuse.com website image from the open-source
+# snapshot. The private dev repository pushes snapshots to the deploy/website
+# branch via scripts/deploy-website-oss.mjs; this workflow runs only in the
+# public repository (the job is skipped when the repository is private).
+#
+# The Dokploy API is on an internal network that GitHub-hosted runners cannot
+# reach, so deployment is pull-based: this workflow publishes the image and the
+# deploy host polls ghcr.io/clawmuse/website:latest for a new digest, then
+# repins the Dokploy compose.
+name: website-deploy
+
+on:
+  push:
+    branches: [deploy/website]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/clawmuse/website
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Resolve source revision
+        id: rev
+        run: |
+          set -eu
+          if [ -s deploy-source.txt ]; then
+            sha="$(cat deploy-source.txt | tr -d '[:space:]')"
+          else
+            sha="$GITHUB_SHA"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Source revision: $sha" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install dependencies
+        run: node scripts/npm-retry.mjs ci --no-audit --no-fund
+
+      - name: Protocol build
+        run: npm run build --workspace=@getpaseo/protocol
+
+      - name: Website quality
+        run: |
+          set -eu
+          npm run format:check:files -- packages/website/clawmuse packages/website/e2e/clawmuse-i18n.spec.ts
+          npm run lint -- packages/website/clawmuse packages/website/e2e/clawmuse-i18n.spec.ts
+          npm run typecheck --workspace=@getpaseo/website
+
+      - name: Static build
+        run: npm run build:clawmuse --workspace=@getpaseo/website
+
+      # dist/ is covered by the root .dockerignore; build in a narrow context.
+      - name: Build website image
+        run: |
+          set -euo pipefail
+          ctx="$(mktemp -d)"
+          mkdir -p "$ctx/packages/website/clawmuse/deploy" "$ctx/packages/website/dist"
+          cp packages/website/clawmuse/deploy/Dockerfile packages/website/clawmuse/deploy/nginx.conf \
+            "$ctx/packages/website/clawmuse/deploy/"
+          cp -R packages/website/dist/clawmuse "$ctx/packages/website/dist/"
+          printf '%s\n' "${{ steps.rev.outputs.sha }}" > "$ctx/packages/website/dist/clawmuse/version.txt"
+          docker build --label "org.opencontainers.image.revision=${{ steps.rev.outputs.sha }}" \
+            -f "$ctx/packages/website/clawmuse/deploy/Dockerfile" \
+            -t "$IMAGE:${{ steps.rev.outputs.sha }}" "$ctx"
+
+      - name: Container smoke
+        run: |
+          set -euo pipefail
+          c="clawmuse-website-smoke-$GITHUB_RUN_ID"
+          trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
+          docker run -d --name "$c" "$IMAGE:${{ steps.rev.outputs.sha }}" >/dev/null
+          docker exec "$c" nginx -t
+          for attempt in $(seq 1 15); do
+            if docker exec "$c" wget -q -O /dev/null http://127.0.0.1/healthz; then break; fi
+            if [ "$attempt" = 15 ]; then exit 1; fi
+            sleep 1
+          done
+          for path in / /zh/ /product/ /zh/product/ /plugins/ /zh/plugins/ /registry/index.json \
+            /learn/ /zh/learn/ /compare/cloud-ai-agents/ /zh/compare/claude-code-codex/ \
+            /sitemap.xml /feed.xml /zh/feed.xml /llms.txt; do
+            docker exec "$c" wget -q -O /dev/null "http://127.0.0.1$path"
+          done
+          docker exec "$c" wget -q -O - http://127.0.0.1/version.txt | \
+            grep -Fx "${{ steps.rev.outputs.sha }}"
+
+      - name: Push image to GHCR
+        id: push
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE:${{ steps.rev.outputs.sha }}" 2>&1 | tee push.log
+          docker tag "$IMAGE:${{ steps.rev.outputs.sha }}" "$IMAGE:latest"
+          docker push "$IMAGE:latest" | tee -a push.log
+          digest="$(grep -oE 'digest: sha256:[a-f0-9]{64}' push.log | head -1 | cut -d' ' -f2)"
+          test -n "$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Published \`$IMAGE@$digest\`" >> "$GITHUB_STEP_SUMMARY"

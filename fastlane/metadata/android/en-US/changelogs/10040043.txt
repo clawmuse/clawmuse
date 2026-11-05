@@ -1,0 +1,7 @@
+Automatic voice review and verified archive announcements require a host running 1.4.4 or later.
+
+Fixed
+- Prompt updated relay clients for the configured host password while preserving the older hello compatibility path.
+- Pace voice playback by actual device progress so long briefings keep playing without a playback timeout.
+
+Full notes: https://paseo.sh/changelog

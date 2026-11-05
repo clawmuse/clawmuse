@@ -1,0 +1,11 @@
+ClawMuse 1.0 brings the current desktop, mobile and web experience into one release line.
+
+Added
+- Add a ClawMuse color theme that stays selected after restarting the app.
+- Add optional conversation translation, with a provider and model selected by the user.
+- Add account deletion and privacy consent to the ClawMuse account flow.
+
+Improved
+- Complete Chinese descriptions for host settings, schedules, plugins and desktop updates.
+
+Full notes: https://paseo.sh/changelog
