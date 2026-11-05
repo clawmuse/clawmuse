@@ -1,14 +1,7 @@
 import { languages, locales, type Language } from "./i18n/locales";
 import { faqItems } from "./i18n/faq";
 import { useSiteTranslation, getTranslator } from "./i18n/i18n";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type MouseEvent,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
 import {
   ArrowRight,
   AudioLines,

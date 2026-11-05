@@ -1020,7 +1020,8 @@ for (const language of ["en", "zh-CN"] as const) {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.setViewportSize({ width, height: 900 });
       await page.goto(href("/", language));
-      if (await page.locator(".menu-toggle").isVisible()) await page.locator(".menu-toggle").click();
+      if (await page.locator(".menu-toggle").isVisible())
+        await page.locator(".menu-toggle").click();
       await page
         .getByRole("navigation")
         .getByRole("link", { name: language === "zh-CN" ? "官方插件" : "Plugins", exact: true })
