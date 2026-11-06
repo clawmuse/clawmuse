@@ -438,10 +438,13 @@ for (const layout of [
         expect(gap).toBeGreaterThanOrEqual(5);
         expect(gap).toBeLessThanOrEqual(7);
       } else {
-        expect(stripBounds.y).toBeGreaterThanOrEqual(inputBounds.y);
-        expect(stripBounds.y + stripBounds.height).toBeLessThanOrEqual(
-          inputBounds.y + inputBounds.height,
-        );
+        expect(stripBounds.y + stripBounds.height).toBeLessThanOrEqual(inputBounds.y);
+        const track = page.getByTestId("composer-track-bar");
+        await expect(track.getByTestId("agent-usage-strip")).toBeVisible();
+        const trackBounds = (await track.boundingBox())!;
+        const stripCenter = stripBounds.y + stripBounds.height / 2;
+        const trackCenter = trackBounds.y + trackBounds.height / 2;
+        expect(Math.abs(stripCenter - trackCenter)).toBeLessThanOrEqual(1);
       }
     };
     await expectVisibleWindows();

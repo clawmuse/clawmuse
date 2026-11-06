@@ -1,1 +1,1 @@
-/dev/shm/clawmuse-website-delivery-20261106/clawmuse-website-deploy-nL9uc2/export/packages/server/CLAUDE.md
+/dev/shm/clawmuse-website-delivery-20261106/clawmuse-website-deploy-vzXJ5l/export/packages/server/CLAUDE.md

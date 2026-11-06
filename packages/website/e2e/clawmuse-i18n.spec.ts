@@ -4,11 +4,13 @@ import { test } from "./fixtures";
 import { readFileSync } from "node:fs";
 import appLabels from "../clawmuse/demo-app-labels.json" with { type: "json" };
 import {
+  appUrl,
   descriptionFor,
   href,
   pageLanguages,
   routeInfo,
   routes,
+  sourceUrl,
   titleFor,
 } from "../clawmuse/content";
 import {
@@ -27,6 +29,11 @@ for (const language of languages) {
     const t = getTranslator(language);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(href("/download", language));
+    const webCard = page.locator(".download-card").filter({
+      has: page.getByRole("heading", { name: t("webWorkspace.downloadTitle"), exact: true }),
+    });
+    await expect(webCard.getByRole("link")).toHaveAttribute("href", appUrl);
+    await expect(webCard).toContainText(t("webWorkspace.downloadBody"));
     const link = page.getByRole("link", { name: t("downloads.downloadOnAppStore") });
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute("href", "https://apps.apple.com/app/clawmuse/id6810076165");
@@ -37,6 +44,24 @@ for (const language of languages) {
     );
     await link.click();
     await expect(page).toHaveURL("https://apps.apple.com/app/clawmuse/id6810076165");
+  });
+
+  test(`${language} Web workspace is localized on home and product pages`, async ({ page }) => {
+    const t = getTranslator(language);
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const route of ["/", "/product"] as const) {
+      await page.goto(href(route, language));
+      const section = page.locator(".web-workspace-section");
+      await expect(section.getByRole("heading")).toHaveText(t("webWorkspace.title"));
+      await expect(section.getByRole("link", { name: t("webWorkspace.cta") })).toHaveAttribute(
+        "href",
+        appUrl,
+      );
+      await expect(section).toContainText(t("webWorkspace.body"));
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    }
   });
 }
 
@@ -128,7 +153,10 @@ for (const language of ["en", "zh-CN"] as const) {
       await page.goto(href("/", language));
       await expect(page.locator("h1")).toHaveText(t("footer.giveInspirationTheAbilityToAct"));
       await expect(page.locator(".hero-badge")).toHaveText(t("home.yourPersonalAiWorkspaceInBeta"));
-      await expect(page.locator(".hero-footnote")).toHaveText(t("plans.promise"));
+      await expect(page.locator(".hero-footnote")).toContainText(t("plans.promise"));
+      await expect(
+        page.locator(".hero-footnote").getByRole("link", { name: "GitHub" }),
+      ).toHaveAttribute("href", sourceUrl);
       await page.screenshot({ path: testInfo.outputPath("personal-home.png") });
       await page
         .locator(".footer-group")
@@ -1018,6 +1046,7 @@ for (const language of ["en", "zh-CN"] as const) {
       const copy = pluginsCopy(language);
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
+      await page.emulateMedia({ reducedMotion: "reduce" });
       await page.setViewportSize({ width, height: 900 });
       await page.goto(href("/", language));
       if (await page.locator(".menu-toggle").isVisible())

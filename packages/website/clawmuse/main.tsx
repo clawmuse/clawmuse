@@ -8,8 +8,8 @@ import "./editorial.css";
 import "./home.css";
 import "./brand-plans.css";
 import "./agents.css";
-import "./refinement.css";
 import "./plugins.css";
+import "./refinement.css";
 
 const route = routeInfo(window.location.pathname);
 document.title = `${route.found ? titleFor(route.page, route.language) : "404"} — ClawMuse`;

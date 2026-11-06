@@ -510,5 +510,21 @@
   "policy.contactTitle": "お問い合わせ先",
   "policy.contactBody": "ClawMuse Studio は、ClawMuse の開発・運営ブランドです。個人データまたは本ポリシーに関するお問い合わせは、hello@clawmuse.com にご連絡ください。本ポリシーは、ClawMuse アプリ、ウェブサイト、および公式のアカウント、リレー、Status、Goals の各サービスを対象とします。独立して運営されるホストや第三者のプロバイダーには、それぞれのポリシーが適用されます。",
   "plans.promise": "オープンソース · Apache-2.0",
-  "downloads.githubBackup": "GitHub から予備ダウンロード"
+  "downloads.githubBackup": "GitHub から予備ダウンロード",
+  "webWorkspace.eyebrow": "WEB ワークスペース",
+  "webWorkspace.title": "ブラウザーを開いて、作業を続ける。",
+  "webWorkspace.body": "パソコンや Linux ホストがオンラインなら、ブラウザーで ClawMuse を使い、タスクの送信、進捗の確認、ファイル変更のレビューができます。",
+  "webWorkspace.cta": "Web ワークスペースを開く",
+  "webWorkspace.workspaceGroup": "ワークスペース",
+  "webWorkspace.sessionsGroup": "セッション",
+  "webWorkspace.session1": "サイトの変更をレビュー",
+  "webWorkspace.session2": "新しいページのテストを追加",
+  "webWorkspace.prompt": "サイトの変更を確認し、更新したファイルを表示して。",
+  "webWorkspace.reply": "ページを更新しました。以下でファイルの変更を確認できます。",
+  "webWorkspace.placeholder": "タスクを入力、または音声を開始…",
+  "webWorkspace.point1": "app.clawmuse.com を開いてログイン。この端末にクライアントをインストールする必要はありません。",
+  "webWorkspace.point2": "ワークスペースのリンクからプロジェクトと会話に戻れます。",
+  "webWorkspace.point3": "ブラウザーで Agent のタスク管理、ファイル変更のレビュー、ターミナル操作ができます。",
+  "webWorkspace.downloadTitle": "Web 版",
+  "webWorkspace.downloadBody": "ブラウザーでログインし、オンラインのホストとワークスペースに接続できます。"
 }

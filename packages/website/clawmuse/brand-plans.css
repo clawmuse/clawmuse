@@ -94,6 +94,7 @@
 }
 .support-report .button {
   margin-top: 24px;
+  margin-inline-end: 12px;
 }
 @media (max-width: 900px) {
   .personal-plans {

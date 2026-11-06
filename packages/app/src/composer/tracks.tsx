@@ -16,6 +16,7 @@ import { StatusRing } from "@/components/status-ring";
 import { STATUS_RING_HALO_INSET } from "@/components/status-ring/geometry";
 import { COMPACT_ACTION_BUTTON_SIZE } from "@/components/ui/control-geometry";
 import { isWeb } from "@/constants/platform";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { getStatusDotColor } from "@/utils/status-dot-color";
 import { STATUS_INDICATOR_FILLED_DOT_SIZE } from "@/utils/status-indicator-geometry";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
@@ -40,13 +41,15 @@ export function ComposerTrackBar({
   children: ReactNode;
   inline?: boolean;
 }): ReactElement {
+  const isCompact = useIsCompactFormFactor();
   if (inline) {
     return (
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.inlineBar}
-        contentContainerStyle={styles.inlineTrack}
+        contentContainerStyle={[styles.inlineTrack, !isCompact && styles.wideInlineTrack]}
+        testID="composer-track-bar"
       >
         {children}
       </ScrollView>
@@ -54,7 +57,7 @@ export function ComposerTrackBar({
   }
   return (
     <View style={styles.bar} pointerEvents="box-none">
-      <View style={styles.track} pointerEvents="box-none">
+      <View style={styles.track} pointerEvents="box-none" testID="composer-track-bar">
         {children}
       </View>
     </View>
@@ -388,6 +391,9 @@ const styles = StyleSheet.create((theme) => {
       minHeight: COMPACT_ACTION_BUTTON_SIZE,
       alignItems: "center",
       gap: theme.spacing[1],
+    },
+    wideInlineTrack: {
+      flexGrow: 1,
     },
     bar: {
       position: "absolute",

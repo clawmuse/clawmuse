@@ -6,6 +6,10 @@ import {
   ArrowRight,
   AudioLines,
   Activity,
+  Check,
+  FileCode2,
+  Globe,
+  LockKeyhole,
   Target,
   ArrowUpRight,
   Command,
@@ -18,6 +22,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
+import { ClaudeIcon, CodexIcon } from "./demo-provider-icon";
 import { AppMark, Mark, Wordmark } from "./mark";
 import { ProductDemo } from "./product-demo";
 import { AgentShowcase } from "./agents";
@@ -354,6 +359,7 @@ function Home({ language }: Localized) {
           </div>
         </div>
       )}
+      <WebWorkspaceSection language={language} />
       <section className="trust-band">
         <div className="container trust-grid">
           <div>
@@ -403,6 +409,139 @@ function Home({ language }: Localized) {
     </div>
   );
 }
+function webWorkspaceCopy(language: Language) {
+  const t = getTranslator(language);
+  return {
+    eyebrow: t("webWorkspace.eyebrow"),
+    title: t("webWorkspace.title"),
+    body: t("webWorkspace.body"),
+    cta: t("webWorkspace.cta"),
+    workspaceGroup: t("webWorkspace.workspaceGroup"),
+    sessionsGroup: t("webWorkspace.sessionsGroup"),
+    session1: t("webWorkspace.session1"),
+    session2: t("webWorkspace.session2"),
+    prompt: t("webWorkspace.prompt"),
+    reply: t("webWorkspace.reply"),
+    placeholder: t("webWorkspace.placeholder"),
+    points: [t("webWorkspace.point1"), t("webWorkspace.point2"), t("webWorkspace.point3")],
+  };
+}
+
+export function WebWorkspaceSection({ language }: Localized) {
+  const copy = webWorkspaceCopy(language);
+  return (
+    <section className="section container web-workspace-section">
+      <div className="web-workspace-card">
+        <div className="web-workspace-copy">
+          <Globe className="web-workspace-watermark" size={180} aria-hidden="true" />
+          <span className="eyebrow">{copy.eyebrow}</span>
+          <h2>{copy.title}</h2>
+          <p>{copy.body}</p>
+          <ul>
+            {copy.points.map((point) => (
+              <li key={point}>
+                <Check size={15} aria-hidden="true" />
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="hero-actions">
+            <a className="button primary" href={appUrl}>
+              {copy.cta}
+              <ArrowUpRight size={16} />
+            </a>
+          </div>
+        </div>
+        <WebBrowserPreview language={language} />
+      </div>
+    </section>
+  );
+}
+
+function WebBrowserPreview({ language }: Localized) {
+  const copy = webWorkspaceCopy(language);
+  return (
+    <figure className="web-browser-preview" dir="ltr">
+      <figcaption className="web-browser-bar">
+        <span className="plugin-window-dots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+        <div className="web-browser-url">
+          <LockKeyhole size={12} aria-hidden="true" />
+          <code>app.clawmuse.com</code>
+        </div>
+        <span className="web-browser-status">
+          <i className="live-dot" />
+          {getTranslator(language)("docs.connected")}
+        </span>
+      </figcaption>
+      <div className="web-browser-body">
+        <WebBrowserSidebar copy={copy} />
+        <WebBrowserMain copy={copy} />
+      </div>
+    </figure>
+  );
+}
+
+function WebBrowserSidebar({ copy }: { copy: ReturnType<typeof webWorkspaceCopy> }) {
+  return (
+    <aside className="web-browser-sidebar">
+      <div className="web-host-pill">
+        <span className="live-dot" />
+        <div>
+          <strong>MacBook Pro</strong>
+        </div>
+      </div>
+      <div className="web-workspace-group">
+        <span className="web-group-label">{copy.workspaceGroup}</span>
+        <div className="web-workspace-item is-active">
+          <FolderGit2 size={13} />
+          <span>clawmuse</span>
+        </div>
+      </div>
+      <div className="web-workspace-group">
+        <span className="web-group-label">{copy.sessionsGroup}</span>
+        <div className="web-session-item is-active">
+          <ClaudeIcon size={12} />
+          <span>{copy.session1}</span>
+        </div>
+        <div className="web-session-item">
+          <CodexIcon size={12} />
+          <span>{copy.session2}</span>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function WebBrowserMain({ copy }: { copy: ReturnType<typeof webWorkspaceCopy> }) {
+  return (
+    <div className="web-browser-main">
+      <div className="web-main-head">
+        <strong>{copy.session1}</strong>
+        <span>Claude Code · Sonnet 4.6</span>
+      </div>
+      <div className="web-main-chat">
+        <div className="app-user-bubble is-compact">{copy.prompt}</div>
+        <div className="web-assistant-card">
+          <p>{copy.reply}</p>
+          <div className="app-file-pill">
+            <FileCode2 size={13} />
+            <code>src/workspace/router.ts</code>
+            <b>+32 −6</b>
+          </div>
+        </div>
+      </div>
+      <div className="web-main-composer">
+        <span>{copy.placeholder}</span>
+        <span className="web-composer-meta">5h 68% · Sonnet 4.6</span>
+      </div>
+    </div>
+  );
+}
+
 export function FeatureGrid({ language }: Localized) {
   const { t } = useSiteTranslation(language);
   const features = [
@@ -522,12 +661,6 @@ function Footer({ language }: Localized) {
           </a>
           <a className="footer-account" href={release.ios.url}>
             App Store <ArrowUpRight size={13} />
-          </a>
-          <a className="footer-account" href={accountUrl}>
-            {t("header.manageAccount")} <ArrowUpRight size={13} />
-          </a>
-          <a className="footer-account" href={sourceUrl}>
-            {t("footer.sourceCode")} <ArrowUpRight size={13} />
           </a>
         </div>
         {groups.map((group) => (

@@ -510,5 +510,21 @@
   "policy.contactTitle": "Con quién contactar",
   "policy.contactBody": "ClawMuse Studio es la marca de desarrollo y operación de ClawMuse. Para preguntas sobre tus datos personales o esta política, contacta con hello@clawmuse.com. Esta política cubre la aplicación, el sitio web y los servicios oficiales de cuentas, retransmisión, Status y Goals de ClawMuse; los equipos gestionados de forma independiente y los proveedores externos tienen sus propias políticas.",
   "plans.promise": "Código abierto · Apache-2.0",
-  "downloads.githubBackup": "Descarga alternativa en GitHub"
+  "downloads.githubBackup": "Descarga alternativa en GitHub",
+  "webWorkspace.eyebrow": "ESPACIO WEB",
+  "webWorkspace.title": "Abre el navegador. Continúa tu trabajo.",
+  "webWorkspace.body": "Usa ClawMuse en la web mientras tu ordenador o servidor Linux esté conectado. Envía tareas, sigue su progreso y revisa cambios desde el navegador.",
+  "webWorkspace.cta": "Abrir espacio Web",
+  "webWorkspace.workspaceGroup": "Espacio de trabajo",
+  "webWorkspace.sessionsGroup": "Conversaciones",
+  "webWorkspace.session1": "Revisar los cambios del sitio",
+  "webWorkspace.session2": "Añadir pruebas para la nueva página",
+  "webWorkspace.prompt": "Revisa los cambios del sitio y muestra los archivos actualizados.",
+  "webWorkspace.reply": "La página está actualizada. Puedes revisar los cambios a continuación.",
+  "webWorkspace.placeholder": "Envía una tarea o inicia la voz…",
+  "webWorkspace.point1": "Inicia sesión en app.clawmuse.com sin instalar un cliente en este dispositivo.",
+  "webWorkspace.point2": "Vuelve a tu proyecto y tus conversaciones desde el enlace del espacio de trabajo.",
+  "webWorkspace.point3": "Gestiona tareas de agentes, revisa archivos y usa el terminal en el navegador.",
+  "webWorkspace.downloadTitle": "Web",
+  "webWorkspace.downloadBody": "Abre el navegador e inicia sesión para conectar con tus equipos y espacios de trabajo en línea."
 }

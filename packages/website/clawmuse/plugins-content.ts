@@ -127,7 +127,7 @@ const zh: PluginsCopy = {
         "在工作区右侧查看 iOS 与 Android 模拟器，发送单指和双指手势。画面与操作通过已连接主机的插件通道传递。",
       benefits: [
         "支持独立安装和固定版本更新，无需重新发版或重新安装 ClawMuse。",
-        "省流、均衡、清晰三档画质；支持的设备按键按平台显示。",
+        "支持 Android 与 iOS 模拟器切换，按平台提供返回、Home、最近任务、旋转与深浅色按键。",
         "一次只允许一个面板占用设备，停止预览保留模拟器运行。",
       ],
       requirement:
@@ -168,7 +168,11 @@ const zh: PluginsCopy = {
       tagline: "继续之前，心里有数。",
       description:
         "在会话输入区查看当前账号的额度、重置时间和本次任务费用，安排接下来的工作时，少一次切到其他页面查找。",
-      benefits: [],
+      benefits: [
+        "在会话输入框下方直接显示 5 小时、7 天等窗口剩余百分比与重置倒计时。",
+        "实时展示当前会话的累计任务费用或 Token 用量，紧贴输入区。",
+        "按当前使用的 Claude Code、Codex 等服务自动匹配对应账号额度。",
+      ],
       requirement:
         "可展示的项目取决于当前 AI 服务和账号提供的数据。不同服务的额度统计方式不同；没有数据时不会显示虚构的余额或费用。",
       enabledByDefault: true,
@@ -304,7 +308,11 @@ const en: PluginsCopy = {
       tagline: "Know where you stand before you continue.",
       description:
         "See your current account’s allowance, reset time and task cost near the conversation input, so you can plan the next task without switching pages.",
-      benefits: [],
+      benefits: [
+        "Shows 5-hour and 7-day window percentages and reset countdowns right below the composer.",
+        "Displays live task cost or cumulative token usage for the active conversation.",
+        "Automatically matches the quota windows of your active Claude Code or Codex account.",
+      ],
       requirement:
         "Available fields depend on your AI service and account. Services measure allowance differently. Missing data is never replaced with an invented balance or cost.",
       enabledByDefault: true,

@@ -67,7 +67,7 @@ function ActiveAgentUsageStrip({
         contentContainerStyle={SCROLL_CONTENT_STYLE}
         testID="agent-usage-strip-scroll"
       >
-        <View style={styles.rows}>
+        <View style={[styles.rows, inline && styles.inlineRows]}>
           {accounts.map((account) => (
             <Fragment key={account.key}>
               {account.sourceLabel ? (
@@ -113,6 +113,13 @@ const styles = StyleSheet.create((theme) => ({
     width: "100%",
   },
   scroll: { flexGrow: 0, width: "100%" },
+  inlineContainer: {
+    flex: 1,
+    width: "auto",
+  },
+  inlineRows: {
+    justifyContent: "flex-start",
+  },
   rows: {
     flexGrow: 1,
     flexDirection: "row",
@@ -120,12 +127,6 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
     columnGap: theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
-  },
-  // Take the width left by the controls without making their labels shrink.
-  inlineContainer: {
-    flexBasis: 0,
-    flexGrow: 100,
-    flexShrink: 1,
   },
   muted: {
     textAlign: "center",

@@ -510,5 +510,21 @@
   "policy.contactTitle": "문의처",
   "policy.contactBody": "ClawMuse Studio는 ClawMuse의 개발 및 운영 브랜드입니다. 개인정보 또는 이 정책에 관한 질문은 hello@clawmuse.com으로 문의하세요. 이 정책은 ClawMuse 앱, 웹사이트 및 공식 계정, 릴레이, Status, Goals 서비스에 적용됩니다. 독립적으로 운영되는 호스트와 타사 제공업체에는 각각의 정책이 적용됩니다.",
   "plans.promise": "오픈 소스 · Apache-2.0",
-  "downloads.githubBackup": "GitHub 예비 다운로드"
+  "downloads.githubBackup": "GitHub 예비 다운로드",
+  "webWorkspace.eyebrow": "WEB 작업 공간",
+  "webWorkspace.title": "브라우저를 열고 작업을 이어가세요.",
+  "webWorkspace.body": "컴퓨터나 Linux 호스트가 온라인이면 브라우저에서 ClawMuse로 작업을 보내고 진행 상황과 파일 변경을 확인할 수 있습니다.",
+  "webWorkspace.cta": "Web 작업 공간 열기",
+  "webWorkspace.workspaceGroup": "작업 공간",
+  "webWorkspace.sessionsGroup": "세션",
+  "webWorkspace.session1": "웹사이트 변경 검토",
+  "webWorkspace.session2": "새 페이지 테스트 추가",
+  "webWorkspace.prompt": "웹사이트 변경을 확인하고 수정한 파일을 보여 줘.",
+  "webWorkspace.reply": "페이지를 업데이트했습니다. 아래에서 파일 변경을 검토할 수 있습니다.",
+  "webWorkspace.placeholder": "작업을 입력하거나 음성을 시작하세요…",
+  "webWorkspace.point1": "이 기기에 클라이언트를 설치하지 않고 app.clawmuse.com에서 로그인하세요.",
+  "webWorkspace.point2": "작업 공간 링크로 프로젝트와 대화에 돌아갈 수 있습니다.",
+  "webWorkspace.point3": "브라우저에서 Agent 작업을 관리하고 파일 변경을 검토하며 터미널을 사용하세요.",
+  "webWorkspace.downloadTitle": "Web 버전",
+  "webWorkspace.downloadBody": "브라우저에서 로그인해 온라인 호스트와 작업 공간에 연결하세요."
 }

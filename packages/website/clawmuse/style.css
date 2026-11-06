@@ -877,7 +877,11 @@ p {
 .installer-list {
   display: grid;
   gap: 12px;
-  margin-block: 24px;
+  margin: 24px 0 0;
+  width: 100%;
+}
+.download-card > .button {
+  margin-top: 24px;
 }
 .arm-download {
   position: relative;
@@ -1735,6 +1739,13 @@ p {
 }
 .policy-body p {
   font-size: 16px;
+}
+.policy-body > p {
+  margin-top: 16px;
+}
+.policy-body > .text-link {
+  display: inline-flex;
+  margin-top: 12px;
 }
 .not-found {
   padding-block: 120px;

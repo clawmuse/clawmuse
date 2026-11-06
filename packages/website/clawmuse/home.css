@@ -17,17 +17,22 @@
   text-underline-offset: 3px;
 }
 
+.footer-brand .wordmark {
+  display: flex;
+  width: fit-content;
+  margin-bottom: 18px;
+}
+
 .footer-account {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 14px;
   color: var(--accent);
-  margin-bottom: 20px;
+  margin-inline-end: 20px;
+  margin-bottom: 10px;
 }
-.footer-account + .footer-account {
-  margin-left: 20px;
-}
+
 .hero-footnote a {
   display: inline-flex;
   align-items: center;

@@ -510,5 +510,21 @@
   "policy.contactTitle": "Qui contacter",
   "policy.contactBody": "ClawMuse Studio est la marque de développement et d’exploitation de ClawMuse. Pour toute question concernant vos données personnelles ou cette politique, contactez hello@clawmuse.com. Cette politique couvre l’application, le site web et les services officiels de comptes, de relais, Status et Goals de ClawMuse ; les hôtes exploités indépendamment et les fournisseurs tiers ont leurs propres politiques.",
   "plans.promise": "Open source · Apache-2.0",
-  "downloads.githubBackup": "Téléchargement de secours sur GitHub"
+  "downloads.githubBackup": "Téléchargement de secours sur GitHub",
+  "webWorkspace.eyebrow": "ESPACE WEB",
+  "webWorkspace.title": "Ouvrez votre navigateur. Reprenez votre travail.",
+  "webWorkspace.body": "Utilisez ClawMuse sur le web lorsque votre ordinateur ou hôte Linux est en ligne. Envoyez des tâches, suivez leur progression et examinez les modifications depuis le navigateur.",
+  "webWorkspace.cta": "Ouvrir l’espace Web",
+  "webWorkspace.workspaceGroup": "Espace de travail",
+  "webWorkspace.sessionsGroup": "Conversations",
+  "webWorkspace.session1": "Examiner les modifications du site",
+  "webWorkspace.session2": "Ajouter des tests pour la nouvelle page",
+  "webWorkspace.prompt": "Vérifie les modifications du site et montre les fichiers mis à jour.",
+  "webWorkspace.reply": "La page est à jour. Vous pouvez examiner les modifications ci-dessous.",
+  "webWorkspace.placeholder": "Envoyer une tâche ou démarrer la voix…",
+  "webWorkspace.point1": "Connectez-vous sur app.clawmuse.com sans installer de client sur cet appareil.",
+  "webWorkspace.point2": "Retrouvez votre projet et vos conversations via le lien de l’espace de travail.",
+  "webWorkspace.point3": "Gérez les tâches des agents, examinez les fichiers et utilisez le terminal dans le navigateur.",
+  "webWorkspace.downloadTitle": "Web",
+  "webWorkspace.downloadBody": "Connectez-vous dans votre navigateur pour accéder à vos hôtes et espaces de travail en ligne."
 }

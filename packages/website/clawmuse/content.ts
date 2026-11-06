@@ -96,7 +96,7 @@ export function titleFor(page: Page, language: Language) {
 }
 const descriptions = {
   en: {
-    "/": "ClawMuse brings Claude Code, Codex and other AI tools to your computer, phone and tablet. Use real-time voice to give tasks, hear progress and continue work.",
+    "/": "ClawMuse brings Claude Code, Codex and other AI tools to your computer, phone, tablet and the web — manage and use your workspace online right in the browser. Use real-time voice to give tasks, hear progress and continue work.",
     "/product":
       "Choose the AI tool that fits each task. Use Claude Code, Codex and more in ClawMuse to give instructions, review changes and follow up across devices. Try the browser demo.",
     "/download":
@@ -125,7 +125,7 @@ const descriptions = {
       "Understand how to disconnect ClawMuse devices, stop tasks and handle account and data removal requests. Local files and external provider data have separate controls.",
   },
   "zh-CN": {
-    "/": "ClawMuse，自由选择 AI Agent 的工作台。聚合 Claude Code、Codex 等工具，电脑、手机、平板均可使用。实时语音交办任务，听取进度汇报，继续推进工作。",
+    "/": "ClawMuse，自由选择 AI Agent 的工作台。聚合 Claude Code、Codex 等工具，电脑、手机、平板与 Web 网页均可使用，打开浏览器即可在线管理和使用。实时语音交办任务，听取进度汇报，继续推进工作。",
     "/product":
       "按任务选择 Claude Code、Codex 等 AI 工具，在 ClawMuse 中派发任务、查看文件改动，跨设备跟进成果。打开网页演示，体验工作台。",
     "/download": "下载适用于 Windows、macOS、Linux、Android 和 iOS 的 ClawMuse，连接电脑与手机。",

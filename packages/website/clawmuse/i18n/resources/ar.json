@@ -510,5 +510,21 @@
   "policy.contactTitle": "جهة الاتصال",
   "policy.contactBody": "ClawMuse Studio هي العلامة التجارية لتطوير ClawMuse وتشغيله. للاستفسار عن بياناتك الشخصية أو هذه السياسة، تواصل مع hello@clawmuse.com. تشمل هذه السياسة تطبيق ClawMuse وموقعه الإلكتروني وخدمات الحساب والمُرحّل وStatus وGoals الرسمية؛ أما الأجهزة المضيفة المستقلة ومزودو الخدمات الخارجيون فلهم سياساتهم الخاصة.",
   "plans.promise": "مفتوح المصدر · Apache-2.0",
-  "downloads.githubBackup": "تنزيل احتياطي من GitHub"
+  "downloads.githubBackup": "تنزيل احتياطي من GitHub",
+  "webWorkspace.eyebrow": "مساحة العمل عبر الويب",
+  "webWorkspace.title": "افتح المتصفح وتابع عملك.",
+  "webWorkspace.body": "استخدم ClawMuse عبر الويب ما دام حاسوبك أو مضيف Linux متصلاً. أرسل المهام وتابع التقدم وراجع تغييرات الملفات من المتصفح.",
+  "webWorkspace.cta": "افتح مساحة الويب",
+  "webWorkspace.workspaceGroup": "مساحة العمل",
+  "webWorkspace.sessionsGroup": "المحادثات",
+  "webWorkspace.session1": "مراجعة تغييرات الموقع",
+  "webWorkspace.session2": "إضافة اختبارات للصفحة الجديدة",
+  "webWorkspace.prompt": "راجع تغييرات الموقع واعرض الملفات المحدّثة.",
+  "webWorkspace.reply": "تم تحديث الصفحة. يمكنك مراجعة تغييرات الملفات أدناه.",
+  "webWorkspace.placeholder": "أرسل مهمة أو ابدأ بالصوت…",
+  "webWorkspace.point1": "سجّل الدخول إلى app.clawmuse.com دون تثبيت تطبيق على هذا الجهاز.",
+  "webWorkspace.point2": "عُد إلى مشروعك ومحادثاتك عبر رابط مساحة العمل.",
+  "webWorkspace.point3": "أدر مهام الوكلاء وراجع الملفات واستخدم الطرفية في المتصفح.",
+  "webWorkspace.downloadTitle": "نسخة الويب",
+  "webWorkspace.downloadBody": "افتح المتصفح وسجّل الدخول للاتصال بالمضيفين ومساحات العمل المتصلة."
 }

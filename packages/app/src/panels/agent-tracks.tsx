@@ -13,6 +13,7 @@ import { usePaneContext } from "@/panels/pane-context";
 import { useSettings } from "@/hooks/use-settings";
 import { PluginComposerPills } from "@/plugins";
 import { useSessionStore } from "@/stores/session-store";
+import { AgentUsageStrip } from "@/usage/agent-usage-strip";
 import {
   type ArchiveFinishedStatus,
   useArchiveSubagent,
@@ -45,6 +46,7 @@ export const AgentTracks = memo(function AgentTracks({
   archiveFinishedStatus,
   onArchiveFinished,
   hasPluginComposerPills,
+  showUsageStrip,
   inline = false,
 }: {
   serverId: string;
@@ -56,11 +58,15 @@ export const AgentTracks = memo(function AgentTracks({
   archiveFinishedStatus: ArchiveFinishedStatus;
   onArchiveFinished: () => void;
   hasPluginComposerPills: boolean;
+  showUsageStrip: boolean;
   inline?: boolean;
 }): ReactElement | null {
   const { tabId } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const hasTokenSpeed = useHasAgentTokenSpeed(serverId, agentId);
+  const totalCostUsd = useSessionStore(
+    (state) => state.sessions[serverId]?.agents.get(agentId)?.lastUsage?.totalCostUsd ?? null,
+  );
   const isCompact = useIsCompactFormFactor();
   const openInSidePane = useSettings((settings) => settings.openInSidePane);
   const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
@@ -128,6 +134,7 @@ export const AgentTracks = memo(function AgentTracks({
       tasks,
       archiveFinishedStatus,
       hasPluginComposerPills,
+      hasUsageStrip: showUsageStrip,
     })
   ) {
     return null;
@@ -160,6 +167,9 @@ export const AgentTracks = memo(function AgentTracks({
         onPress={handleOpenChanges}
       />
       <AgentTokenSpeedIndicator serverId={serverId} agentId={agentId} />
+      {showUsageStrip ? (
+        <AgentUsageStrip serverId={serverId} agentId={agentId} totalCostUsd={totalCostUsd} inline />
+      ) : null}
     </ComposerTrackBar>
   );
 });
@@ -170,18 +180,21 @@ export function hasAgentTracks({
   tasks,
   archiveFinishedStatus,
   hasPluginComposerPills = false,
+  hasUsageStrip = false,
 }: {
   parentAgentId: string | null;
   subagentRows: readonly SubagentRow[];
   tasks: readonly TodoEntry[] | undefined;
   archiveFinishedStatus: ArchiveFinishedStatus;
   hasPluginComposerPills?: boolean;
+  hasUsageStrip?: boolean;
 }): boolean {
   return (
     parentAgentId !== null ||
     subagentRows.length > 0 ||
     Boolean(tasks?.length) ||
     archiveFinishedStatus.kind !== "idle" ||
-    hasPluginComposerPills
+    hasPluginComposerPills ||
+    hasUsageStrip
   );
 }

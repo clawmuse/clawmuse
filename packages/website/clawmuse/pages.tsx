@@ -18,6 +18,7 @@ import {
   CircleHelp,
   Download,
   Fingerprint,
+  Globe,
   Laptop,
   Monitor,
   ShieldCheck,
@@ -29,7 +30,7 @@ import { EditorialArticle, Learn, Blog, OwnershipSection } from "./editorial";
 import { isArticlePage } from "./editorial-content";
 import changelog from "./changelog.json";
 
-import { contactEmail, href, sourceUrl, type Page } from "./content";
+import { appUrl, contactEmail, href, sourceUrl, type Page } from "./content";
 import {
   CodeBlock,
   FAQ,
@@ -40,7 +41,7 @@ import {
   useScrollSpy,
   type Localized,
 } from "./ui";
-import { ConnectionDiagram, EndCTA, FeatureGrid } from "./site";
+import { ConnectionDiagram, EndCTA, FeatureGrid, WebWorkspaceSection } from "./site";
 
 type Props = Localized & { page: Page };
 export function InnerPage({ page, language }: Props) {
@@ -101,6 +102,7 @@ function Product({ language }: Localized) {
         />
         <FeatureGrid language={language} />
       </section>
+      <WebWorkspaceSection language={language} />
       <OwnershipSection language={language} />
       <EndCTA language={language} />
     </>
@@ -179,6 +181,7 @@ function Downloads({ language }: Localized) {
             <ArrowUpRight size={17} />
           </a>
         </article>
+        <WebDownloadCard language={language} />
       </section>
       <section className="container download-footer">
         <PageLink page="/docs" language={language}>
@@ -194,6 +197,23 @@ function Downloads({ language }: Localized) {
         </a>
       </section>
     </>
+  );
+}
+
+function WebDownloadCard({ language }: Localized) {
+  const { t } = useSiteTranslation(language);
+  return (
+    <article className="download-card">
+      <div className="download-card-head">
+        <Globe size={32} />
+      </div>
+      <h2>{t("webWorkspace.downloadTitle")}</h2>
+      <p>{t("webWorkspace.downloadBody")}</p>
+      <a className="button primary" href={appUrl}>
+        {t("header.openWorkspace")}
+        <ArrowUpRight size={17} />
+      </a>
+    </article>
   );
 }
 
