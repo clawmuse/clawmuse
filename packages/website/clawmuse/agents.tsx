@@ -30,7 +30,7 @@ function AgentCard({
           <AgentIcon slug={agent.slug} />
           <Heading>{agent.name}</Heading>
         </div>
-        <p>{agent.description}</p>
+        <p>{agent.intro}</p>
         <div className="agent-card-footer">
           <span className="agent-category">{copy.categories[agent.category]}</span>
           <ArrowRight size={16} aria-hidden="true" />
@@ -140,14 +140,14 @@ export function AgentDetail({ page, language }: Localized & { page: AgentPage })
   const copy = agentsCopy[language === "zh-CN" ? "zh-CN" : "en"];
   const agent = agentFor(page, language);
   const sections = [
+    ["about", copy.aboutTitle(agent.name)],
+    ["install", copy.installTitle(agent.name)],
+    ["connect", copy.connectTitle],
     ["use-cases", copy.useCasesTitle],
-    ["prerequisites", copy.prerequisitesTitle],
-    ["setup", copy.setupTitle],
-    ["limitations", copy.limitationsTitle],
     ["questions", copy.faqTitle],
   ] as const;
   const sectionIds = useMemo(
-    () => ["use-cases", "prerequisites", "setup", "limitations", "questions"] as const,
+    () => ["about", "install", "connect", "use-cases", "questions"] as const,
     [],
   );
   const activeSectionId = useScrollSpy(sectionIds);
@@ -191,42 +191,39 @@ export function AgentDetail({ page, language }: Localized & { page: AgentPage })
           </nav>
         </aside>
         <div className="agent-detail-prose">
-          <section className="agent-detail-section" id="use-cases">
-            <h2>{copy.useCasesTitle}</h2>
-            <ul>
-              {agent.useCases.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
+          <section className="agent-detail-section" id="about">
+            <h2>{copy.aboutTitle(agent.name)}</h2>
+            <p>{agent.about}</p>
           </section>
-          <section className="agent-detail-section" id="prerequisites">
-            <h2>{copy.prerequisitesTitle}</h2>
-            <ul>
-              {agent.prerequisites.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
+          <section className="agent-detail-section" id="install">
+            <h2>{copy.installTitle(agent.name)}</h2>
+            {agent.install.map(({ label, code }) => (
+              <CodeBlock key={label} code={code} caption={label} language={language} />
+            ))}
+            <p>{agent.setup}</p>
+            {agent.signInCommand && (
+              <CodeBlock
+                code={agent.signInCommand}
+                caption={copy.signInLabel}
+                language={language}
+              />
+            )}
             <a className="agent-source-link" href={agent.officialUrl}>
-              {copy.officialLink}
+              {copy.officialLink(agent.name)}
               <ArrowUpRight size={15} aria-hidden="true" />
             </a>
           </section>
-          <section className="agent-detail-section" id="setup">
-            <h2>{copy.setupTitle}</h2>
+          <section className="agent-detail-section" id="connect">
+            <h2>{copy.connectTitle}</h2>
             <ol>
-              {agent.setup.map((item) => (
+              {agent.connect.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ol>
-            <CodeBlock code={agent.command} caption={copy.commandTitle} language={language} />
           </section>
-          <section className="agent-detail-section" id="limitations">
-            <h2>{copy.limitationsTitle}</h2>
-            <p>{agent.note}</p>
-            <a className="agent-source-link" href={href("/security", language)}>
-              {language === "zh-CN" ? "连接与数据边界" : "Connections and data boundaries"}
-              <ArrowRight size={15} aria-hidden="true" />
-            </a>
+          <section className="agent-detail-section" id="use-cases">
+            <h2>{copy.useCasesTitle}</h2>
+            <p>{agent.useCase}</p>
           </section>
           <section className="agent-detail-section" id="questions">
             <h2>{copy.faqTitle}</h2>

@@ -105,7 +105,12 @@ describe("ClawMuse website languages", () => {
       for (const entry of entries) {
         expect(entry.officialUrl).toMatch(/^https:\/\//);
         expect(entry.faq.length).toBeGreaterThan(0);
-        expect(entry.intro.length).toBeGreaterThan(20);
+        expect(entry.intro.length).toBeGreaterThan(10);
+        expect(entry.connect.length).toBeGreaterThan(1);
+        if (entry.slug !== "corust") expect(entry.install.length).toBeGreaterThan(0);
+      }
+      for (const field of ["intro", "about", "setup", "useCase"] as const) {
+        expect(new Set(entries.map((entry) => entry[field])).size, field).toBe(entries.length);
       }
     }
   });

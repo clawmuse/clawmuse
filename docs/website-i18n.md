@@ -12,6 +12,8 @@ Follow the [ClawMuse brand wording](../branding/README.md#name) when editing mar
 
 Agent landing pages live under `/agents/<slug>`. Verify their support claims against the protocol Provider manifest, bundled plugin registrations and the app's ACP catalog before editing `agents-content.ts`. A catalog entry requires installation and configuration; it is not a claim that the Agent is enabled by default or shares every tool capability. Keep vendor marks tied to their Agent identity and preserve explicit exceptions such as cloud execution and permission limitations.
 
+Each Agent page is a search landing page, so write its intro, description, setup and use case for that Agent alone; do not share boilerplate between pages. `agents-install.ts` holds the vendor's own install and sign-in commands. Copy them from the vendor docs linked by `officialUrl`, and never write one from memory or show ClawMuse launch configuration as an install step.
+
 ## URLs own the language
 
 - English pages keep their unprefixed paths. Every other language lives under its tag: `/docs/cli` and `/zh-CN/docs/cli` are the same page. `/en/...` is not a page.

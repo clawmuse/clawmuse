@@ -3,479 +3,514 @@ import type { AgentSlug, AgentTranslation } from "./agents-content";
 export const englishAgentCopy = {
   "claude-code": {
     intro:
-      "Bring Anthropic’s Claude Code into the same personal workspace you reach from your phone.",
+      "Anthropic’s coding agent. It reads code, edits files and runs commands in your terminal.",
+    about:
+      "Claude Code is Anthropic’s command-line coding tool. It understands a whole project, edits files, runs tests and commits, connects to outside tools through MCP, and keeps project conventions in CLAUDE.md. It handles anything from reading unfamiliar code to building a full feature.",
+    setup:
+      "Run claude once and sign in with your Claude account in the browser, or use an Anthropic Console account.",
     useCase:
-      "Ask Claude to explain an unfamiliar project, prepare a change plan, then inspect its edits in the workspace.",
-    prerequisite:
-      "Install Claude Code and complete its own authentication on the host. Select a mode that matches the task.",
-    question: "Can I review before allowing edits?",
+      "Remember a bug on the way home? Ask Claude from your phone to find the cause, fix it and run the tests. The change is waiting in your project when you get back.",
+    question: "Is Claude Code in ClawMuse the same as in my terminal?",
     answer:
-      "Choose Claude’s plan or approval-oriented mode for the task. Provider permissions still govern tools; switching devices does not change them.",
+      "Yes. ClawMuse runs the claude command installed on your computer, with your own account and usage. ClawMuse does not provide a model allowance.",
   },
   codex: {
-    intro:
-      "Use OpenAI’s Codex with your project files and follow its work across your own devices.",
+    intro: "OpenAI’s open-source coding agent. Sign in with ChatGPT or an API key.",
+    about:
+      "Codex CLI is OpenAI’s open-source coding agent, running on your own computer. It reads projects, edits code and runs commands. Sign in with your ChatGPT account or use an API key.",
+    setup: "Run codex and sign in with your ChatGPT account or an API key.",
     useCase:
-      "Give Codex a bounded implementation task, inspect the diff and ask it to report the checks it actually ran.",
-    prerequisite:
-      "Install and authenticate Codex on the execution host. Check the selected model and permission mode before starting.",
+      "Give Codex a clear, small task such as adding a set of tests. Check what it changed and which checks it ran from your phone, then keep going.",
     question: "Is Codex model usage included in ClawMuse?",
     answer:
-      "No. Codex authentication and model access come from your OpenAI account or configured credentials; ClawMuse access does not provide a model allowance.",
+      "No. Usage comes from your own OpenAI account or API key. ClawMuse does not provide a model allowance.",
   },
   copilot: {
-    intro: "Connect GitHub Copilot’s CLI to ClawMuse through its built-in ACP integration.",
+    intro: "GitHub’s terminal agent, connected to your repos, issues and pull requests.",
+    about:
+      "GitHub Copilot CLI brings Copilot’s coding agent to the terminal. It is connected to GitHub, so it can work with repositories, issues and pull requests directly. You need an active Copilot subscription.",
+    setup: "Run copilot. If you are not signed in, enter /login and follow the steps.",
     useCase:
-      "Continue a repository task from your phone while Copilot uses the environment already prepared on your host.",
-    prerequisite:
-      "Install the Copilot CLI and sign in with an account entitled to use it. The CLI must be visible to the daemon.",
+      "A new issue comes in while you are out. Have Copilot start on it in the repo on your computer, then review the change later.",
     question: "Does this connect to the Copilot editor extension?",
     answer:
-      "This integration launches the Copilot CLI over ACP. An editor extension alone is not the executable ClawMuse needs.",
+      "No. ClawMuse launches the Copilot CLI, so the editor extension alone is not enough. Install the CLI with the commands above.",
   },
   opencode: {
-    intro: "Keep OpenCode’s provider choice while using ClawMuse to direct work across devices.",
+    intro: "An open-source terminal coding agent that works with the model provider you pick.",
+    about:
+      "OpenCode is an open-source terminal coding agent that isn’t tied to one model vendor. It connects to many providers as well as local models, which makes it a common pick if you want to choose your own model.",
+    setup: "Run opencode, enter /connect, then choose a provider and add your account or API key.",
     useCase:
-      "Compare a plan with an implementation in a project whose OpenCode model configuration you already maintain.",
-    prerequisite:
-      "Install OpenCode and configure a working model provider on the host. Available models come from that setup.",
-    question: "Does ClawMuse replace OpenCode’s model configuration?",
+      "Use a cheaper model for cleanup today and a stronger one for a refactor tomorrow, picked from your phone.",
+    question: "OpenCode 1 or 2?",
     answer:
-      "No. OpenCode owns its provider credentials and model configuration. Select the models the connected host actually exposes.",
+      "Both use the opencode command and can’t be installed side by side. The commands above are for OpenCode 1, from the official docs. For version 2, see OpenCode’s V2 docs. OpenCode manages model settings either way.",
   },
   pi: {
-    intro:
-      "Reach Pi’s terminal agent from a personal workspace without moving your project to another machine.",
+    intro: "A lightweight terminal coding agent you shape with extensions and skills.",
+    about:
+      "Pi is a small terminal coding agent. The core stays minimal, and you build on it with extensions, skills and prompt templates. It supports many model providers through API keys or OAuth, and /model switches models mid-session.",
+    setup: "Run pi and sign in to a model provider with an API key or OAuth.",
     useCase:
-      "Use a small Pi task to inspect files or draft a change, then continue the conversation on another device.",
-    prerequisite:
-      "Install Pi and configure its model credentials on the host. ClawMuse uses Pi’s RPC integration.",
-    question: "Can Pi use my existing host setup?",
+      "Have Pi check files or draft a change at your desk, then continue the same conversation on your phone.",
+    question: "Can Pi use my existing computer setup?",
     answer:
-      "The agent runs with the configured host executable and environment. Check model access and project permissions with a small task first.",
+      "Yes. Pi runs on your computer with its commands and configuration. Try a small task first to check model access and project permissions.",
   },
   omp: {
-    intro:
-      "OMP (Oh My Pi) has a dedicated integration for people who already use this Pi-derived agent.",
+    intro: "A batteries-included terminal agent built on Pi.",
+    about:
+      "OMP (Oh My Pi) is a terminal coding agent built on Pi, with more included out of the box. You can sign in with model subscriptions you already have. Worth a look if you like Pi but want less setup.",
+    setup: "Run omp and enter /login to choose a model provider.",
+    connectNote:
+      "OMP is off by default. Set agents.providers.omp.enabled to true in the host configuration to make it appear.",
     useCase:
-      "Keep an OMP-based project workflow and inspect its task output through ClawMuse’s files and conversation views.",
-    prerequisite:
-      "Install and authenticate OMP, then explicitly enable the omp provider in the host configuration; it is disabled by default.",
-    question: "Why is OMP missing from my provider list?",
+      "Keep the OMP workflow you know, and follow results through ClawMuse’s file and conversation views on your phone.",
+    question: "Why is OMP missing from the provider list?",
     answer:
-      "OMP is deliberately disabled by default. Set agents.providers.omp.enabled to true and ensure its executable and model configuration work on that host.",
+      "OMP is off by default. Set agents.providers.omp.enabled to true and make sure omp runs on that computer.",
   },
   antigravity: {
-    intro: "Use the installed Antigravity agy CLI through a provider plugin bundled with ClawMuse.",
+    intro: "The command-line version of Google Antigravity. The command is agy.",
+    about:
+      "Antigravity CLI is the command-line tool for Google Antigravity, Google’s agent development platform. The command is agy. ClawMuse ships with its plugin, so it works once the CLI is installed.",
+    setup: "Run agy and sign in with your Google account.",
+    connectNote:
+      "This integration only has full access mode, so tools run without stopping to ask. Start with a small task.",
     useCase:
-      "Follow an agy task remotely when you are comfortable granting that task full tool access.",
-    prerequisite:
-      "Install agy and sign in on the host. This integration only offers full access and does not pause for tool approval.",
-    question: "Which permission and history limits matter?",
+      "Hand a task to agy, leave your desk, and follow progress on your phone. Add instructions whenever you like.",
+    question: "What are the permission and history limits?",
     answer:
-      "The integration starts agy with permission prompts skipped. After a daemon restart, the agent can remember its conversation but does not replay the transcript into ClawMuse. Built-in ClawMuse MCP tools are unavailable.",
+      "ClawMuse starts agy with permission prompts skipped. The agent keeps conversation state after a background service restart, but history isn’t replayed into ClawMuse. ClawMuse’s built-in MCP tools aren’t available.",
   },
   "muse-code": {
-    intro:
-      "Meta’s Muse Code connects through the bundled provider plugin and its Muse Session Protocol.",
+    intro: "Meta’s coding agent, powered by the Muse models.",
+    about:
+      "Muse Code is Meta’s coding agent, built on Meta’s Muse models. ClawMuse ships with its plugin and connects through the Muse Session Protocol. You need version 1.3.0 or later.",
+    setup: "Run muse login, or set META_API_KEY.",
+    connectNote:
+      "The integration turns the sandbox off and trusts the workspace by default. Turn the sandbox on in the provider options if you need it.",
     useCase:
-      "Use your Muse models to make a project change, with the conversation and results reachable from your phone.",
-    prerequisite:
-      "Install Muse Code 1.3.0 or newer and use muse login or configure META_API_KEY. Review the provider’s sandbox settings.",
-    question: "Are Muse’s sandbox and approvals the same setting?",
+      "Use Muse models to change a project, and check the conversation and edits from your phone.",
+    question: "Are Muse’s sandbox and approval mode the same setting?",
     answer:
-      "No. The integration defaults to sandbox disabled and workspace trusted; approval mode is separate. Configure provider options when you need a sandbox. Built-in ClawMuse MCP tools have an upstream compatibility limitation.",
+      "No, they are separate. The sandbox is off by default and set in the provider options. ClawMuse’s built-in MCP tools currently have an upstream compatibility limit.",
   },
   cursor: {
-    intro: "Connect Cursor’s CLI through ACP while keeping the desktop editor a separate choice.",
+    intro: "Cursor’s command-line agent. No editor window needed.",
+    about:
+      "Cursor CLI brings Cursor’s agent to the terminal, so it can change code without the editor open. The installed command is agent, and the older cursor-agent command still works.",
+    setup: "Run agent login and sign in to Cursor in the browser.",
     useCase:
-      "Continue a Cursor repository task from a phone, then inspect the changes at your computer.",
-    prerequisite:
-      "Install and authenticate cursor-agent on the host. Use a current CLI that exposes model discovery through ACP.",
-    question: "Is installing the Cursor editor enough?",
+      "Got halfway through something in Cursor? Have the agent finish the rest from your phone on the way home.",
+    question: "Is the Cursor editor enough?",
     answer:
-      "ClawMuse launches cursor-agent acp. Confirm that command works in the daemon environment; the editor installation alone is not the connection.",
+      "No. ClawMuse launches cursor-agent acp, so install the CLI separately with the commands above.",
   },
   gemini: {
-    intro: "Bring Google’s Gemini CLI into a workspace you can revisit from another device.",
+    intro: "Google’s open-source terminal agent. Sign in with a Google account.",
+    about:
+      "Gemini CLI is Google’s open-source terminal agent, bringing Gemini models to the command line. It reads and writes files, runs commands, supports MCP and can look things up with Google Search.",
+    setup: "Run gemini and sign in with your Google account, or set an API key.",
     useCase:
-      "Ask Gemini to explain project structure and prepare a small patch using the tools installed on your host.",
-    prerequisite:
-      "Add Gemini CLI from the host catalog and complete its own sign-in or credential setup. The catalog launch uses npx.",
-    question: "Does a Google login on my phone authorize the host?",
+      "Ask Gemini to explain a project’s structure, then prepare a small patch and review it on your phone.",
+    question: "Does signing in to Google on my phone authorize Gemini CLI on my computer?",
     answer:
-      "No. Gemini CLI must be authorized in the host environment that runs it. Phone access to ClawMuse does not transfer provider credentials.",
+      "No. Gemini CLI signs in on the computer that runs it. Signing in to ClawMuse on your phone doesn’t pass that along.",
   },
   hermes: {
-    intro: "Use Nous Research’s Hermes through its ACP entry point.",
+    intro: "Nous Research’s agent, with long-term memory and skills it builds up over time.",
+    about:
+      "Hermes is an agent from Nous Research that remembers past work and turns it into reusable skills. Choose models from Nous Portal, OpenRouter, OpenAI or your own endpoint.",
+    setup:
+      "ClawMuse connects over ACP, so also run the ACP command above after installing. Then run hermes setup.",
     useCase:
-      "Give Hermes a project question that benefits from its configured tools, then review the answer in the same personal workspace.",
-    prerequisite:
-      "Install Hermes, configure its model and tools, and confirm hermes acp is available on the host.",
+      "Give Hermes project questions that need its tools and memory, and read the answers on your phone.",
     question: "Does ClawMuse configure Hermes memory and tools?",
     answer:
-      "Hermes owns those settings. Prepare and inspect them using its documentation before delegating work from ClawMuse.",
+      "No. Hermes manages those. Set them up from its docs before sending tasks from ClawMuse.",
   },
   "qwen-code": {
-    intro: "Add Alibaba’s Qwen Code using the host’s ACP catalog.",
-    useCase:
-      "Use Qwen Code on a repository with an existing model configuration and carry the conversation between devices.",
-    prerequisite:
-      "The catalog uses the Qwen Code npm package with ACP and experimental skills enabled. Configure supported model credentials first.",
-    question: "Are all Qwen skills guaranteed to work here?",
+    intro: "The open-source terminal agent from Alibaba’s Qwen team.",
+    about:
+      "Qwen Code is an open-source terminal coding agent from the Qwen team, tuned for Qwen models. You can install it with a script, npm or Homebrew.",
+    setup: "Run qwen and enter /auth to set up your account or API key.",
+    useCase: "Use Qwen Code in a repo with models already set up, then continue on another device.",
+    question: "Are all Qwen skills guaranteed to work?",
     answer:
-      "The catalog enables the upstream experimental skills flag. Available skills and behavior still depend on the installed Qwen Code version and project configuration.",
+      "No. ClawMuse turns on the upstream experimental skills flag, but what works depends on your Qwen Code version and project setup.",
   },
   kimi: {
-    intro: "Connect Moonshot AI’s Kimi Code CLI to your personal ClawMuse workspace.",
+    intro: "Kimi Code CLI, the terminal coding agent from Moonshot AI.",
+    about:
+      "Kimi Code CLI is Moonshot AI’s terminal coding agent, using Kimi models. Sign in with a Kimi Code account or a Moonshot AI Open Platform API key.",
+    setup: "Run kimi, enter /login, and choose Kimi Code OAuth or a Moonshot API key.",
     useCase:
-      "Review a Kimi-generated implementation plan and follow the resulting file changes away from your desk.",
-    prerequisite:
-      "Install and authorize Kimi Code on the host, then add the catalog entry that launches kimi acp.",
+      "Have Kimi draft a plan, then follow the file changes from your phone after you leave your desk.",
     question: "Where does Kimi’s model list come from?",
     answer:
-      "The integration asks the configured Kimi CLI. Account access and installed version determine what the host can offer.",
+      "ClawMuse asks the Kimi CLI on your computer. Your account and installed version decide which models appear.",
   },
   amp: {
-    intro: "Reach Amp through the catalog’s community ACP adapter.",
+    intro: "A multi-model coding agent that can keep working on cloud machines.",
+    about:
+      "Amp is a multi-model coding agent that picks models by task and can run work on cloud machines called orbs. ClawMuse connects through amp-acp, a community-maintained adapter.",
+    setup:
+      "Besides Amp itself, install the amp-acp adapter with the ACP command above. Then run amp login.",
     useCase:
-      "Continue an existing Amp coding workflow in ClawMuse after verifying the adapter against a small repository task.",
-    prerequisite:
-      "Install Amp and the amp-acp adapter, and complete Amp’s required authentication. Follow the adapter’s setup source below.",
-    question: "Is amp-acp the same as a built-in Amp integration?",
+      "Check the adapter with a small task, then move your existing Amp workflow into ClawMuse.",
+    question: "Is amp-acp an official Amp integration?",
     answer:
-      "No. This catalog entry launches a separate ACP adapter. Its compatibility and supported behavior depend on that adapter and the installed Amp version.",
+      "No. It is a separate community adapter, and compatibility depends on the adapter and your Amp version.",
   },
   auggie: {
-    intro: "Use Augment Code’s Auggie CLI with the repository context it can access on your host.",
-    useCase:
-      "Ask Auggie to trace a change across related project files before you approve an implementation.",
-    prerequisite:
-      "Add Auggie from the catalog, ensure Node.js and npx are available, and finish Augment authentication.",
-    question: "Will the catalog update Auggie automatically?",
+    intro: "Augment Code’s command-line agent, good at large codebases.",
+    about:
+      "Auggie is Augment Code’s command-line agent. Its strength is the Context Engine, which finds the code a change really touches in a big project. It needs Node.js 20 or later.",
+    setup: "Run auggie login and sign in to Augment in the browser.",
+    useCase: "Before any edits, ask Auggie which files a change touches, then let it start.",
+    question: "Does Auggie update itself?",
     answer:
-      "The catalog pins a package version and disables the CLI’s automatic updater. Review catalog or provider updates when you need a newer version.",
+      "The ClawMuse catalog pins a version and turns CLI auto-update off. Check the catalog when you want a newer one.",
   },
   cline: {
-    intro: "Connect the Cline CLI through ACP for tasks involving project files and host tools.",
-    useCase:
-      "Give Cline a small file-editing task, then inspect the changes and commands it reports.",
-    prerequisite:
-      "Use the CLI catalog entry and configure the model provider Cline will use. Its editor extension is a separate installation.",
-    question: "Does the browser tool always work from ClawMuse?",
+    intro: "The command-line version of Cline, the open-source coding agent.",
+    about:
+      "Cline is an open-source coding agent that began as an editor extension and now has a CLI too. Use Cline’s own service or connect your own model account.",
+    setup: "Run cline auth and choose a provider and model.",
+    useCase: "Give Cline a small file change, then check the edits and commands from your phone.",
+    question: "Do browser tools always work from ClawMuse?",
     answer:
-      "Browser actions depend on the CLI’s tools and host setup. Verify a small task first; a catalog entry does not supply a browser environment.",
+      "Not always. It depends on the CLI and your computer’s setup. Adding the catalog entry doesn’t provide a browser environment.",
   },
   codebuddy: {
-    intro: "Use Tencent Cloud’s Codebuddy Code through its CLI ACP mode.",
+    intro: "Tencent’s AI coding assistant, in your terminal.",
+    about:
+      "CodeBuddy Code is the command-line version of Tencent’s AI coding assistant. It understands your project and edits code from the terminal. The command is codebuddy, or cbc for short.",
+    setup: "Run codebuddy and sign in.",
     useCase:
-      "Bring a project already prepared for Codebuddy into a conversation you can follow from your phone.",
-    prerequisite:
-      "Install codebuddy manually and complete its account or API credential setup before adding the catalog entry.",
-    question: "Does adding the catalog entry install Codebuddy?",
+      "Bring a project you already run with CodeBuddy into ClawMuse and continue from your phone.",
+    question: "Does adding the catalog entry install CodeBuddy?",
     answer:
-      "This entry launches the existing codebuddy --acp command. Install the CLI and make it available to the daemon first.",
+      "No. The entry calls the existing codebuddy --acp command, so install the CLI with the command above first.",
   },
   codewhale: {
-    intro: "CodeWhale is a terminal coding agent oriented toward DeepSeek and other open models.",
+    intro: "An open-source terminal coding agent for hosted or local models.",
+    about:
+      "CodeWhale is an open-source terminal coding agent that reads projects, edits files and runs tests. Connect a hosted service such as DeepSeek or a local model, or use a ChatGPT plan.",
+    setup:
+      "Set up the model you want. The command below connects DeepSeek. To use a ChatGPT plan, run codewhale auth chatgpt.",
     useCase:
-      "Use a configured CodeWhale model to inspect or change a project, then review the output across devices.",
-    prerequisite:
-      "Install CodeWhale, configure its chosen model service, and expose codewhale serve --acp to the host.",
-    question: "Does CodeWhale mean my model runs locally?",
+      "Run everyday changes on DeepSeek, check results on your phone, and switch models when needed.",
+    question: "Does using CodeWhale mean the model runs locally?",
     answer:
-      "No. The model may be local or remote depending on your CodeWhale configuration. Check where prompts and files are sent.",
+      "No. That depends on your setup. With a hosted model, prompts and file contents go to that provider.",
   },
   "cortex-code": {
-    intro: "Connect Snowflake’s Cortex Code CLI through its ACP server mode.",
+    intro: "Snowflake’s AI coding agent, aware of your data and permissions.",
+    about:
+      "Cortex Code is Snowflake’s command-line agent for Snowflake work such as SQL, data pipelines and data apps. It works with your Snowflake account and role permissions.",
+    setup:
+      "Run cortex for the first time and follow the setup wizard to connect your Snowflake account.",
     useCase:
-      "Work on a Snowflake-related project while keeping your account access and local files under review.",
-    prerequisite:
-      "Install the Cortex CLI and configure the Snowflake identity and resources the task needs.",
-    question: "Does ClawMuse grant access to Snowflake data?",
+      "Ask it to check some SQL or change a pipeline from your phone. Confirm which role it uses first.",
+    question: "Does ClawMuse grant Snowflake data access?",
     answer:
-      "No. Cortex uses your configured Snowflake access. Verify roles and data scope before asking it to inspect or change anything.",
+      "No. Cortex uses the Snowflake permissions you configured. Check the role and data scope before reads or writes.",
   },
   corust: {
-    intro: "Corust Agent offers a Rust-oriented partner through its ACP executable.",
+    intro: "A coding agent built for Rust projects.",
+    about:
+      "Corust Agent comes from Corust.ai and focuses on Rust projects. It ships as prebuilt releases for macOS, Linux and Windows.",
+    setup:
+      "There is no install script. Download the archive for your system from the releases page below, put corust-agent-acp on your PATH, and configure model access.",
     useCase:
-      "Ask for an explanation of a Rust module or a focused change, then run the project’s own checks.",
-    prerequisite:
-      "Install the Corust ACP release and configure its model access. Prepare the Rust toolchain if the task needs compilation.",
-    question: "Will ClawMuse install my Rust toolchain?",
+      "Ask it to explain a Rust module or make a local change, then run the project’s own checks.",
+    question: "Does ClawMuse install the Rust toolchain?",
     answer:
-      "No. The agent uses the host environment. Install the project’s required compiler and dependencies before asking it to build or test.",
+      "No. The agent uses your computer’s environment. Install Rust and project dependencies before building or testing.",
   },
   crow: {
-    intro: "crow-cli provides a minimal ACP-native agent for a focused host workflow.",
-    useCase:
-      "Start with a single file explanation or a tightly scoped patch to check the agent’s working loop.",
-    prerequisite:
-      "Install crow-cli and configure its model credentials before enabling the catalog command.",
-    question: "What features should I expect from crow-cli?",
+    intro: "A lean ACP-native coding agent with built-in web search.",
+    about:
+      "crow-cli is a stateful ACP-native coding agent with web_search and web_fetch built in, plus a public skill catalog. Its docs put it plainly: it has the same access you do, so run it only if you trust it. The installer also adds the Crow ADE client.",
+    setup: "After installing, set up your model credentials.",
+    useCase: "Start with a single-file explanation or a small patch to see how it works.",
+    question: "What features does crow-cli offer?",
     answer:
-      "The installed agent reports its ACP capabilities. Verify the modes and tools available on your host instead of assuming features from another provider.",
+      "Whatever it reports over ACP. Check the modes and tools shown for your computer rather than assuming they match other agents.",
   },
   deepagents: {
-    intro: "Use a LangChain-powered DeepAgents setup through the catalog’s ACP package.",
-    useCase:
-      "Try a task that combines project reading and a draft, using the tools configured for your DeepAgents environment.",
-    prerequisite:
-      "The catalog starts deepagents-acp with npx. Prepare its model credentials and any tools the task needs.",
-    question: "Does installing this give me every LangChain integration?",
+    intro: "LangChain’s Deep Agents, used over ACP.",
+    about:
+      "Deep Agents is LangChain’s agent framework, and deepagents-acp wraps it as an ACP server. It uses Anthropic models by default, so it needs ANTHROPIC_API_KEY. There’s nothing to install separately because npx fetches it.",
+    setup:
+      "Try the command above first, then set ANTHROPIC_API_KEY before connecting it to ClawMuse.",
+    useCase: "Use Deep Agents to read a project and organize notes and drafts.",
+    question: "Does this include every LangChain integration?",
     answer:
-      "No. The ACP package and your host configuration determine available tools. Configure and test each external integration separately.",
+      "No. Available tools depend on the ACP package and your setup. Outside integrations are configured separately.",
   },
   devin: {
-    intro: "Connect Cognition’s Devin CLI through its terminal ACP entry point.",
-    useCase:
-      "Direct a Devin project task from ClawMuse while checking which environment the CLI uses for execution.",
-    prerequisite:
-      "Install Devin CLI and complete its own account setup. Follow Devin’s documentation for workspace and service access.",
-    question: "Does this automatically create a cloud machine?",
+    intro: "Cognition’s Devin, running in your own terminal.",
+    about:
+      "Devin CLI is Cognition’s command-line tool. It brings Devin to your own computer to work in local projects. On Windows, run the install command in PowerShell, not Git Bash or CMD.",
+    setup: "Run devin and follow the sign-in steps.",
+    useCase: "Send project tasks to Devin from ClawMuse and follow them on your phone.",
+    question: "Does this create a cloud computer?",
     answer:
-      "No. Adding the CLI connection does not purchase or provision a cloud workspace. Confirm the environment and account entitlements in Devin itself.",
+      "No. Adding the CLI doesn’t buy or set up a cloud workspace. Check your environment and plan in Devin.",
   },
   dimcode: {
-    intro: "DimCode brings its model choices to ClawMuse through ACP.",
-    useCase:
-      "Use the same project brief to evaluate a configured DimCode model before committing to a larger edit.",
-    prerequisite:
-      "Add DimCode from the catalog and configure the model providers you intend to use.",
-    question: "Does the catalog include access to DimCode’s models?",
+    intro: "A terminal coding agent with an interactive UI and your choice of models.",
+    about:
+      "DimCode is a terminal coding agent with an interactive interface. The command is dim. You set up model services inside it, and ClawMuse connects over ACP.",
+    setup: "Run dim and set up the model service you want.",
+    useCase: "Try different models on the same project brief before giving one a bigger change.",
+    question: "Does the catalog include DimCode model access?",
     answer:
-      "No. It supplies a launch configuration. Model credentials, availability and charges remain with the services you configure in DimCode.",
+      "No. The catalog only launches it. Model accounts and costs depend on what you set up in DimCode.",
   },
   dirac: {
-    intro:
-      "Dirac is an open-source agent whose editing approach includes hash-anchored changes and AST operations.",
+    intro: "An efficiency-minded open-source agent with precise anchored edits.",
+    about:
+      "Dirac is an open-source coding agent focused on working efficiently in complex, real codebases. It edits files through anchors and supports AST operations. There is also a VS Code extension.",
+    setup: "Run dirac and set up the model you want.",
     useCase:
-      "Try a bounded code transformation and inspect whether the resulting patch preserves your project’s behavior.",
-    prerequisite:
-      "Add the pinned Dirac CLI catalog entry and prepare a supported model configuration.",
-    question: "Should I expect a guaranteed cost saving?",
+      "Try a well-bounded code transformation and check that the patch keeps existing behavior.",
+    question: "Is it guaranteed to save on model costs?",
     answer:
-      "No. The directory makes no savings or speed promise. Model choice, task size and verification work determine your actual usage.",
+      "No. Real usage depends on the model, task size and verification work. No savings are promised here.",
   },
   "factory-droid": {
-    intro: "Factory Droid connects through the CLI’s ACP daemon output mode.",
-    useCase:
-      "Follow a Factory task on a prepared repository and review its patch through ClawMuse.",
-    prerequisite:
-      "Use the catalog entry, complete Factory authentication and check the CLI’s own tool configuration.",
-    question: "Can Droid receive ClawMuse’s injected MCP tools?",
+    intro: "Droid, Factory’s coding agent for the terminal.",
+    about:
+      "Droid is Factory’s coding agent. The command is droid. Sign in to Factory in your browser on first run and start from your project folder.",
+    setup: "Run droid in your project folder and sign in to Factory in the browser.",
+    useCase: "Let Droid work in a prepared repo and review the patch from your phone.",
+    question: "Can Droid use MCP tools from ClawMuse?",
     answer:
-      "This catalog entry explicitly disables MCP server injection. Do not rely on ClawMuse orchestration tools being available in a Droid session.",
+      "No. This catalog entry turns MCP injection off, so ClawMuse tools aren’t available in Droid sessions.",
   },
   "fast-agent": {
-    intro: "fast-agent exposes a multi-provider agent environment through ACP.",
-    useCase:
-      "Bring a deliberately configured agent setup into a project workflow instead of recreating it for each device.",
-    prerequisite:
-      "Install uv tooling, use the catalog’s fast-agent-acp launch entry, and prepare its model and agent configuration.",
-    question: "Why does this entry need uvx?",
+    intro: "A Python agent framework that connects to many model providers.",
+    about:
+      "fast-agent is a Python agent framework with support for many model providers. fast-agent-acp is its ACP entry point, and uvx runs it without a separate install.",
+    setup:
+      "Install uv, set your model API key (OPENAI_API_KEY, for example) and try the command above. Change --model to the one you want.",
+    useCase: "Bring a tuned agent setup into your project flow without redoing it on each device.",
+    question: "Why does this need uvx?",
     answer:
-      "The catalog launches a Python package through uvx. That launcher and the agent’s model credentials must be available in the host environment.",
+      "fast-agent is a Python package and ClawMuse launches it through uvx, so uv must be on that computer.",
   },
   "gajae-code": {
-    intro: "Gajae Code emphasizes planning before changes and evidence before execution.",
+    intro: "A plan-first coding agent that works with subscriptions you already have.",
+    about:
+      "Gajae Code (gjc) is a coding-agent harness that uses your existing model subscription or API key. It can interview you, plan and review before touching code, and route questions to Telegram, Discord or Slack. It is in beta, so check its output closely.",
+    setup: "Run gjc, enter /login, and pick your plan or provider.",
     useCase:
-      "Use its planning flow for a project change whose shell actions and edits you want to review explicitly.",
-    prerequisite:
-      "Install gjc, configure a supported account arrangement, and add its ACP entry. The catalog sets permission mode to prompt.",
-    question: "Does this bypass provider subscription rules?",
+      "For a change that needs thinking first, run its planning flow and read the plan on your phone.",
+    question: "Does this get around model subscription rules?",
     answer:
-      "No. Verify the access supported by Gajae and each underlying provider. The catalog’s permission prompt setting does not grant model entitlement.",
+      "No. Check which access routes Gajae and each provider support. Catalog settings don’t grant model access.",
   },
   glm: {
-    intro: "Use the GLM ACP adapter for a Z.AI Coding Plan workflow.",
+    intro: "A community adapter for Zhipu’s GLM models through a Z.AI Coding Plan.",
+    about:
+      "glm-acp-agent is a community-built ACP agent that uses Z.AI’s GLM models and supports Coding Plan tools. It isn’t an official Zhipu product.",
+    setup: "Put your Z.AI API key in the environment, or run glm-acp-agent --setup.",
     useCase:
-      "Work on a project with the GLM models your configured account exposes and inspect the agent’s actual tool output.",
-    prerequisite:
-      "Add the glm-acp-agent package and configure the credentials required by its adapter documentation.",
-    question: "Is this the same as changing Claude Code’s API endpoint?",
+      "Use GLM models from your Coding Plan on a project and check the tool output from your phone.",
+    question: "Is this the same as changing Claude Code’s API URL?",
     answer:
-      "No. This entry starts a separate ACP agent. A custom endpoint for another provider is a different integration with different configuration.",
+      "No. This starts a separate ACP agent. Pointing Claude Code at another endpoint is a different setup.",
   },
   goose: {
-    intro: "goose is an extensible agent that can use the tools you configure on your host.",
+    intro: "An open-source, extensible AI agent with a CLI and a desktop app.",
+    about:
+      "goose is an open-source AI agent with command-line and desktop versions. It connects to many models and reaches tools through extensions, working with the tools you set up on your computer. For Windows, see the official docs below.",
+    setup: "Run goose configure, choose a model provider and add your key.",
     useCase:
-      "Try an engineering task involving a known goose extension, then check its actions in the project context.",
-    prerequisite:
-      "Install goose, configure its model provider and extensions, and verify goose acp works on the host.",
-    question: "Are all goose extensions enabled by default?",
-    answer:
-      "No. Extension configuration belongs to goose. Review which tools are enabled and what they can access before running the task.",
+      "Give goose an engineering task that uses its extensions and check its actions from your phone.",
+    question: "Are all goose extensions on by default?",
+    answer: "No. goose configures extensions, so check which tools are on before starting.",
   },
   grok: {
-    intro: "Connect xAI’s Grok Build CLI using its stdio agent mode.",
-    useCase:
-      "Use the CLI’s planning workflow to break down a code change before following execution from ClawMuse.",
-    prerequisite:
-      "Install the Grok CLI and verify current account eligibility in xAI’s documentation. The catalog starts grok agent stdio.",
+    intro: "Grok Build, xAI’s coding agent.",
+    about:
+      "Grok Build is xAI’s coding agent, run from the terminal with the grok command. Access depends on your xAI account and plan.",
+    setup: "Run grok and sign in to your xAI account.",
+    useCase: "Have Grok break down a code change, then follow the work from your phone.",
     question: "Does ClawMuse include a Grok subscription?",
-    answer:
-      "No. Grok access and plan eligibility are controlled by xAI. Confirm your CLI works with your account before adding it here.",
+    answer: "No. xAI decides access. Make sure the CLI runs with your account first.",
   },
   hoplite: {
-    intro:
-      "Hoplite connects a cloud coding workspace through a local CLI bridge and an opt-in bundled plugin.",
-    useCase:
-      "Follow work in a repository already linked to a Hoplite project, with its cloud execution boundary kept explicit.",
-    prerequisite:
-      "Install Hoplite, run hoplite login and add it from the host catalog. Link a project or configure HOPLITE_PROJECT_ID.",
-    question: "Does Hoplite run against my local project files?",
+    intro: "Cloud coding workspaces, with a small local CLI as the bridge.",
+    about:
+      "Hoplite agents run in cloud workspaces, and the local hoplite command (hplt for short) only makes the connection. It suits work you don’t want tying up your own computer. ClawMuse ships with its plugin, which you add from the catalog.",
+    setup: "Run hoplite login.",
+    connectNote: "After adding it, link a project or set HOPLITE_PROJECT_ID.",
+    useCase: "Follow repo tasks linked to Hoplite and check the changes in the cloud project.",
+    question: "Does Hoplite work on my local project files?",
     answer:
-      "The agent runs in Hoplite’s cloud workspace. Local files and ClawMuse’s loopback MCP tools are not available there. Your local CLI acts as the bridge.",
+      "No. The agent runs in a Hoplite cloud workspace, where local files and ClawMuse’s local MCP tools aren’t available.",
   },
   junie: {
-    intro: "Use JetBrains’ Junie CLI through its documented ACP mode.",
+    intro: "JetBrains’ coding agent, usable without an IDE.",
+    about:
+      "Junie is JetBrains’ coding agent. Junie CLI runs it on its own in the terminal, with a JetBrains login or a Junie API key.",
+    setup: "Run junie and sign in through the browser, or use JUNIE_API_KEY.",
     useCase:
-      "Review a Junie plan for an existing codebase, then inspect the resulting project changes from another device.",
-    prerequisite:
-      "Install Junie CLI, authenticate it and ensure the host can launch junie with ACP enabled.",
-    question: "Does this require an open JetBrains IDE?",
-    answer:
-      "The connection uses the Junie CLI, not an IDE window. Follow the CLI’s own setup and account requirements.",
+      "Have Junie plan work on an existing codebase, then check the changes on another device.",
+    question: "Does a JetBrains IDE need to stay open?",
+    answer: "No. ClawMuse connects to Junie CLI, not an IDE window.",
   },
   kilo: {
-    intro: "Kilo’s open-source CLI is available through the ACP catalog.",
+    intro: "The open-source command-line version of Kilo Code.",
+    about:
+      "Kilo CLI is the command-line version of Kilo Code, an open-source coding agent. It works with many model providers and connects to ClawMuse through kilo acp.",
+    setup: "Run kilo and enter /connect to set up a provider.",
     useCase:
-      "Continue a Kilo task using the model provider you already configured, and keep files and conversation together.",
-    prerequisite: "Install Kilo CLI and configure its provider credentials before using kilo acp.",
-    question: "Does my Kilo editor configuration automatically apply?",
-    answer:
-      "Do not assume the CLI shares every editor setting. Verify the CLI’s model, credentials and tools directly on the execution host.",
+      "Continue Kilo work with your model account and keep files and conversation in ClawMuse.",
+    question: "Do Kilo editor settings carry over?",
+    answer: "Don’t assume so. Check the model and credentials on the computer that runs the CLI.",
   },
   kiro: {
-    intro: "Connect Kiro CLI through its native ACP endpoint.",
+    intro: "Kiro from AWS. The command-line version is kiro-cli.",
+    about:
+      "Kiro is an AI development tool from AWS, available as an IDE and a CLI. kiro-cli runs on macOS, Linux and Windows 11, and it supports ACP natively, so connecting it to ClawMuse is direct.",
+    setup: "Run kiro-cli login. On Windows, install from PowerShell rather than Command Prompt.",
     useCase:
-      "Use a prepared Kiro workspace for a scoped change and carry the review between your phone and computer.",
-    prerequisite:
-      "Install and authenticate kiro-cli, then add the catalog entry that starts kiro-cli acp.",
-    question: "Does the website install Kiro for me?",
+      "Make a small change in a prepared Kiro workspace and review it across phone and computer.",
+    question: "Is the Kiro IDE enough?",
     answer:
-      "No. The catalog points to an existing CLI command. Follow Kiro’s official installation guide and verify it in the host environment.",
+      "No. ClawMuse launches kiro-cli acp, so install the CLI separately with the commands above.",
   },
   "minimax-code": {
-    intro: "MiniMax Code connects its terminal agent through the catalog’s npm-based ACP launch.",
-    useCase:
-      "Ask MiniMax Code for a project explanation before handing it a small implementation task.",
-    prerequisite:
-      "Ensure Node.js and npx are available, then configure the account or model access required by MiniMax Code.",
-    question: "Is any MiniMax API key sufficient?",
+    intro: "MiniMax’s terminal coding agent. The command is mcode.",
+    about:
+      "MiniMax Code is MiniMax’s terminal coding agent, installed as the mcode command. It needs Node.js 22.19 or later.",
+    setup: "Run mcode and set up your MiniMax account.",
+    useCase: "Ask MiniMax Code to explain a project, then give it a small implementation task.",
+    question: "Does any MiniMax API key work?",
     answer:
-      "Follow MiniMax Code’s own access requirements. A key for another product or endpoint is not automatically valid for this CLI.",
+      "Not necessarily. Follow MiniMax Code’s own requirements, since keys for other products may not apply.",
   },
   "minion-code": {
-    intro: "Minion Code brings a Minion-framework agent into the ACP workspace.",
-    useCase:
-      "Try a development task that uses the tools available in your Minion Code configuration.",
-    prerequisite:
-      "Prepare uvx and the package’s model configuration; the catalog launches the Python-based minion-code ACP command.",
-    question: "Why does the host need Python package tooling?",
+    intro: "A Python coding assistant built on the Minion framework.",
+    about:
+      "Minion Code is an AI coding assistant built on the Minion framework, with more than a dozen tools for files, commands and web search, plus ACP support. The command is mcode and model settings live in ~/.minion/config.yaml.",
+    setup:
+      "Set up your model in ~/.minion/config.yaml. ClawMuse launches it with uvx, so you also need uv.",
+    useCase: "Try development tasks that need its built-in tools.",
+    question: "Why does my computer need Python tooling?",
     answer:
-      "The catalog uses uvx to run Minion Code. The launcher and required runtime dependencies must exist on the host, independently of your phone.",
+      "Minion Code is a Python package that ClawMuse starts through uvx. Your phone doesn’t need any of it.",
   },
   "mistral-vibe": {
-    intro: "Mistral Vibe brings Mistral’s open-source coding assistant to the ACP workspace.",
-    useCase:
-      "Give Vibe a small change in a repository with working model credentials, then inspect the patch and test report.",
-    prerequisite:
-      "Install Mistral Vibe and configure its model access. Ensure vibe-acp is visible to the daemon.",
+    intro: "Mistral’s open-source command-line coding assistant.",
+    about:
+      "Mistral Vibe is Mistral’s open-source command-line coding assistant, using Mistral models. Besides the vibe command it installs vibe-acp for editors, which is what ClawMuse uses.",
+    setup: "Run vibe --setup to add your API key, or set MISTRAL_API_KEY.",
+    useCase: "Give Vibe a small change and check the patch and test results from your phone.",
     question: "Does ClawMuse change Vibe’s model endpoint?",
     answer:
-      "No. Vibe owns its endpoint and credentials. Verify that setup locally before troubleshooting the ClawMuse connection.",
+      "No. Vibe manages its endpoint and credentials. If it won’t connect, check that Vibe runs on its own first.",
   },
   nova: {
-    intro: "Nova is Compass AI’s agent, available through the catalog’s ACP launch configuration.",
-    useCase:
-      "Use a short repository task to establish Nova’s tool access, then follow a larger change from your devices.",
-    prerequisite:
-      "Add the @compass-ai/nova catalog entry and complete the account or model configuration required by Nova.",
+    intro: "Compass AI’s command-line agent. Not Amazon Nova.",
+    about:
+      "Nova is Compass AI’s command-line tool. It works with your IDE and guides you through building code. The name is easy to mix up with Amazon’s Nova models, but they are unrelated.",
+    setup: "Run nova and finish the account or model setup.",
+    useCase: "Check its tools with a short repo task before giving it bigger changes.",
     question: "Is this Amazon Nova?",
-    answer:
-      "This directory entry is Nova by Compass AI. Its product and setup source are linked below; do not confuse it with a similarly named model family.",
+    answer: "No. This is Compass AI’s Nova, unrelated to the model family with the same name.",
   },
   poolside: {
-    intro: "Connect Poolside’s coding agent through the pool CLI.",
+    intro: "Poolside’s coding agent. The CLI is called pool.",
+    about:
+      "Poolside Agent CLI is Poolside’s coding agent, run with the pool command. Use it interactively or for automated tasks, and connect it to editors and ClawMuse through pool acp. The Windows version is in beta.",
+    setup:
+      "Run pool login. For a company deployment, add the address from your admin: pool login --api-url <api-url>.",
     useCase:
-      "Work within a project and service environment already authorized for your Poolside account.",
-    prerequisite:
-      "Install the pool CLI and prepare the service access described by Poolside’s documentation.",
+      "Send tasks in projects covered by your Poolside access and follow them on your phone.",
     question: "Does a ClawMuse account provide Poolside access?",
-    answer:
-      "No. The pool CLI needs its own authorized service configuration. Adding it to the directory does not create an account or grant an entitlement.",
+    answer: "No. The pool CLI needs your own Poolside access.",
   },
   qoder: {
-    intro: "Use Qoder CLI’s ACP mode to bring its agent into ClawMuse.",
+    intro: "Qoder’s command-line agent. The command is qodercli.",
+    about:
+      "Qoder CLI is the command-line version of the Qoder AI coding tool. The command is qodercli, and it understands projects and writes code from the terminal. ClawMuse connects through its ACP mode.",
+    setup: "Run qodercli and enter /login.",
     useCase:
-      "Start with a Qoder plan for a personal project and keep the follow-up conversation accessible from your phone.",
-    prerequisite:
-      "The catalog launches @qoder-ai/qodercli through npx. Prepare the CLI’s authentication and model access.",
-    question: "Does this mirror an existing Qoder editor window?",
+      "Have Qoder plan work on a personal project, then continue the conversation on your phone.",
+    question: "Does this mirror my Qoder editor window?",
     answer:
-      "The integration starts a CLI session on the host. Do not assume an editor window’s conversation or settings are automatically imported.",
+      "No. ClawMuse starts a separate CLI session, so editor conversations and settings don’t carry over.",
   },
   sigit: {
-    intro:
-      "siGit Code is a local-first agent with optional on-device model inference through Onde.",
-    useCase:
-      "Explore a workflow with your chosen local model, then verify which parts of the task still use external services.",
-    prerequisite:
-      "Install sigit and configure its model backend. The catalog launches the sigit executable directly.",
-    question: "Does local-first guarantee an offline task?",
+    intro: "A coding agent that runs models on your own machine by default.",
+    about:
+      "siGit Code is a coding agent that runs inference on your device by default, through the Onde inference SDK. It suits people who don’t want code going to cloud models. Note that the snap package installs the desktop app, not this terminal agent.",
+    setup: "After installing, choose your model backend.",
+    useCase: "Try a workflow on a local model, then see which steps still use outside services.",
+    question: "Does local-first guarantee fully offline work?",
     answer:
-      "No. Local inference is an optional configuration. Verify the actual model backend and any network tools before assuming all data stays offline.",
+      "No. Check your actual model backend and network tools to know whether data leaves the computer.",
   },
   stakpak: {
-    intro: "Stakpak is a Rust-based DevOps agent available through ACP.",
+    intro: "A DevOps agent written in Rust, built for infrastructure work.",
+    about:
+      "Stakpak is an agent for DevOps, written in Rust, handling deployments and infrastructure configuration. Use a Stakpak API key or your own Anthropic or OpenAI key.",
+    setup:
+      "Run stakpak and follow the steps to create an API key. To use your own key, see stakpak auth login in the official docs.",
     useCase:
-      "Ask it to explain infrastructure configuration before authorizing a narrowly scoped operational change.",
-    prerequisite:
-      "Install Stakpak and configure its model and infrastructure access. Start with a low-impact environment.",
-    question: "Does adding Stakpak grant cloud permissions?",
+      "An alert at midnight? Ask it to explain the config and look into the problem from your phone first.",
+    question: "Does adding Stakpak grant cloud access?",
     answer:
-      "No. Infrastructure credentials and access come from your host configuration. Check the target account and environment before approving operations.",
+      "No. Cloud credentials come from your computer’s setup. Check the target account and environment first.",
   },
   "trae-cli": {
-    intro: "Connect ByteDance’s TRAE CLI through its ACP server command.",
+    intro: "The command-line version of ByteDance’s TRAE. The command is traecli.",
+    about:
+      "TRAE CLI is the command-line version of ByteDance’s TRAE AI coding tool. The command is traecli, and ClawMuse connects through traecli acp serve.",
+    setup: "Run traecli and sign in.",
     useCase:
-      "Use a TRAE CLI task to inspect a project and prepare a patch you can review from another device.",
-    prerequisite:
-      "Install and authenticate traecli, then verify traecli acp serve in the daemon environment.",
-    question: "Do TRAE commands appear immediately?",
+      "Have TRAE CLI look through a project and prepare a patch, then review it on another device.",
+    question: "Do all TRAE commands appear right away?",
     answer:
-      "The CLI can publish commands and skills asynchronously. Available actions depend on what the running CLI reports, so allow discovery to complete.",
+      "Not always. The CLI may report commands and skills gradually, so give discovery a moment.",
   },
   vtcode: {
-    intro: "VT Code is an open-source agent with multi-provider model support and shell controls.",
-    useCase:
-      "Try a shell-assisted code task after checking the agent’s model and command-approval configuration.",
-    prerequisite:
-      "Install VT Code and configure model credentials. The catalog supplies the ACP enablement environment flags.",
-    question: "Why keep the catalog’s environment flags?",
+    intro: "An open-source terminal agent in Rust, for hosted and local models.",
+    about:
+      "VT Code is an open-source terminal coding agent that works with hosted and local models, chosen per task. API keys go into the system keyring or an encrypted file instead of plain config.",
+    setup:
+      "Store your provider key. The command below uses OpenAI, so replace openai with your provider.",
+    useCase: "Once models are set up, try a code task that needs shell commands.",
+    question: "Why does the catalog entry set environment variables?",
     answer:
-      "This entry sets VT_ACP_ENABLED and VT_ACP_ZED_ENABLED. Preserve the documented launch configuration when overriding the executable path.",
+      "ACP mode needs VT_ACP_ENABLED and VT_ACP_ZED_ENABLED. Keep them if you change the command path.",
   },
   agoragentic: {
-    intro: "Agoragentic connects an agent-service marketplace through an ACP package.",
-    useCase:
-      "Explore a specific external capability only after checking the service’s inputs, output and payment requirements.",
-    prerequisite:
-      "Add the ACP package and configure any account or wallet required by the selected marketplace service.",
-    question: "Are marketplace payments included in ClawMuse?",
+    intro: "An agent service marketplace, browsed and called over ACP.",
+    about:
+      "Agoragentic is a marketplace of callable AI capabilities. Some services are paid and settle in USDC on Base. agoragentic-mcp connects it to ACP, and npx fetches it, so there’s nothing to install separately.",
+    setup: "Browsing doesn’t need an account. Set AGORAGENTIC_API_KEY for tools that need sign-in.",
+    useCase: "Check a service’s inputs, outputs and price before trying it.",
+    question: "Does ClawMuse cover marketplace costs?",
     answer:
-      "No. External agent services have their own terms and payment arrangements. Review a service before authorizing a call that can spend funds.",
+      "No. Outside services have their own terms and payment. Read them before calling anything that charges.",
   },
   autohand: {
-    intro: "Autohand Code is available through the catalog’s dedicated Autohand ACP package.",
+    intro: "A terminal agent that imports your Claude, Codex and Cursor setup.",
+    about:
+      "Autohand Code is a terminal coding agent that supports more than 15 model providers and local models through tools such as Ollama. Switching is easy: /import claude, /import codex or /import cursor brings your settings and skills along.",
+    setup: "Run autohand and sign in, or add your own key.",
     useCase:
-      "Use it for a small project edit and inspect the generated files before broadening the task.",
-    prerequisite:
-      "Prepare Node.js and npx, add @autohandai/autohand-acp from the catalog and configure the access required by Autohand.",
+      "Start with a small project change and check the generated files before going further.",
     question: "Is the ACP package a model subscription?",
-    answer:
-      "No. It supplies the connection to the agent. Autohand account access, model usage and any provider charges are separate.",
+    answer: "No. It only handles the connection. Accounts and model costs are separate.",
   },
 } satisfies Record<AgentSlug, AgentTranslation>;
