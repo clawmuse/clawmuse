@@ -626,7 +626,10 @@ export function isAgentPage(page: string): page is AgentPage {
 export const agentsCopy = {
   en: {
     title: "Choose your agent.",
-    description: "Find the AI tools you use and see how to connect them to ClawMuse.",
+    description:
+      "Claude Code, Codex, Gemini CLI, Cursor and more: install commands for each AI coding agent, plus how to use it from your phone or browser with ClawMuse.",
+    seoTitle: (count: number) =>
+      `Supported AI coding agents: Claude Code, Codex and ${count - 2} more — ClawMuse`,
     eyebrow: "THE AGENT DIRECTORY",
     search: "Search agents",
     searchPlaceholder: "Search agent names, e.g. Codex",
@@ -643,7 +646,7 @@ export const agentsCopy = {
     aboutTitle: (name: string) => `What is ${name}?`,
     installTitle: (name: string) => `Install ${name}`,
     connectTitle: "Connect it to ClawMuse",
-    useCasesTitle: "Try this from your phone",
+    useCasesTitle: "Try this from your phone or browser",
     signInLabel: "Sign in",
     officialLink: (name: string) => `Official ${name} install docs`,
     faqTitle: "Common questions",
@@ -655,8 +658,9 @@ export const agentsCopy = {
     showcaseBody:
       "Choose Claude Code, Codex or another supported tool for the task at hand. Use them in one workspace after installing and signing in on your computer.",
     showcaseLink: "Find your agent",
-    agentTitle: (name: string) => `How to install ${name} and use it from your phone`,
-    pageSummary: "Official install commands, plus how to use it from your phone with ClawMuse.",
+    agentTitle: (name: string) => `How to install ${name} and use it from your phone or browser`,
+    pageSummary:
+      " Official install commands, plus how to use it from your phone or browser with ClawMuse.",
     checkStep: (name: string) =>
       `Open ClawMuse and go to Settings → Hosts → your computer → Providers. Check that ${name} is listed.`,
     pluginStep: (name: string) =>
@@ -666,13 +670,15 @@ export const agentsCopy = {
     npxStep: "This entry starts through npx, so your computer needs Node.js.",
     uvxStep: "This entry starts through uvx, so your computer needs uv.",
     startStep: (name: string) =>
-      `Start a conversation and choose ${name} and a model. While your computer is on, you can pick it up from your phone.`,
+      `Start a conversation and choose ${name} and a model. While your computer is on, you can pick it up from your phone or the web.`,
     catalogStartStep: (name: string) =>
       `Start a conversation and choose ${name}. Available models and features are whatever it reports.`,
   },
   "zh-CN": {
     title: "选择你常用的 Agent。",
-    description: "找到你在用的 AI 工具，查看如何连接到 ClawMuse。",
+    description:
+      "Claude Code、Codex、Gemini CLI、Cursor 等 AI 编程工具的安装命令，以及接入 ClawMuse 后在手机和网页上使用的方法。",
+    seoTitle: (count: number) => `支持的 AI 编程工具：Claude Code、Codex 等 ${count} 种 — ClawMuse`,
     eyebrow: "AGENT 目录",
     search: "搜索 Agent",
     searchPlaceholder: "搜索 Agent 名称，例如 Codex",
@@ -685,7 +691,7 @@ export const agentsCopy = {
     aboutTitle: (name: string) => `${name} 是什么`,
     installTitle: (name: string) => `安装 ${name}`,
     connectTitle: "接入 ClawMuse",
-    useCasesTitle: "在手机上可以这样用",
+    useCasesTitle: "在手机和网页上可以这样用",
     signInLabel: "登录",
     officialLink: (name: string) => `${name} 官方安装文档`,
     faqTitle: "常见问题",
@@ -697,8 +703,8 @@ export const agentsCopy = {
     showcaseBody:
       "Claude Code、Codex 等多种工具，按任务选择，按喜好搭配。先在电脑上安装并登录，就能在同一个工作台使用。",
     showcaseLink: "查看全部 Agent",
-    agentTitle: (name: string) => `${name} 怎么安装，怎么在手机上用`,
-    pageSummary: "这里有官方安装命令，以及接入 ClawMuse 后在手机上使用的方法。",
+    agentTitle: (name: string) => `${name} 怎么安装，怎么在手机和网页上用`,
+    pageSummary: "这里有官方安装命令，以及接入 ClawMuse 后在手机和网页上使用的方法。",
     checkStep: (name: string) =>
       `打开 ClawMuse，进入设置 → 主机 → 你的电脑 → Provider，确认列表里有 ${name}。`,
     pluginStep: (name: string) =>
@@ -707,7 +713,8 @@ export const agentsCopy = {
       `打开 ClawMuse，进入设置 → 主机 → 你的电脑 → Provider，从目录添加 ${name}。`,
     npxStep: "这一项通过 npx 启动，电脑上要装好 Node.js。",
     uvxStep: "这一项通过 uvx 启动，电脑上要装好 uv。",
-    startStep: (name: string) => `新建对话，选 ${name} 和模型。电脑开着，就能在手机上接着用。`,
+    startStep: (name: string) =>
+      `新建对话，选 ${name} 和模型。电脑开着，就能在手机和网页上接着用。`,
     catalogStartStep: (name: string) =>
       `新建对话，选 ${name}。能用的模型和功能以它实际提供的为准。`,
   },
@@ -766,7 +773,7 @@ export function agentFor(page: AgentPage, language: Language): AgentContent {
     name: agent.name,
     category: agent.category,
     title: copy.agentTitle(agent.name),
-    description: `${text.intro} ${copy.pageSummary}`,
+    description: `${text.intro}${copy.pageSummary}`,
     intro: text.intro,
     about: text.about,
     install: install.methods,

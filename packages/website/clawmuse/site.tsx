@@ -35,6 +35,7 @@ import {
   pageLanguages,
   routeInfo,
   sourceUrl,
+  documentTitleFor,
   titleFor,
   type Page,
 } from "./content";
@@ -92,7 +93,7 @@ export function Site({
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = locales[language].dir;
-    if (found) document.title = `${titleFor(page, language)} — ClawMuse`;
+    if (found) document.title = documentTitleFor(page, language);
   }, [found, language, page]);
   const handleSiteClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const url = resolveInternalLink(event);

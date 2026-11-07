@@ -12710,6 +12710,25 @@ function idleCleanupHarness() {
   };
 }
 
+test("idle cleanup gives a restored runtime a fresh hour without changing conversation timestamps", async () => {
+  const h = idleCleanupHarness();
+  const agent = await h.create();
+  await h.manager.closeAgent(agent.id);
+  const record = (await h.storage.get(agent.id))!;
+  const old = new Date(Date.now() - 2 * 60 * 60_000).toISOString();
+  await h.storage.upsert({ ...record, updatedAt: old, lastActivityAt: old });
+  const beforeOpen = Date.now();
+  await h.manager.resumeAgentFromPersistence(record.persistence!, { cwd: record.cwd }, agent.id, {
+    updatedAt: new Date(old),
+  });
+  const candidate = h.manager
+    .getRuntimeCleanupCandidates()
+    .find((item) => item.agentId === agent.id)!;
+  expect(candidate.lastActivityAt).toBeGreaterThanOrEqual(beforeOpen);
+  expect(h.manager.getAgent(agent.id)?.updatedAt.toISOString()).toBe(old);
+  expect((await h.storage.get(agent.id))?.updatedAt).toBe(old);
+});
+
 test("idle cleanup rechecks new prompt activity after an asynchronous safety probe", async () => {
   const h = idleCleanupHarness();
   const agent = await h.create();

@@ -333,6 +333,7 @@ export const chineseArticles: Record<LearnArticlePage, Article> = {
         id: "use-the-right-screen",
         title: "让不同屏幕各自承担适合的工作",
         paragraphs: [
+          "手机和网页连的是同一台主机，用的都是你自己的项目、工具和模型。手边只有别人的电脑或平板时，打开 app.clawmuse.com 登录就能用，不用安装客户端。",
           "手机适合短指令、状态查看、小范围 diff 和审批。较大的审查、多面板操作和内嵌浏览器更适合桌面应用。ClawMuse 的内嵌浏览器面板是桌面应用功能，不能把它理解为手机上的远程浏览器窗口。",
           "切换主机意味着选择另一个环境。移动于不同机器时，留意仓库、分支和 Provider。统一界面不会默默把工作区或凭证复制到其他主机。",
         ],

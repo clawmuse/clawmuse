@@ -497,6 +497,16 @@ test("iOS cloud builds require explicit selection and budget confirmation", () =
   );
   assert.deepEqual(Object.keys(workflow.on), ["workflow_dispatch"]);
   const inputs = workflow.on.workflow_dispatch.inputs;
+  // The distribution-only workflow has no cloud runner to authorize. Keep its
+  // manual/self-hosted boundary checked without requiring build-only inputs.
+  if (!workflow.jobs.cloud) {
+    assert.equal(inputs.distribute.default, false);
+    for (const job of Object.values(workflow.jobs)) {
+      assert.ok(Array.isArray(job["runs-on"]));
+      assert.ok(job["runs-on"].includes("self-hosted"));
+    }
+    return;
+  }
   assert.equal(inputs.build_host.default, "self-hosted");
   assert.equal(inputs.cloud_mode.default, "simulator");
   assert.equal(inputs.free_budget_confirmed.default, false);
@@ -648,6 +658,50 @@ test("platform desktop beta refs build only their selected platform", () => {
     assert.ok(!scripts.has(`bash scripts/cnb/desktop-release.sh ${other}`));
   }
   assert.ok(!Object.hasOwn(cnb, "release-build/desktop-macos-v*"));
+});
+
+test("Mac platform releases stamp the desktop and bundled daemon with the same version", () => {
+  const workflow = load(
+    readFileSync(new URL(".github/workflows/mac-desktop-release.yml", repoRoot), "utf8"),
+  );
+  const step = workflow.jobs.build.steps.find((entry) =>
+    entry.run?.includes("pkg.version = process.env.DESKTOP_VERSION"),
+  );
+  assert.ok(step);
+  const root = mkdtempSync(join(tmpdir(), "mac-release-version-"));
+  try {
+    const packages = ["desktop", "server", "cli", "app"];
+    mkdirSync(join(root, "scripts"));
+    writeFileSync(
+      join(root, "scripts/sync-workspace-versions.mjs"),
+      readFileSync(new URL("scripts/sync-workspace-versions.mjs", repoRoot)),
+    );
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify({ version: "1.5.5", workspaces: packages.map((name) => `packages/${name}`) }),
+    );
+    for (const name of packages) {
+      mkdirSync(join(root, "packages", name), { recursive: true });
+      writeFileSync(
+        join(root, "packages", name, "package.json"),
+        JSON.stringify({ name: `@getpaseo/${name}`, version: "1.5.5" }),
+      );
+    }
+    execFileSync("bash", ["-e", "-c", step.run], {
+      cwd: root,
+      env: {
+        ...process.env,
+        DESKTOP_VERSION: "1.5.6-beta.2",
+        DESKTOP_PACKAGE_PATH: "packages/desktop",
+      },
+    });
+    for (const name of packages) {
+      const pkg = JSON.parse(readFileSync(join(root, "packages", name, "package.json"), "utf8"));
+      assert.equal(pkg.version, "1.5.6-beta.2", name);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("Mac credential inspection cannot start a build or upload", () => {
@@ -937,6 +991,25 @@ test("parallel gates preserve every suite and reject failed, skipped or incomple
     stages.pop();
     assert.throws(() => inspectChild(status, pipeline.stages), /coverage/);
   }
+});
+
+test("completed ordinary CNB builds allow skipped optional debug detection", async () => {
+  const { inspectChild } = await import("./cnb/gates.mjs");
+  const stages = [
+    { name: "Prepare", status: "success" },
+    { name: "desktop unit + xvfb e2e", status: "success" },
+    { name: "BeforeEnd", status: "success" },
+    { name: "DebugDetection", status: "skipped" },
+    { name: "End", status: "success" },
+  ];
+  const status = { status: "success", pipelinesStatus: { p: { stages } } };
+  const expected = [{ name: "desktop unit + xvfb e2e" }];
+  assert.equal(inspectChild(status, expected).state, "passed");
+  stages[3].status = "error";
+  assert.equal(inspectChild(status, expected).state, "failed");
+  stages[3].status = "skipped";
+  stages[1].status = "skipped";
+  assert.equal(inspectChild(status, expected).state, "failed");
 });
 
 test("native dependency preflight catches missing target packages and corrupted archives", async () => {

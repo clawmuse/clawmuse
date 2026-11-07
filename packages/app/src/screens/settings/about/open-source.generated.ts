@@ -92,6 +92,12 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
     url: "https://github.com/react-native-async-storage/async-storage",
   },
   {
+    name: "@react-native-community/netinfo",
+    version: "12.0.1",
+    license: "MIT",
+    url: "https://github.com/react-native-netinfo/react-native-netinfo",
+  },
+  {
     name: "@react-native-masked-view/masked-view",
     version: "0.3.2",
     license: "MIT",
@@ -177,13 +183,13 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
   },
   {
     name: "@xterm/addon-webgl",
-    version: "0.20.0-beta.212",
+    version: "0.20.0-beta.291",
     license: "MIT",
     url: "https://github.com/xtermjs/xterm.js/tree/master/addons/addon-webgl",
   },
   {
     name: "@xterm/xterm",
-    version: "6.1.0-beta.213",
+    version: "6.1.0-beta.292",
     license: "MIT",
     url: "https://github.com/xtermjs/xterm.js",
   },
@@ -507,7 +513,7 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
   },
   {
     name: "react-native-reanimated",
-    version: "4.5.1",
+    version: "4.5.5",
     license: "MIT",
     url: "https://github.com/software-mansion/react-native-reanimated",
   },
@@ -549,7 +555,7 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
   },
   {
     name: "react-native-worklets",
-    version: "0.10.1",
+    version: "0.10.4",
     license: "MIT",
     url: "https://github.com/software-mansion/react-native-reanimated",
   },

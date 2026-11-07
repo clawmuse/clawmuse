@@ -159,7 +159,7 @@ describe("ClawMuse website languages", () => {
   it("localizes traditional Chinese metadata, FAQ and not-found pages", () => {
     expect(titleFor("/docs", "zh-TW")).toBe("開始使用");
     expect(descriptionFor("zh-TW")).toContain("語音助理");
-    expect(faqItems("zh-TW")[0][0]).toBe("Linux 一定要裝桌面用戶端嗎？");
+    expect(faqItems("zh-TW")[1][0]).toBe("Linux 一定要裝桌面用戶端嗎？");
     expect(routeInfo("/zh-TW/missing")).toEqual({ language: "zh-TW", page: "/", found: false });
     expect(routeInfo("/zh/missing")).toEqual({ language: "zh-CN", page: "/", found: false });
     expect(routeInfo("/zh-TW-other")).toEqual({ language: "en", page: "/", found: false });

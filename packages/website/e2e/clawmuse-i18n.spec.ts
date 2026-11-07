@@ -6,6 +6,7 @@ import appLabels from "../clawmuse/demo-app-labels.json" with { type: "json" };
 import {
   appUrl,
   descriptionFor,
+  documentTitleFor,
   href,
   pageLanguages,
   routeInfo,
@@ -146,6 +147,8 @@ for (const language of ["en", "zh-CN"] as const) {
     test(`${language} personal brand, plans and guide journey at ${width}px`, async ({
       page,
     }, testInfo) => {
+      // This journey navigates eight pages and captures full-page screenshots.
+      test.slow();
       const t = getTranslator(language);
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
@@ -275,7 +278,7 @@ test("phone scaling and voice waveform work under the production content securit
   expect(violations).toEqual([]);
 });
 
-for (const route of ["/zh/", "/zh/product/"]) {
+for (const route of ["/zh/"]) {
   test(`whole phone fits laptop and mobile viewports on ${route}`, async ({ page }, testInfo) => {
     // This case resizes and captures six layouts in the same mounted WebKit page.
     test.slow();
@@ -344,8 +347,9 @@ for (const route of ["/zh/", "/zh/product/"]) {
 }
 
 test("mobile workspace demo preserves edited dictation across devices", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.clock.install();
-  await page.goto("/zh/product/");
+  await page.goto("/zh/");
   const demo = page.getByTestId("product-demo");
   await demo.getByRole("button", { name: "语音输入", exact: true }).click();
   const input = demo.getByRole("textbox", { name: "消息" });
@@ -380,7 +384,7 @@ for (const width of [320, 390, 820]) {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("/zh/product/");
+    await page.goto("/zh/");
     const demo = page.getByTestId("product-demo");
     const scenes = demo.locator(".tour-scenes");
     // The controls stay compact so the actual workspace is visible immediately.
@@ -505,7 +509,7 @@ for (const size of [
 
 test("device tabs work with a keyboard and reset cancels an in-flight demo", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/product/");
+  await page.goto("/");
   const demo = page.getByTestId("product-demo");
   const phone = demo.getByRole("tab", { name: "Phone companion" });
   await phone.focus();
@@ -545,7 +549,7 @@ test("autoplay walks through the complete workflow and can pause and replay", as
   test.setTimeout(90_000);
   await page.clock.install({ time: new Date("2026-10-25T09:41:00Z") });
   await page.clock.pauseAt(new Date("2026-10-25T09:41:01Z"));
-  await page.goto("/zh/product/");
+  await page.goto("/zh/");
   const demo = page.getByTestId("product-demo");
   await demo.locator(".device-viewport").scrollIntoViewIfNeeded();
   await expect(demo).toHaveAttribute("data-visible", "true");
@@ -627,7 +631,7 @@ test("feature tabs and simulated controls keep the homepage tour playing", async
 test("editing preserves the draft and offscreen playback stays paused", async ({ page }) => {
   await page.clock.install({ time: new Date("2026-10-25T09:41:00Z") });
   await page.clock.pauseAt(new Date("2026-10-25T09:41:01Z"));
-  await page.goto("/zh/product/");
+  await page.goto("/zh/");
   const demo = page.getByTestId("product-demo");
   await demo.locator(".device-viewport").scrollIntoViewIfNeeded();
   await expect(demo).toHaveAttribute("data-visible", "true");
@@ -707,7 +711,7 @@ test("manual demo supports models, permissions, terminal, browser, voice and sta
 }, testInfo) => {
   test.setTimeout(90_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/zh/product/");
+  await page.goto("/zh/");
   const demo = page.getByTestId("product-demo");
   await expect(demo).toHaveAttribute("data-playback", "paused");
   await demo.locator(".demo-model-control").click();
@@ -840,7 +844,7 @@ for (const language of languages) {
         url.search === "?from=locale-test" &&
         url.hash === "#main",
     );
-    await expect(page).toHaveTitle(`${titleFor("/docs/linux", language)} — ClawMuse`);
+    await expect(page).toHaveTitle(documentTitleFor("/docs/linux", language));
     await expect(page.locator("pre").first()).toHaveCSS("direction", "ltr");
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -924,7 +928,7 @@ for (const language of ["en", "zh-CN"] as const) {
       path: testInfo.outputPath(`${language}-article-compact.png`),
       fullPage: true,
     });
-    await page.locator(".editorial-cta .primary").click();
+    await page.locator('.editorial-cta a[href$="#experience"]').click();
     await expect(page).toHaveURL(
       (url) => url.pathname === href("/", other) && url.hash === "#experience",
     );
@@ -968,7 +972,7 @@ test("sitemap and feeds only advertise published language pairs", async ({ reque
 test("phone composer matches the app bottom toolbar and contextual actions", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1440, height: 1200 });
-  await page.goto("/zh/product/");
+  await page.goto("/zh/");
   const demo = page.getByTestId("product-demo");
   const composer = demo.locator(".demo-composer");
   const input = demo.getByRole("textbox", { name: "消息", exact: true });

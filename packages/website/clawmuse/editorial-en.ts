@@ -356,6 +356,7 @@ export const englishArticles: Record<LearnArticlePage, Article> = {
         id: "use-the-right-screen",
         title: "Use each screen for the work it suits",
         paragraphs: [
+          "Your phone and the web connect to the same host, with your own projects, tools and models. On a borrowed computer or tablet, sign in at app.clawmuse.com and start working without installing anything.",
           "A phone works well for short instructions, progress checks, small diffs and approvals. Return to the desktop for larger reviews, multiple panels or the embedded browser. The ClawMuse embedded browser pane is a desktop application feature; it is not a remote browser viewport on the phone.",
           "Switching to another host selects another environment. Keep the repository, branch and provider in mind when moving between machines. A common interface does not silently copy a checkout or its credentials between hosts.",
         ],

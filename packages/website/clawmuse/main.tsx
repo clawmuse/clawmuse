@@ -1,6 +1,6 @@
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { Site } from "./site";
-import { routeInfo, titleFor } from "./content";
+import { routeInfo, documentTitleFor } from "./content";
 import "@fontsource-variable/geist/index.css";
 import "./style.css";
 import "./product-demo.css";
@@ -12,7 +12,7 @@ import "./plugins.css";
 import "./refinement.css";
 
 const route = routeInfo(window.location.pathname);
-document.title = `${route.found ? titleFor(route.page, route.language) : "404"} — ClawMuse`;
+document.title = route.found ? documentTitleFor(route.page, route.language) : "404 — ClawMuse";
 const container = document.getElementById("root");
 if (!container) throw new Error("Missing site root");
 const app = <Site {...route} />;

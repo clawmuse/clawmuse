@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.6-beta.2 - 2026-11-06
+
+### Fixed
+
+- Keep the Mac app and its bundled daemon on the same release version to avoid unnecessary service restarts
+- Restore Antigravity messages, reasoning and tool results when reopening conversations
+- Give restored agent runtimes a fresh idle window without changing conversation order
+- Preserve completed Antigravity responses when the CLI reports a stale quota error
+- Keep prompts and permission responses retryable after connection loss
+- Translate interactive questions and plan confirmations while preserving submitted answers
+- Load desktop quota plugins when the app inherits an inaccessible working directory
+- Keep quota indicators in the wide composer information row
+- Keep copy-button feedback from leaving a stuck hover highlight
+
+This beta is available for macOS Apple Silicon only. Other platforms and the stable update channel remain on their existing releases.
+
 ## 1.5.5 - 2026-11-05
 
 ### Fixed

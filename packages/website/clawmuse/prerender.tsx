@@ -3,7 +3,15 @@ import { renderToString } from "react-dom/server";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Site } from "./site";
-import { descriptionFor, href, pageLanguages, routes, titleFor, type Page } from "./content";
+import {
+  descriptionFor,
+  documentTitleFor,
+  href,
+  pageLanguages,
+  routes,
+  titleFor,
+  type Page,
+} from "./content";
 import { languages, locales, type Language } from "./i18n/locales";
 import { agentFor, agentRoutes, isAgentPage } from "./agents-content";
 import {
@@ -230,7 +238,7 @@ function structuredData(page: Page, language: Language) {
 async function renderPage(page: Page, language: Language, found = true) {
   const missingPath = `${locales[language].prefix}/404.html`;
   const path = found ? href(page, language) : missingPath;
-  const title = `${found ? titleFor(page, language) : "404"} — ClawMuse`;
+  const title = found ? documentTitleFor(page, language) : "404 — ClawMuse";
   const description = descriptionFor(language, page);
   let html = template
     .replace(/<html lang="[^"]*"/, `<html lang="${language}" dir="${locales[language].dir}"`)
@@ -361,6 +369,6 @@ for (const language of editorialLanguages) {
 }
 await writeFile(
   resolve(output, "llms.txt"),
-  `# ClawMuse\n\n> Put your ideas into action. ClawMuse is a personal workspace where you choose AI tools such as Claude Code and Codex for each task. Give instructions and review results across your computer and phone.\n\nProjects and tools run on your host. Cloud models, speech providers and optional services have separate data flows. The website demo uses preset browser-local data.\n\n## Product\n- [Official plugins](${origin}/plugins/)\n- [Brand](${origin}/brand/)\n- [Personal plans](${origin}/pricing/)\n- [Blog](${origin}/blog/)\n- [Account and data](${origin}/account-deletion/)\n- [Product](${origin}/product/)\n- [Setup](${origin}/docs/)\n- [Security](${origin}/security/)\n- [Privacy](${origin}/privacy/)\n\n## Supported agents\n- [Agent directory](${origin}/agents/)\n${agentRoutes.map((page) => `- [${titleFor(page, "en")}](${origin}${href(page, "en")})`).join("\n")}\n\n## Guides and comparisons\n${editorialLanguages.flatMap((language) => articleRoutes.map((page) => `- [${titleFor(page, language)}](${origin}${href(page, language)})`)).join("\n")}\n`,
+  `# ClawMuse\n\n> Put your ideas into action. ClawMuse is a personal workspace where you choose AI tools such as Claude Code and Codex for each task. Give instructions and review results from your computer, phone or the web, using your own machine and the models you choose.\n\nProjects and tools run on your host. Cloud models, speech providers and optional services have separate data flows. The website demo uses preset browser-local data.\n\n## Product\n- [Official plugins](${origin}/plugins/)\n- [Brand](${origin}/brand/)\n- [Personal plans](${origin}/pricing/)\n- [Blog](${origin}/blog/)\n- [Account and data](${origin}/account-deletion/)\n- [Product](${origin}/product/)\n- [Setup](${origin}/docs/)\n- [Security](${origin}/security/)\n- [Privacy](${origin}/privacy/)\n\n## Supported agents\n- [Agent directory](${origin}/agents/)\n${agentRoutes.map((page) => `- [${titleFor(page, "en")}](${origin}${href(page, "en")})`).join("\n")}\n\n## Guides and comparisons\n${editorialLanguages.flatMap((language) => articleRoutes.map((page) => `- [${titleFor(page, language)}](${origin}${href(page, language)})`)).join("\n")}\n`,
 );
 console.log(`Prerendered ${urls.length} pages and ${languages.length} localized 404 pages.`);

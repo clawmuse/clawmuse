@@ -15,11 +15,15 @@ import { startDriver, selection, type Driver } from "./process.js";
 import { validateSelection } from "./catalog.js";
 import { PromptFiles } from "./prompt.js";
 import { toolItem } from "./timeline.js";
+import { readHistory } from "./history.js";
 import { AntigravityTokenSpeedObserver } from "./token-speed.js";
 import { AntigravityError, diagnostic, type Frame, type Step } from "./wire.js";
 
 const persistenceSchema = z
-  .object({ version: z.literal(1), data: z.object({ conversationId: z.string().min(1) }).strict() })
+  .object({
+    version: z.literal(1),
+    data: z.object({ conversationId: z.string().regex(/^[a-zA-Z0-9_-]+$/) }).strict(),
+  })
   .strict();
 type TurnUsageCounters = Required<
   Pick<ProviderUsage, "inputTokens" | "outputTokens" | "cachedInputTokens">
@@ -45,6 +49,7 @@ interface SessionOptions {
   launch: ProviderLaunch;
   catalog(): ProviderCatalog;
   persistence?: ProviderPersistence;
+  history: "replay" | "skip";
   emit(event: ProviderEvent): void;
 }
 
@@ -67,6 +72,10 @@ export class Session {
   }
 
   async open(requestId: string, capabilities: readonly string[]): Promise<void> {
+    const history =
+      this.conversationId && this.options.history === "replay"
+        ? await readHistory(this.conversationId, this.options.launch)
+        : [];
     await this.ensureDriver();
     this.emit({
       type: "session.opened",
@@ -80,6 +89,22 @@ export class Session {
     });
     this.publishFullAccessNotice();
     this.publishConfig();
+    if (history === null) {
+      this.emit({
+        type: "session.notice",
+        sessionId: this.options.id,
+        notice: {
+          id: `${this.options.id}:history-unavailable`,
+          severity: "warning",
+          title: "Antigravity history is unavailable",
+          description:
+            "The CLI transcript was not found on this host. You can continue this conversation, but earlier messages cannot be displayed.",
+        },
+      });
+    } else {
+      for (const entry of history)
+        this.emit({ type: "timeline.item", sessionId: this.options.id, ...entry });
+    }
     this.emit({ type: "session.commands", sessionId: this.options.id, commands: [] });
     this.emit({ type: "session.ready", requestId, sessionId: this.options.id });
   }

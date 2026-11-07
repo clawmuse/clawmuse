@@ -1418,7 +1418,7 @@ test.describe("Agent message submission", () => {
     await replaySteeredSleepTurnInBrowser(page, testInfo, "codex");
   });
 
-  test("restores overlapping queued sends when their connection fails", async ({
+  test("restores overlapping queued sends when the host rejects them", async ({
     page,
   }, testInfo) => {
     test.setTimeout(120_000);
@@ -1436,7 +1436,8 @@ test.describe("Agent message submission", () => {
       await gate.waitForRequest(1);
       await page.getByRole("button", { name: "Send queued message now" }).first().click();
       await gate.waitForRequest(2);
-      await gate.disconnect();
+      gate.reject(0);
+      gate.reject(1);
       await expectQueuedSendFailuresRestored(page, prompts);
     } finally {
       await agent.cleanup();
@@ -1457,7 +1458,9 @@ test.describe("Agent message submission", () => {
     await expect(
       page.getByTestId("user-message").filter({ hasText: "Start an unrelated turn." }),
     ).toBeVisible();
-    await unrelatedRunningScenario.gate.disconnect();
+    // Connection loss now holds the prompt for an idempotent resend. A definitive
+    // rejection must still restore it, even after another client starts a turn.
+    unrelatedRunningScenario.gate.reject();
     await expectFailedSubmissionRestored(page, prompt);
   });
 
