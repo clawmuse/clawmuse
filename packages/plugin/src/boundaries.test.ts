@@ -95,6 +95,7 @@ describe("plugin SDK import boundaries", () => {
   it("publishes process capabilities without their Windows implementation helpers", () => {
     expect(Object.keys(server).sort()).toEqual([
       "PluginTextGenerationRequestSchema",
+      "PluginTextPreparationRequestSchema",
       "defineAgentTool",
       "execCommand",
       "spawnProcess",

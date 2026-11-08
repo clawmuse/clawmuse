@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
-import { ArrowUp, RefreshCcw, X } from "lucide-react-native";
+import { ArrowUp, RefreshCcw, X } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import type { DictationStatus } from "@/hooks/use-dictation";

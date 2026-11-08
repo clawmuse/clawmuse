@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { Bot, PackagePlus } from "lucide-react-native";
+import { Bot, PackagePlus } from "@/components/icons/app-icons";
 import { SvgXml } from "react-native-svg";
 import { afterEach, describe, expect, it } from "vitest";
 import { replaceProviderSnapshotIcons } from "@/data/provider-icons";

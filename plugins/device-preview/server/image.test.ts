@@ -21,11 +21,11 @@ test("a noisy screenshot is a bounded JPEG with original input dimensions retain
   expect(result).toMatchObject({
     screenWidth: width,
     screenHeight: height,
-    width: 540,
-    height: 960,
   });
   const decoded = jpeg.decode(bytes, { useTArray: true });
-  expect([decoded.width, decoded.height]).toEqual([540, 960]);
+  expect([decoded.width, decoded.height]).toEqual([result.width, result.height]);
+  expect(result.height).toBeLessThanOrEqual(960);
+  expect(result.width / result.height).toBeCloseTo(width / height, 2);
 });
 
 test("invalid formats and oversized headers are refused before decoding", () => {

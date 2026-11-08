@@ -1,5 +1,5 @@
 import { RemoteAccess, type AccessActor } from "./remote-access.js";
-import type { PluginTextGenerator } from "@getpaseo/plugin/server";
+import type { HostTextGenerator } from "./agent/text-generation.js";
 import { matchesLocalCredential } from "./local-credential.js";
 import { generateLocalPairingOffer } from "./pairing-offer.js";
 import { encodeOfferToFragmentUrl } from "./connection-offer.js";
@@ -1180,7 +1180,7 @@ export class VoiceAssistantWebSocketServer {
     return { closed };
   }
 
-  readonly generatePluginText: PluginTextGenerator = (request, options) =>
+  readonly generatePluginText: HostTextGenerator = (request, options) =>
     this.agentManager.generateText(request, options);
 
   public updatePrincipalPermissions(
@@ -2218,6 +2218,7 @@ export class VoiceAssistantWebSocketServer {
         creationLifecycle: true,
         hubAgentRpc: true,
         backgroundWorkspaces: true,
+        workspaceDeletion: true,
         // COMPAT(directorySync): added in v0.3.x, remove gate after 2027-02-12.
         directorySync: true,
         // COMPAT(workspaceLabels): added in v0.5.0, remove after 2027-08-14.

@@ -4,6 +4,7 @@ import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
+import { openProjectOnboarding } from "./open-project-onboarding";
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -146,6 +147,12 @@ export const ko: TranslationResources = {
       daemonUnavailable: "데몬을 사용할 수 없습니다",
       daemonClientUnavailable: "데몬 클라이언트를 사용할 수 없습니다",
       daemonClientDisconnected: "데몬 클라이언트 연결이 끊어졌습니다",
+      modelProviderChanged:
+        "이 대화는 {{expected}}을(를) 사용하지만 현재 모델 제공자는 {{current}}입니다. {{expected}}(으)로 돌아가 계속하거나 {{current}}(으)로 새 대화를 시작하세요.",
+      hostConnectionLost:
+        "호스트와의 연결이 끊어졌습니다. 다시 연결될 때까지 기다린 후 재시도하세요.",
+      hostRequestTimeout:
+        "호스트 응답 시간이 초과되었습니다. 처리 결과가 아직 확인되지 않았습니다. 연결과 대화 상태를 확인한 후 다시 시도하세요.",
       noFileFound: "{{token}}에 해당하는 파일을 찾을 수 없습니다",
       folderOutsideWorkspace: "{{path}}은(는) 이 워크스페이스 밖에 있습니다",
       unexpectedDictationError: "받아쓰기를 처리하는 중 예기치 않은 오류가 발생했습니다.",
@@ -471,6 +478,7 @@ export const ko: TranslationResources = {
     },
     question: {
       responseFailed: "응답을 보내지 못했습니다. 다시 시도해 주세요.",
+      responseFailedDetail: "응답을 보내지 못했습니다: {{error}}",
       submit: "제출",
       next: "다음",
       answerPlaceholder: "답변을 입력하세요...",
@@ -1416,6 +1424,21 @@ export const ko: TranslationResources = {
       },
     },
     workspace: {
+      deleteWorkspace: {
+        label: "워크스페이스 영구 삭제",
+        message:
+          "“{{name}}” 및 보관된 대화를 포함한 모든 대화를 영구 삭제할까요? 실행 중인 에이전트와 터미널이 중지됩니다. 이 작업은 취소할 수 없습니다. 프로젝트와 워크트리 파일은 유지됩니다.",
+        deleting: "워크스페이스 삭제 중…",
+        deleted: "워크스페이스가 영구 삭제되었습니다",
+        failed: "워크스페이스 삭제 실패: {{error}}",
+      },
+      deleteConversation: {
+        label: "현재 대화 삭제",
+        message:
+          'ClawMuse에서 "{{title}}"을(를) 영구 삭제할까요? 되돌릴 수 없습니다. 다른 대화와 프로젝트 파일은 유지됩니다.',
+        deleting: "대화 삭제 중…",
+        failed: "대화를 삭제하지 못했습니다. 다시 시도하세요.",
+      },
       status: {
         serviceRunning: "서비스 {{name}} 실행 중",
         serviceUnhealthy: "서비스 {{name}} 비정상",
@@ -1698,6 +1721,7 @@ export const ko: TranslationResources = {
     },
   },
   openProject: {
+    onboarding: openProjectOnboarding["ko"],
     tiles: {
       addProject: {
         title: "프로젝트 추가",

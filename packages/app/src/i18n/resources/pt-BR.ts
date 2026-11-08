@@ -4,6 +4,7 @@ import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
+import { openProjectOnboarding } from "./open-project-onboarding";
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -149,6 +150,12 @@ export const ptBR: TranslationResources = {
       daemonUnavailable: "Daemon indisponível",
       daemonClientUnavailable: "Cliente do daemon indisponível",
       daemonClientDisconnected: "O cliente do daemon está desconectado",
+      modelProviderChanged:
+        "Esta conversa usa {{expected}}, mas o provedor de modelos atual é {{current}}. Volte para {{expected}} para continuar ou inicie uma nova conversa com {{current}}.",
+      hostConnectionLost:
+        "A conexão com o host foi perdida. Aguarde a reconexão e tente novamente.",
+      hostRequestTimeout:
+        "O host não respondeu a tempo. O resultado ainda não foi confirmado. Verifique a conexão e o estado da conversa antes de tentar novamente.",
       noFileFound: "Nenhum arquivo encontrado para {{token}}",
       folderOutsideWorkspace: "{{path}} está fora deste workspace",
       unexpectedDictationError: "Ocorreu um erro inesperado ao processar o ditado.",
@@ -477,6 +484,7 @@ export const ptBR: TranslationResources = {
     },
     question: {
       responseFailed: "Não foi possível enviar sua resposta. Tente novamente.",
+      responseFailedDetail: "Não foi possível enviar sua resposta: {{error}}",
       submit: "Enviar",
       next: "Próximo",
       answerPlaceholder: "Digite sua resposta...",
@@ -1438,6 +1446,21 @@ export const ptBR: TranslationResources = {
       },
     },
     workspace: {
+      deleteWorkspace: {
+        label: "Excluir espaço permanentemente",
+        message:
+          "Excluir permanentemente “{{name}}” e todas as suas conversas, incluindo as arquivadas? Os agentes e terminais em execução serão interrompidos. Esta ação não pode ser desfeita. Os arquivos do projeto e da árvore de trabalho serão mantidos.",
+        deleting: "Excluindo espaço…",
+        deleted: "Espaço excluído permanentemente",
+        failed: "Falha ao excluir espaço: {{error}}",
+      },
+      deleteConversation: {
+        label: "Excluir conversa atual",
+        message:
+          'Excluir "{{title}}" permanentemente do ClawMuse? Isso não pode ser desfeito. As outras conversas e os arquivos do projeto serão mantidos.',
+        deleting: "Excluindo conversa…",
+        failed: "Não foi possível excluir a conversa. Tente novamente.",
+      },
       status: {
         serviceRunning: "Serviço {{name}} em execução",
         serviceUnhealthy: "Serviço {{name}} com falha",
@@ -1722,6 +1745,7 @@ export const ptBR: TranslationResources = {
     },
   },
   openProject: {
+    onboarding: openProjectOnboarding["pt-BR"],
     tiles: {
       addProject: {
         title: "Adicionar um projeto",

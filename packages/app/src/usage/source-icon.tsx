@@ -1,4 +1,4 @@
-import { Gauge } from "lucide-react-native";
+import { Gauge } from "@/components/icons/app-icons";
 import { withUnistyles } from "react-native-unistyles";
 import { SvgIcon } from "@/components/provider-icons";
 import type { Theme } from "@/styles/theme";

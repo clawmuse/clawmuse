@@ -71,6 +71,16 @@ describe("useWebOverlayRegistration in the browser", () => {
 
     expect(openerFocusCalls).toBe(1);
   });
+
+  it("restores the opener while a closed overlay stays mounted for its exit animation", async () => {
+    await renderHarness(true, true);
+    const input = document.querySelector<HTMLInputElement>('[data-testid="overlay-input"]')!;
+    input.focus();
+
+    await renderHarness(false, true);
+
+    expect(document.activeElement).toBe(opener);
+  });
 });
 
 describe("hasOpenDomPopover", () => {

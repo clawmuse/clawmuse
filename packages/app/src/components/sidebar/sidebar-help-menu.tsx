@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
-import { Activity, CircleHelp, Keyboard } from "lucide-react-native";
+import { Activity, CircleHelp, Keyboard } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {

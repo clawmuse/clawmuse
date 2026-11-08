@@ -13,7 +13,7 @@ import {
   Search,
   type LucideIcon,
   Target,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { Button } from "@/components/ui/button";
 import { Shortcut } from "@/components/ui/shortcut";

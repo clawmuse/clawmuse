@@ -19,7 +19,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated from "react-native-reanimated";
-import { ArrowLeft, Search, X, type LucideIcon } from "lucide-react-native";
+import { ArrowLeft, Search, X, type LucideIcon } from "@/components/icons/app-icons";
 import {
   IsolatedBottomSheetModal,
   SheetVisibleFrame,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[2],
     paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[2],
+    paddingVertical: theme.spacing[1.5],
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
@@ -183,6 +183,12 @@ const styles = StyleSheet.create((theme) => ({
     paddingVertical: theme.spacing[2],
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
+  },
+  inlineSearchInput: {
+    flex: 1,
+    paddingVertical: theme.spacing[0.5],
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
   },
   desktopScrollContainer: {
     // Grows only when the card has an explicit `desktopHeight`; a content-sized
@@ -440,7 +446,9 @@ export function InlineHeaderView({ header }: { header: SheetHeader }) {
   const { t } = useTranslation();
   const back = header.back;
   const handleBackPress = back?.onPress;
-  const hasInlineRow = Boolean(handleBackPress || header.leading || header.actions);
+  const hasInlineRow = Boolean(
+    handleBackPress || header.leading || (!header.search && header.actions),
+  );
   if (!hasInlineRow && !header.search) return null;
   return (
     <View>
@@ -477,7 +485,7 @@ export function InlineHeaderView({ header }: { header: SheetHeader }) {
           <Search size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
           <AdaptiveTextInput
             // @ts-expect-error - outlineStyle is web-only
-            style={[styles.searchInput, isWeb && { outlineStyle: "none" }]}
+            style={[styles.inlineSearchInput, isWeb && { outlineStyle: "none" }]}
             placeholder={header.search.placeholder ?? t("common.actions.search")}
             resetKey={header.search.resetKey}
             onChangeText={header.search.onChange}
@@ -488,6 +496,9 @@ export function InlineHeaderView({ header }: { header: SheetHeader }) {
             autoFocus={header.search.autoFocus}
             testID={header.search.testID}
           />
+          {!hasInlineRow && header.actions ? (
+            <View style={styles.headerActions}>{header.actions}</View>
+          ) : null}
         </View>
       ) : null}
     </View>

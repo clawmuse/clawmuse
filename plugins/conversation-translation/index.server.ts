@@ -7,9 +7,11 @@ import {
   originalRpc,
   preferences,
   translationRpc,
+  repliesRpc,
+  prepareRpc,
   configuredPreferencesSchema,
 } from "./shared/contracts.js";
-import { createModelTranslator } from "./server/generation.js";
+import { createModelTranslator, translationSession } from "./server/generation.js";
 import { createTranslator } from "./server/translator.js";
 import { TranslationError } from "./server/literals.js";
 
@@ -39,10 +41,25 @@ export default function contribute(server: PluginServerContext) {
       text: await translator.input({ ...request, settings: configured, signal }),
     };
   });
-  server.handle(translationRpc, async ({ text, revision }) => {
+  server.handle(prepareRpc, async ({ agentId, revision }) => {
     const current = await readSettings(revision);
+    if (current)
+      await server.prepareTextGeneration(translationSession({ ...current, sessionKey: agentId }), {
+        signal: AbortSignal.timeout(14000),
+      });
+    return {};
+  });
+  server.handle(translationRpc, async ({ text, agentId, revision }) => {
+    const current = await readSettings(revision);
+
     if (!current) return { text };
-    return { text: await translator.translate(text, "Simplified Chinese", current) };
+    return {
+      text: await translator.translate(text, "Simplified Chinese", current, undefined, agentId),
+    };
+  });
+  server.handle(repliesRpc, async ({ texts, agentId, revision }) => {
+    const current = await readSettings(revision);
+    return { texts: current ? await translator.replies(texts, current, agentId) : texts };
   });
   server.handle(fieldsRpc, async ({ texts, revision }) => {
     const current = await readSettings(revision);
@@ -52,10 +69,13 @@ export default function contribute(server: PluginServerContext) {
     text: await translator.original(request),
   }));
   server.handle(checkRpc, async ({ provider, model }) => ({
-    text: await translator.translate("The connection is ready.", "Simplified Chinese", {
-      provider,
-      model,
-    }),
+    text: await translator.translate(
+      "The connection is ready.",
+      "Simplified Chinese",
+      { provider, model },
+      undefined,
+      "translation-check",
+    ),
   }));
   return () => {
     remove();

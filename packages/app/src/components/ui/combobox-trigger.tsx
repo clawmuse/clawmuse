@@ -17,7 +17,7 @@ import {
   type StyleProp,
 } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { ChevronDown } from "lucide-react-native";
+import { ChevronDown } from "@/components/icons/app-icons";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 
 const ThemedChevronDown = withUnistyles(ChevronDown);

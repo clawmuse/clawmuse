@@ -403,6 +403,60 @@ describe("voice turn controller", () => {
     );
   });
 
+  it("excludes low-confidence noise from a turn while retaining segments without confidence metadata", async () => {
+    const harness = createControllerHarness();
+    await harness.controller.start();
+    harness.detector.emit("speech_started");
+    await settleSerialQueue();
+    harness.detector.emit("speech_stopped");
+    await settleSerialQueue();
+    const stt = harness.sttSessions[0];
+    stt?.emitCommitted({ segmentId: "speech", previousSegmentId: null });
+    stt?.emitCommitted({ segmentId: "noise", previousSegmentId: "speech" });
+    stt?.emitCommitted({ segmentId: "quiet", previousSegmentId: "noise" });
+    stt?.emitTranscript({
+      segmentId: "noise",
+      transcript: "感谢观看",
+      isFinal: true,
+      isLowConfidence: true,
+    });
+    stt?.emitTranscript({
+      segmentId: "speech",
+      transcript: "检查",
+      isFinal: true,
+      isLowConfidence: false,
+    });
+    stt?.emitTranscript({ segmentId: "quiet", transcript: "文件", isFinal: true });
+    await settleSerialQueue();
+    expect(harness.onFinalTranscript).toHaveBeenCalledWith(
+      expect.objectContaining({ transcript: "检查文件" }),
+    );
+    expect(harness.onFinalTranscript.mock.calls[0]?.[0].isLowConfidence).not.toBe(true);
+    await harness.controller.stop();
+  });
+
+  it("returns an empty low-confidence turn when every segment is rejected", async () => {
+    const harness = createControllerHarness();
+    await harness.controller.start();
+    harness.detector.emit("speech_started");
+    await settleSerialQueue();
+    harness.detector.emit("speech_stopped");
+    await settleSerialQueue();
+    const stt = harness.sttSessions[0];
+    stt?.emitCommitted({ segmentId: "noise", previousSegmentId: null });
+    stt?.emitTranscript({
+      segmentId: "noise",
+      transcript: "感谢观看",
+      isFinal: true,
+      isLowConfidence: true,
+    });
+    await settleSerialQueue();
+    expect(harness.onFinalTranscript).toHaveBeenCalledWith(
+      expect.objectContaining({ transcript: "", isLowConfidence: true }),
+    );
+    await harness.controller.stop();
+  });
+
   it("keeps earlier sentences when speech resumes before their transcript arrives", async () => {
     const harness = createControllerHarness();
     const stt = () => harness.sttSessions[0];

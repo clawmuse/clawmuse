@@ -1,0 +1,14 @@
+✔ counts packed and remaining items (1.0195ms)
+✔ handles an empty list (0.163583ms)
+✔ filters unpacked items (0.053ms)
+✔ restores all items when filter is off (0.664208ms)
+✔ restores saved items after reopening (0.210291ms)
+✔ recovers from invalid cache (0.306333ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 57.574834

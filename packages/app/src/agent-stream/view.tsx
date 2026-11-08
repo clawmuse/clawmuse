@@ -1,5 +1,6 @@
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { getQuestionResponseErrorMessage } from "@/components/question-form-card-core";
 import React, {
   forwardRef,
   memo,
@@ -26,7 +27,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useMutation } from "@tanstack/react-query";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { Check, ChevronDown, X } from "lucide-react-native";
+import { Check, ChevronDown, X } from "@/components/icons/app-icons";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { openExplorerSidebarView } from "@/workspace-tabs/explorer-sidebar";
 import {
@@ -1674,7 +1675,13 @@ function PermissionRequestCard({
       permissionMutation.isError &&
       permissionMutation.variables?.agentId === permission.agentId &&
       permissionMutation.variables?.requestId === permission.request.id;
-    const responseError = responseFailed ? t("message.question.responseFailed") : null;
+    let responseError: string | null = null;
+    if (responseFailed) {
+      const error = getQuestionResponseErrorMessage(permissionMutation.error);
+      responseError = error
+        ? t("message.question.responseFailedDetail", { error })
+        : t("message.question.responseFailed");
+    }
     return (
       <TranslatedQuestionFormCard
         serverId={serverId}

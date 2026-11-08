@@ -29,7 +29,7 @@ import {
   Pilcrow,
   RotateCw,
   WrapText,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import { type ParsedDiffFile } from "@/git/use-diff-query";
 import type { ChangesState } from "@/panels/changes/state";
 import { defaultChangesState } from "@/panels/changes/state";

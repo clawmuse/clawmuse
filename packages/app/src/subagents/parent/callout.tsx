@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { CornerUpLeft } from "lucide-react-native";
+import { CornerUpLeft } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { StatusIcon } from "@/components/status-icon";
 import { Button } from "@/components/ui/button";

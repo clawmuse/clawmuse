@@ -189,6 +189,8 @@ export default defineConfig({
       "react-native-gesture-handler > invariant",
     ],
     exclude: [
+      // Plugin UI exports are host-supplied declarations. Surface tests bind the real host UI.
+      "@getpaseo/plugin/client/ui",
       "react-native-enriched-markdown",
       "expo",
       "expo-blur",

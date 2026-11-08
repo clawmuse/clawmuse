@@ -47,7 +47,7 @@ async function expectBundledArtwork(page: Page, name: string, artwork: string) {
 async function expectUnknownArtworkFallback(page: Page) {
   const icon = profileIcon(page, "Unknown");
   await expect(icon).toBeVisible();
-  await expect(icon.locator('path[d="M12 8V4H8"]')).toHaveCount(1);
+  await expect(icon.locator('path[d="M12 8V4H9"]')).toHaveCount(1);
 }
 
 test("terminal profiles show bundled artwork while unknown icons keep the Bot fallback", async ({

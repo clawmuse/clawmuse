@@ -1,0 +1,5 @@
+Added
+- Browse official and community plugins inside host settings, with search, categories, installed-source detection and confirmation before installing a pinned version.
+- Add the optional model-capacity retry plugin, with configurable attempts and delay plus progress and completion reminders in the conversation.
+
+Full notes: https://paseo.sh/changelog

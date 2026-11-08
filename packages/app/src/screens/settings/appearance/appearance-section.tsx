@@ -3,7 +3,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { Monitor, Moon, Sun } from "lucide-react-native";
+import { Monitor, Moon, Sun } from "@/components/icons/app-icons";
 import {
   SYNTAX_THEME_OPTIONS,
   type SyntaxThemeId,

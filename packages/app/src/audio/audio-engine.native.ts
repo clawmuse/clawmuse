@@ -17,6 +17,7 @@ import { playPcm16, resamplePcm16 } from "./pcm";
 // Chat composers and voice mode share one native engine. A page can release only
 // its own reference; tearing down the singleton invalidates every retained page.
 const nativeEngineUsers = new Set<symbol>();
+const nativeCaptureUsers = new Set<symbol>();
 let nativeInitialization: Promise<void> | null = null;
 
 export function createAudioEngine(
@@ -70,6 +71,7 @@ export function createAudioEngine(
       }
       const wasCaptureActive = refs.captureActive;
       refs.captureActive = false;
+      nativeCaptureUsers.delete(nativeOwner);
       refs.muted = false;
       callbacks.onVolumeLevel(0);
       if (wasCaptureActive) {
@@ -131,6 +133,13 @@ export function createAudioEngine(
     }
     if (!permission?.granted) {
       throw new Error(i18n.t("common.errors.microphonePermissionDenied"));
+    }
+  }
+
+  function releaseCapture(): void {
+    refs.captureActive = false;
+    if (nativeCaptureUsers.delete(nativeOwner) && nativeCaptureUsers.size === 0) {
+      native.toggleRecording(false);
     }
   }
 
@@ -232,10 +241,7 @@ export function createAudioEngine(
       refs.destroyed = true;
       stopStream();
       playback.destroy();
-      if (refs.captureActive) {
-        native.toggleRecording(false);
-        refs.captureActive = false;
-      }
+      releaseCapture();
       refs.muted = false;
       callbacks.onVolumeLevel(0);
       if (refs.initialized) {
@@ -272,6 +278,7 @@ export function createAudioEngine(
           throw new Error(i18n.t("common.errors.microphoneCaptureUnavailable"));
         }
         refs.captureActive = true;
+        nativeCaptureUsers.add(nativeOwner);
       } catch (error) {
         const wrapped = error instanceof Error ? error : new Error(String(error));
         callbacks.onError?.(wrapped);
@@ -280,10 +287,7 @@ export function createAudioEngine(
     },
 
     async stopCapture() {
-      if (refs.captureActive) {
-        native.toggleRecording(false);
-      }
-      refs.captureActive = false;
+      releaseCapture();
       refs.muted = false;
       callbacks.onVolumeLevel(0);
       callbacks.onCaptureAvailabilityChange?.(true);

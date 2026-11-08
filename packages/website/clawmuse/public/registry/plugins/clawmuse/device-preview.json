@@ -1,0 +1,36 @@
+{
+  "id": "clawmuse/device-preview",
+  "name": "Device preview (preview)",
+  "description": "View and interact with iOS and Android simulators on your daemon host. Preview release: native SDK capture and input still require manual verification.",
+  "translations": {
+    "zh-CN": {
+      "name": "设备预览（预览版）",
+      "description": "在右侧面板查看和操作主机上的 iOS、Android 模拟器。支持独立安装和更新；原生采集、触控和远程性能仍待手动验证。"
+    }
+  },
+  "license": "Apache-2.0",
+  "categories": ["development"],
+  "author": {
+    "github": "endvin",
+    "name": "ClawMuse"
+  },
+  "repository": {
+    "url": "https://github.com/endvin/clawmuse-plugins",
+    "commit": "f0ff4dc8eeed42c1922aec233c54bc2f26ee92e4"
+  },
+  "artifact": {
+    "kind": "git",
+    "remote": "https://github.com/endvin/clawmuse-plugins.git",
+    "commit": "f0ff4dc8eeed42c1922aec233c54bc2f26ee92e4",
+    "pluginPath": "device-preview"
+  },
+  "media": ["https://clawmuse.com/registry/media/device-preview.png"],
+  "submittedAt": "2026-11-03T10:27:00Z",
+  "reviewedAt": "2026-11-03T10:27:00Z",
+  "updatedAt": "2026-11-03T10:27:00Z",
+  "publishedAt": "2026-11-03T10:27:00Z",
+  "readme": "# Device preview\n\nView and control iOS and Android simulators on your connected ClawMuse host from a workspace or right-side panel. Your phone receives the preview over authenticated plugin RPC; the simulator stays on the host.\n\nAndroid needs an existing Android SDK and AVD, with an authenticated Emulator gRPC endpoint. iOS needs Apple Silicon, macOS 15 or later, Xcode and an installed iOS runtime. Starting an iOS preview downloads the pinned, checksum-verified Baguette v0.2.12 native component from its upstream GitHub release after the panel explains the download and you choose to start.\n\nSingle- and two-finger gestures are supported. Available device buttons differ by platform. Preview quality settings limit capture or delivery to 10, 20 or 30 frames per second; actual remote performance has not been measured. The transport uses independent images, not H.264 video.\n\nOnly one panel can use a device at a time. Stopping a preview releases its helpers and occupation without shutting down the simulator. The plugin does not install apps, create devices, inspect clipboard content or forward audio. Screens remain in memory and are not recorded.\n\nIndependent installation and reviewed updates use the existing Git plugin mechanism. Keep the bundled version disabled when using the independent version. See the README for installation and verification details. Native simulator capture and input still require manual verification on supported hosts.\n",
+  "overviewTranslations": {
+    "zh-CN": "# 设备预览（预览版）\n\n在工作区右侧查看并操作 daemon 主机上的 iOS 和 Android 模拟器。手机通过经过认证的插件 RPC 观看，模拟器始终运行在主机。\n\nAndroid 需要已有 SDK、AVD 和带认证的 Emulator gRPC。iOS 需要 Apple Silicon、macOS 15+、Xcode 和已安装的模拟器 runtime；用户在面板阅读说明并选择开始后，主机从 Baguette 官方 GitHub 发布下载固定 v0.2.12 原生组件，核对压缩包和二进制摘要。\n\n支持单指和双指手势，各平台按钮按实际能力显示。画质档位为采集或接收速率设定上限，不代表已验证的远程帧率。当前使用独立图片传输，没有 H.264 解码。真实模拟器采集、触控和远程性能仍待手动验证。\n\n每台设备同时仅供一个面板占用。停止预览释放辅助进程和占用，不关闭模拟器。不创建设备、不安装 App、不读取剪贴板、不转发音频，图片只保留在内存中。\n\n可以独立安装和更新插件，无需重新安装 ClawMuse。使用独立版时先停用内置版。完整环境、权限和验证说明见[公开源码](https://github.com/endvin/clawmuse-plugins/tree/main/device-preview)。\n"
+  }
+}

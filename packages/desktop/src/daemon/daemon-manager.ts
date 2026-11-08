@@ -7,7 +7,7 @@ import {
   resolvePaseoHome,
   ensurePrivateDirectory,
   startDaemonInstance,
-  DaemonInstanceError,
+  waitForDaemonReady,
   stopDaemonInstance,
   readDaemonInstance,
   isSameDaemonInstance,
@@ -318,7 +318,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
         daemonVersion: normalizeVersion(current.version),
       });
       await stopDesktopDaemon("version_mismatch");
-    } else {
+    } else if (current.status === "running") {
       return current;
     }
   }
@@ -334,22 +334,20 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
     args: [],
     baseEnv: process.env,
   });
-  try {
-    await startDaemonInstance({
-      home,
-      cwd,
-      timeoutMs: 30_000,
-      ...invocation,
-      env: { ...invocation.env, PASEO_CLI: getBundledCliShimPath() },
-      mode: "managed",
-      desktopManaged: true,
-      onAcquired: (instance) => {
-        ownedLaunch = { home, instance };
-      },
-    });
-  } catch (error) {
-    if (!(error instanceof DaemonInstanceError && error.code === "DAEMON_NOT_READY")) throw error;
-  }
+  const launch = await startDaemonInstance({
+    home,
+    cwd,
+    ...invocation,
+    env: { ...invocation.env, PASEO_CLI: getBundledCliShimPath() },
+    mode: "managed",
+    desktopManaged: true,
+    onAcquired: (instance) => {
+      ownedLaunch = { home, instance };
+    },
+  });
+  // An existing or concurrently acquired supervisor may still be booting. Keep
+  // the renderer's startup request pending until this exact instance is ready.
+  await waitForDaemonReady(home, { instance: launch.instance });
   return resolveDesktopDaemonStatus();
 }
 

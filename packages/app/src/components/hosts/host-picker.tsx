@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useCallback, useMemo, type ReactElement, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import type { GestureResponderEvent } from "react-native";
-import { Plus, Server, Settings } from "lucide-react-native";
+import { Plus, Server, Settings } from "@/components/icons/app-icons";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { HostStatusDot } from "@/components/host-status-dot";
 import { Combobox, ComboboxItem, type ComboboxProps } from "@/components/ui/combobox";

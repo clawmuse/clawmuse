@@ -12,7 +12,7 @@ import {
   ShieldPlus,
   ShieldQuestionMark,
   Zap,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import { getModeVisuals, type AgentProviderDefinition } from "@getpaseo/protocol/provider-manifest";
 
 export interface AgentControlIconProps {

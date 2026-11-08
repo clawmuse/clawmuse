@@ -1,6 +1,6 @@
 import { useMemo, type ReactElement, type ReactNode } from "react";
 import { View } from "react-native";
-import { CircleAlert } from "lucide-react-native";
+import { CircleAlert } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import type { SurfaceBackdrop } from "@/styles/surface-backdrop";

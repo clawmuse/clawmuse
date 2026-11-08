@@ -1,0 +1,6 @@
+require "json"
+
+brand = JSON.parse(File.read(File.expand_path("../../../branding/brand.json", __dir__)))
+
+app_identifier(ENV["IOS_BUNDLE_IDENTIFIER"] || brand.fetch("iosBundleId"))
+team_id(ENV["APPLE_TEAM_ID"])

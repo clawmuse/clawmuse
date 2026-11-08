@@ -1,80 +1,88 @@
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { Text, View } from "react-native";
-import { useQuery, useQueries } from "@tanstack/react-query";
-import { useRpc, useSettings, type PluginTimelineItemProps } from "@getpaseo/plugin/client";
+import { useQuery } from "@tanstack/react-query";
+import {
+  useRpc,
+  useSettings,
+  useAgent,
+  type PluginTimelineItemProps,
+} from "@getpaseo/plugin/client";
 import { SettingsAction, Markdown } from "@getpaseo/plugin/client/ui";
 import type { z } from "zod";
 import {
   originalRpc,
   preferences,
   rowSchema,
-  translationRpc,
+  repliesRpc,
+  prepareRpc,
   configuredPreferencesSchema,
 } from "../shared/contracts.js";
-import { enqueueTranslation } from "./queue.js";
-import { paragraphs } from "../shared/paragraphs.js";
+import { sharedTranslationQueue } from "./queue.js";
+import { createReplyQueue } from "./replies.js";
 
-function AssistantMessage({
-  text,
-  phase,
-  revision,
-  color,
-}: {
+interface PassageProps {
+  ready: boolean;
+  agentId: string;
   text: string;
-  phase: "streaming" | "complete";
   revision: string;
   color: string;
-}) {
-  const translate = useRpc(translationRpc);
+}
+
+// Completed messages from the same conversation are batched before entering the queue.
+export const translationQueue = createReplyQueue(sharedTranslationQueue);
+
+function TranslatedPassage({ text, revision, color, agentId, ready }: PassageProps) {
+  const translate = useRpc(repliesRpc);
+  const prepare = useRpc(prepareRpc);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [started, setStarted] = useState(false);
   const style = useMemo(() => ({ color }), [color]);
-  const passages = useMemo(() => paragraphs(text, phase), [text, phase]);
-  const results = useQueries({
-    queries: passages.map((passage) => ({
-      queryKey: ["translation", revision, passage.text],
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        enqueueTranslation(() => translate({ text: passage.text, revision }), signal),
-      enabled: passage.complete,
-      staleTime: Infinity,
-      retry: false,
-    })),
+  const result = useQuery({
+    queryKey: ["translation", agentId, revision, text],
+    enabled: ready,
+    queryFn: ({ signal }) => {
+      setStarted(false);
+      return translationQueue.enqueue({
+        signal,
+        onStart: () => setStarted(true),
+        text,
+        agentId,
+        revision,
+        translate,
+        prepare,
+      });
+    },
+    staleTime: Infinity,
+    retry: false,
+    retryOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
-  const translated = passages
-    .map((passage, index) =>
-      results[index]!.data
-        ? results[index]!.data.text.trimEnd() + (passage.text.match(/\s*$/)?.[0] ?? "")
-        : passage.text,
-    )
-    .join("");
-  const pending = results.some((result) => result.isFetching);
-  const failure = results.find((result) => result.isError);
-  const retry = useCallback(() => {
-    for (const result of results) if (result.isError) void result.refetch();
-  }, [results]);
+  const translated = result.data?.text;
+  const { refetch } = result;
+  const retry = useCallback(() => void refetch(), [refetch]);
   const toggleOriginal = useCallback(() => setShowOriginal((current) => !current), []);
   return (
     <View>
-      <Markdown>{showOriginal ? text : translated}</Markdown>
-      {pending ? <Text style={style}>正在翻译…</Text> : null}
-      {failure ? (
+      <Markdown>{translated ?? text}</Markdown>
+      {result.isFetching ? <Text style={style}>{started ? "正在翻译…" : "等待翻译…"}</Text> : null}
+      {result.isError && !result.isFetching ? (
         <View>
           <Text accessibilityRole="alert" style={style}>
-            {failure.error.message}
+            {result.error.message}
           </Text>
-          <SettingsAction
-            label="翻译失败"
-            actionLabel="重试翻译"
-            onPress={retry}
-            disabled={pending}
-          />
+          <SettingsAction label="翻译失败" actionLabel="重试翻译" onPress={retry} />
         </View>
       ) : null}
-      {translated !== text ? (
-        <SettingsAction
-          label="原文"
-          actionLabel={showOriginal ? "显示译文" : "查看原文"}
-          onPress={toggleOriginal}
-        />
+      {translated && translated !== text ? (
+        <View>
+          <SettingsAction
+            label="原文"
+            actionLabel={showOriginal ? "收起原文" : "英文原文"}
+            onPress={toggleOriginal}
+          />
+          {showOriginal ? <Markdown>{text}</Markdown> : null}
+        </View>
       ) : null}
     </View>
   );
@@ -124,6 +132,20 @@ function UserMessage({
 
 export function TranslationRow(props: PluginTimelineItemProps<z.output<typeof rowSchema>>) {
   const settings = useSettings(preferences);
+  const status = useAgent(props.agentId, (agent) => agent.status);
+  const prepare = useRpc(prepareRpc);
+  const revision = settings.status === "ready" ? settings.revision : undefined;
+  const configured =
+    settings.status === "ready" && configuredPreferencesSchema.safeParse(settings.values).success;
+  useEffect(() => {
+    if (configured && status === "running") {
+      // Start only the provider process while the coding agent is working.
+      // A failure is retried within the bounded queue when the reply is ready.
+      void translationQueue
+        .prepare({ agentId: props.agentId, revision, prepare })
+        .catch(() => undefined);
+    }
+  }, [configured, status, props.agentId, revision, prepare]);
   if (
     settings.status !== "ready" ||
     !configuredPreferencesSchema.safeParse(settings.values).success
@@ -131,9 +153,15 @@ export function TranslationRow(props: PluginTimelineItemProps<z.output<typeof ro
     return <Markdown>{props.item.data.text}</Markdown>;
   if (props.item.data.role === "user") return <UserMessage {...props} />;
   return (
-    <AssistantMessage
+    <TranslatedPassage
+      ready={
+        props.item.data.phase === "complete" &&
+        status !== null &&
+        status !== "running" &&
+        status !== "initializing"
+      }
+      agentId={props.agentId}
       text={props.item.data.text}
-      phase={props.item.data.phase}
       revision={settings.revision}
       color={props.theme.colors.foregroundMuted}
     />

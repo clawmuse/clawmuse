@@ -3,7 +3,7 @@ import { useHosts } from "@/runtime/host-runtime";
 import { useCallback, useMemo, type ReactElement, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Archive, Unlink } from "lucide-react-native";
+import { Archive, Unlink } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useProviderIcon } from "@/components/provider-icons";
 import { ComposerTrackActions, ComposerTrackPill, ComposerTrackRow } from "@/composer/tracks";

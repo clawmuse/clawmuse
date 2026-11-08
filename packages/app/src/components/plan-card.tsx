@@ -1,7 +1,7 @@
 import { MarkdownRenderer } from "@/components/markdown/renderer";
 import { isWeb } from "@/constants/platform";
 import type { Theme } from "@/styles/theme";
-import { ChevronRight } from "lucide-react-native";
+import { ChevronRight } from "@/components/icons/app-icons";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View } from "react-native";

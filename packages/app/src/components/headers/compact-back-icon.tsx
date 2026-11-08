@@ -1,4 +1,4 @@
-import { ChevronLeft } from "lucide-react-native";
+import { ChevronLeft } from "@/components/icons/app-icons";
 import { withUnistyles } from "react-native-unistyles";
 import { foregroundIconColorMapping } from "@/components/ui/icon-button-chrome";
 

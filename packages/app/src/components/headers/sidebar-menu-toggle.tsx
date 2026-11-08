@@ -3,7 +3,7 @@ import { ICON_STROKE_WIDTH } from "@/styles/theme";
 import { useTranslation } from "react-i18next";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { Menu, PanelLeft } from "lucide-react-native";
+import { Menu, PanelLeft } from "@/components/icons/app-icons";
 import { router } from "expo-router";
 import {
   DropdownMenu,

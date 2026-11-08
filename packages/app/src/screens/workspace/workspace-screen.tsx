@@ -3313,6 +3313,7 @@ function WorkspaceScreenContent({
     () =>
       showScreenHeader ? (
         <ScreenHeader
+          borderless
           left={
             <>
               <SidebarMenuToggle />

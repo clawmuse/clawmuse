@@ -3198,6 +3198,16 @@ export class DaemonClient {
     });
   }
 
+  async deleteWorkspace(workspaceId: string): Promise<void> {
+    if (this.lastServerInfoMessage?.features?.workspaceDeletion !== true) {
+      throw new Error("Update the host to permanently delete workspaces.");
+    }
+    const result = await this.sendNamespacedCorrelatedSessionRequest<"workspace.delete.response">({
+      message: { type: "workspace.delete.request", workspaceId },
+    });
+    if (result.error) throw new Error(result.error);
+  }
+
   async archiveWorkspace(
     workspaceId: string,
     requestId?: string,

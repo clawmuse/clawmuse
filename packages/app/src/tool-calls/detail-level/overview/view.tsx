@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useRef, type ReactNode } from "react";
 import { ScrollView } from "react-native";
-import { Brain, Wrench } from "lucide-react-native";
+import { Brain, Wrench } from "@/components/icons/app-icons";
 import { StyleSheet } from "react-native-unistyles";
 import { IndentRail } from "@/components/indent-rail";
 import { ExpandableBadge } from "@/components/message";

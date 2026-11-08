@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useRouter, type Href } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Globe, SquarePen, SquareTerminal } from "lucide-react-native";
+import { Globe, SquarePen, SquareTerminal } from "@/components/icons/app-icons";
 import invariant from "tiny-invariant";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";

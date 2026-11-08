@@ -124,7 +124,10 @@ export async function scrollSettingsSidebarToEnd(page: Page): Promise<number> {
 
 export async function expectSettingsSidebarScrollOffset(page: Page, offset: number): Promise<void> {
   const scrollBody = page.locator('[data-testid="settings-sidebar-scroll-body"]:visible');
-  await expect.poll(() => scrollBody.evaluate((node) => node.scrollTop)).toBe(offset);
+  // Font scaling can round a preserved fractional offset to the adjacent CSS pixel.
+  await expect
+    .poll(async () => Math.abs((await scrollBody.evaluate((node) => node.scrollTop)) - offset))
+    .toBeLessThanOrEqual(1);
 }
 
 export async function scrollSettingsDetailDown(page: Page): Promise<number> {

@@ -10,7 +10,7 @@ import { Text, View, type PressableStateCallbackType } from "react-native";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { Check, Download, Languages, Trash2 } from "lucide-react-native";
+import { Check, Download, Languages, Trash2 } from "@/components/icons/app-icons";
 import type { LocalSpeechModel, SpeechSettingsPatch } from "@getpaseo/protocol/speech/rpc-schemas";
 import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
 import {

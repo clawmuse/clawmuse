@@ -1,6 +1,6 @@
 import { validateWorktreePath } from "../../utils/worktree-path.js";
 import type { PluginHookPayload } from "@getpaseo/plugin/server";
-import type { PluginTextGenerator } from "@getpaseo/plugin/server";
+import { TextGenerationSessionPool, type HostTextGenerator } from "../agent/text-generation.js";
 import type { PluginWireBeforeRequests, PluginBeforeResults } from "./lifecycle/index.js";
 import type { SessionOpenWireRequest, AttachedAgentTool } from "./agent-tools.js";
 import type { UsageScope } from "@getpaseo/plugin/server/usage";
@@ -69,6 +69,7 @@ interface PendingInvocation {
 }
 
 interface LoadedPlugin {
+  textSessionPool: TextGenerationSessionPool;
   textRequests: Map<string, { controller: AbortController; done: Promise<void> }>;
   id: string;
   instanceId: string;
@@ -207,7 +208,7 @@ class PluginOutputCapture {
 }
 
 export interface PluginPaseoSessionHost {
-  generatePluginText?: PluginTextGenerator;
+  generatePluginText?: HostTextGenerator;
   attachPluginSocket(
     pluginId: string,
     socket: PluginSessionSocket,
@@ -791,6 +792,7 @@ export class PluginRuntime {
         outputCapture: null,
         pending: new Map(),
         textRequests: new Map(),
+        textSessionPool: new TextGenerationSessionPool(),
         providerConnections: new Map(),
         providerConnectionTombstones: new Set(),
         sessionSocket: null,
@@ -922,6 +924,7 @@ export class PluginRuntime {
       outputCapture,
       pending,
       textRequests: new Map(),
+      textSessionPool: new TextGenerationSessionPool(),
       providerConnections: new Map(),
       providerConnectionTombstones: new Set(),
       sessionSocket: session.socket,
@@ -999,7 +1002,7 @@ export class PluginRuntime {
       loaded.textRequests.get(message.requestId)?.controller.abort();
       return;
     }
-    if (message.type === "text.generate") {
+    if (message.type === "text.generate" || message.type === "text.prepare") {
       const child = loaded.child;
       if (!child) return;
       const controller = new AbortController();
@@ -1008,9 +1011,17 @@ export class PluginRuntime {
           if (this.plugins.get(loaded.id) !== loaded) throw new Error("Plugin is stopping");
           if (!this.sessionHost?.generatePluginText)
             throw new Error("Host text generation is unavailable");
-          const text = await this.sessionHost.generatePluginText(message.request, {
-            signal: controller.signal,
-          });
+          const text = await this.sessionHost.generatePluginText(
+            {
+              ...message.request,
+              prompt: message.type === "text.prepare" ? "" : message.request.prompt,
+            },
+            {
+              prepareOnly: message.type === "text.prepare",
+              signal: controller.signal,
+              sessionPool: loaded.textSessionPool,
+            },
+          );
           await send(child, { type: "text.result", requestId: message.requestId, text });
         } catch {
           // Provider diagnostics can contain prompt text and credentials.
@@ -1418,7 +1429,10 @@ export class PluginRuntime {
   private async cancelTextRequests(loaded: LoadedPlugin): Promise<void> {
     const requests = [...loaded.textRequests.values()];
     for (const request of requests) request.controller.abort();
-    await Promise.allSettled(requests.map((request) => request.done));
+    await Promise.allSettled([
+      loaded.textSessionPool.close(),
+      ...requests.map((request) => request.done),
+    ]);
   }
 
   private appendLog(pluginId: string, stream: PluginLogEntry["stream"], message: string): void {

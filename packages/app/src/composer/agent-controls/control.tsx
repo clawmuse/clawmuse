@@ -96,12 +96,12 @@ export const AgentControlTrigger = forwardRef<View, AgentControlTriggerProps>(
 
 const styles = StyleSheet.create((theme) => ({
   toolbarControl: {
-    height: 28,
+    height: { xs: 32, md: 28 },
     minWidth: 0,
     flexShrink: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[1],
+    gap: theme.spacing[1.5],
     paddingHorizontal: theme.spacing[2],
     borderRadius: theme.borderRadius["2xl"],
     backgroundColor: "transparent",

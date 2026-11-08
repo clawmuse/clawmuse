@@ -1,0 +1,5 @@
+Fixed
+- Keep dictation and realtime audio available when switching between chats or connected hosts by preserving the shared native audio engine.
+- Show a platform-neutral microphone error and distinguish an outdated host from unavailable Apple local transcription on the device.
+
+Full notes: https://paseo.sh/changelog

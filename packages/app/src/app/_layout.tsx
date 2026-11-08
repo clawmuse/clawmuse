@@ -9,7 +9,7 @@ import { SheetHostScope } from "@/components/ui/isolated-bottom-sheet-modal";
 import "@/styles/unistyles";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { PortalProvider } from "@gorhom/portal";
-import { LucideProvider } from "lucide-react-native";
+import { LucideProvider } from "@/components/icons/app-icons";
 import { Stack, useNavigationContainerRef, usePathname } from "expo-router";
 import {
   createContext,

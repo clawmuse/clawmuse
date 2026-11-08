@@ -1,7 +1,7 @@
 import { Modal } from "@/components/ui/modal";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { View } from "react-native";
-import { X } from "lucide-react-native";
+import { X } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native-unistyles";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

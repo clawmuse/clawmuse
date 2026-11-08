@@ -26,6 +26,11 @@ async function expectHomeActionsReachable(page: Page) {
 test("home actions remain reachable on a short phone screen", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await openProjectHome(page);
+  // The loading skeleton also has support actions. Wait for the real list so
+  // hydration cannot replace those elements between scrolling and measuring.
+  await expect(
+    page.getByTestId("mobile-home").getByTestId("sidebar-project-workspace-list-scroll"),
+  ).toBeVisible();
   await scrollToHomeFooter(page);
   await expectHomeActionsReachable(page);
   await page.screenshot({ path: testInfo.outputPath("home-scrolled.png") });

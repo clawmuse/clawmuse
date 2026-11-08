@@ -1,3 +1,4 @@
+import { deleteWorkspace } from "./workspace-delete-service.js";
 import { createVoiceAssistantTaskHost } from "./session/voice/voice-assistant-host.js";
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
@@ -3215,6 +3216,8 @@ export class Session {
         return this.handleProjectRemoveRequest(msg);
       case "workspace.title.set.request":
         return this.handleWorkspaceTitleSetRequest(msg.workspaceId, msg.title, msg.requestId);
+      case "workspace.delete.request":
+        return this.handleWorkspaceDeleteRequest(msg);
       case "workspace.pin.set.request":
         return this.handleWorkspacePinSetRequest(msg.workspaceId, msg.pinned, msg.requestId);
       default:
@@ -7667,6 +7670,40 @@ export class Session {
       },
       request,
     );
+  }
+
+  private async handleWorkspaceDeleteRequest(
+    request: Extract<SessionInboundMessage, { type: "workspace.delete.request" }>,
+  ): Promise<void> {
+    const { workspaceId, requestId } = request;
+    try {
+      await deleteWorkspace(
+        {
+          workspaceRegistry: this.workspaceRegistry,
+          agentStorage: this.agentStorage,
+          agentManager: this.agentManager,
+          terminalManager: this.terminalManager,
+          stopSetup: (id) => this.workspaceSetupRuntime.stop(id),
+          teardown: (id) => this.teardownArchivedWorkspace(id),
+        },
+        workspaceId,
+      );
+      await this.emitWorkspaceUpdatesForWorkspaceIds([workspaceId]);
+      this.emit({
+        type: "workspace.delete.response",
+        payload: { workspaceId, requestId, error: null },
+      });
+    } catch (error) {
+      this.sessionLogger.error({ err: error, workspaceId }, "Failed to delete workspace");
+      this.emit({
+        type: "workspace.delete.response",
+        payload: {
+          workspaceId,
+          requestId,
+          error: getErrorMessageOr(error, "Failed to delete workspace"),
+        },
+      });
+    }
   }
 
   private async handleArchiveWorkspaceRequest(

@@ -1,0 +1,9 @@
+**
+!packages/
+!packages/website/
+!packages/website/dist/
+!packages/website/dist/clawmuse/
+!packages/website/dist/clawmuse/**
+!packages/website/clawmuse/
+!packages/website/clawmuse/deploy/
+!packages/website/clawmuse/deploy/nginx.conf

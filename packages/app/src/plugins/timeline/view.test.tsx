@@ -11,6 +11,20 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const hostClient = vi.hoisted(() => ({ invokePluginRpc: async () => null }));
+const translationAgent = vi.hoisted(() => ({
+  status: "idle" as "idle" | "running",
+  listeners: new Set<() => void>(),
+}));
+vi.mock("../client-state/source", () => ({
+  createPluginClientStateSource: () => ({
+    subscribe(listener: () => void) {
+      translationAgent.listeners.add(listener);
+      return () => translationAgent.listeners.delete(listener);
+    },
+    getAgent: () => ({ status: translationAgent.status }),
+    getWorkspace: () => null,
+  }),
+}));
 const selectedHost = vi.hoisted(() => ({ client: null as DaemonClient | null }));
 vi.mock("@/runtime/host-runtime", () => ({
   useHostRuntimeClient: () => selectedHost.client ?? (hostClient as unknown as DaemonClient),
@@ -128,11 +142,17 @@ afterEach(() => {
   for (const container of containers.splice(0)) container.remove();
   pluginRegistry.removeHost("host-1");
   selectedHost.client = null;
+  translationAgent.status = "idle";
+  translationAgent.listeners.clear();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
-it("translates received replies with React Native's AbortController", async () => {
+async function renderTranslationRows(
+  reply: (input: unknown) => Promise<{ text: string }>,
+  items = [translatedItem],
+) {
   // Compile outside jsdom so esbuild uses Node's typed arrays and encoders.
   const entry = resolve(
     __dirname,
@@ -167,16 +187,24 @@ it("translates received replies with React Native's AbortController", async () =
       }};
     })`;
   const client = new DaemonClient({ url: "ws://translation.test", clientId: "translation-test" });
-  const invoke = vi.spyOn(client, "invokePluginRpc").mockImplementation(async (_id, method) => {
-    if (method === "settings.translation.read")
-      return {
-        status: "ready",
-        revision: "configured",
-        values: { provider: "codex", model: "test" },
-      };
-    if (method === "translation.reply") return { text: "你好！你想做些什么？" };
-    throw new Error(`Unexpected RPC: ${method}`);
-  });
+  const invoke = vi
+    .spyOn(client, "invokePluginRpc")
+    .mockImplementation(async (_id, method, input) => {
+      if (method === "settings.translation.read")
+        return {
+          status: "ready",
+          revision: "configured",
+          values: { provider: "codex", model: "test" },
+        };
+      if (method === "translation.prepare") return {};
+      if (method === "translation.replies") {
+        const { texts } = input as { texts: string[] };
+        return {
+          texts: await Promise.all(texts.map(async (text) => (await reply({ text })).text)),
+        };
+      }
+      throw new Error(`Unexpected RPC: ${method}`);
+    });
   vi.stubGlobal("AbortController", NativeAbortController);
   pluginRegistry.installCatalog(
     "host-1",
@@ -193,20 +221,152 @@ it("translates received replies with React Native's AbortController", async () =
   containers.push(container);
   const root = createRoot(container);
   roots.push(root);
+  const render = (nextItems = items) =>
+    root.render(
+      <>
+        {nextItems.map((item) => (
+          <PluginTimelineItemView key={item.id} serverId="host-1" agentId="agent-1" item={item} />
+        ))}
+      </>,
+    );
+  await act(async () => render());
+  return { container, invoke, root, render };
+}
+
+it("translates received replies with React Native's AbortController", async () => {
+  const { container, invoke } = await renderTranslationRows(async () => ({
+    text: "你好！你想做些什么？",
+  }));
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(container.textContent).toContain("你好！你想做些什么？");
+  });
+  expect(invoke).toHaveBeenCalledWith("conversation-translation", "translation.replies", {
+    agentId: "agent-1",
+    revision: "configured",
+    texts: ["Hello! What would you like to work on?"],
+  });
+  expect(container.textContent).not.toContain("翻译失败");
+});
+
+it("waits for the turn to finish and translates complete multi-paragraph messages in one batch", async () => {
+  translationAgent.status = "running";
+  const fullText = "First paragraph.\n\nSecond paragraph with `const x = 1;`.";
+  const first = {
+    ...translatedItem,
+    data: { ...translatedItem.data, text: fullText, phase: "streaming" },
+  };
+  const second = {
+    ...translatedItem,
+    id: "item-2",
+    data: { ...translatedItem.data, text: "Final answer." },
+  };
+  const { invoke, render, container } = await renderTranslationRows(
+    async (input) => ({ text: `译文：${(input as { text: string }).text}` }),
+    [first, second],
+  );
+  await act(async () => {
+    await new Promise((done) => setTimeout(done, 40));
+  });
+  expect(invoke.mock.calls.filter((call) => call[1] === "translation.replies")).toHaveLength(0);
+  expect(invoke).toHaveBeenCalledWith("conversation-translation", "translation.prepare", {
+    agentId: "agent-1",
+    revision: "configured",
+  });
+  await act(async () => render([{ ...first, data: { ...first.data, phase: "complete" } }, second]));
+  await act(async () => {
+    await new Promise((done) => setTimeout(done, 40));
+  });
+  expect(invoke.mock.calls.filter((call) => call[1] === "translation.replies")).toHaveLength(0);
+  await act(async () => {
+    translationAgent.status = "idle";
+    for (const listener of translationAgent.listeners) listener();
+  });
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(container.textContent).toContain("译文：Final answer.");
+  });
+  expect(invoke.mock.calls.filter((call) => call[1] === "translation.replies")).toEqual([
+    [
+      "conversation-translation",
+      "translation.replies",
+      { agentId: "agent-1", revision: "configured", texts: [fullText, "Final answer."] },
+    ],
+  ]);
+  await act(async () => {
+    translationAgent.status = "running";
+    for (const listener of translationAgent.listeners) listener();
+  });
+  expect(container.textContent).toContain("译文：Final answer.");
+});
+
+it("bounds both active and queued translations when an RPC never settles", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+  const second = {
+    ...translatedItem,
+    id: "item-2",
+    data: { ...translatedItem.data, text: "Second reply. ".repeat(1700) },
+  };
+  const { container, invoke } = await renderTranslationRows(
+    () => new Promise(() => {}),
+    [translatedItem, second],
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(25);
+    await vi.advanceTimersByTimeAsync(7_999);
+  });
+  expect(container.textContent).toContain("正在翻译");
+  expect(container.textContent).toContain("等待翻译…");
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2);
+  });
+  expect(container.textContent).not.toContain("正在翻译");
+  expect(container.textContent).toContain("翻译超时");
+  expect(container.textContent).toContain("等待翻译…");
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(6_998);
+  });
+  expect(container.textContent).toContain("等待翻译…");
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2);
+  });
+  expect(container.textContent).not.toContain("等待翻译…");
+  expect(container.textContent).toContain("翻译超时");
+  expect(container.textContent).toContain("等待翻译超时");
+  expect(container.textContent).toContain("重试翻译");
+  expect(invoke.mock.calls.filter((call) => call[1] === "translation.replies")).toHaveLength(1);
+});
+
+it("keeps a translation failure visible across remounts and retries only on request", async () => {
+  let calls = 0;
+  const { container, invoke, root } = await renderTranslationRows(async () => {
+    if (++calls === 1) throw new Error("模型暂时不可用");
+    return { text: "重试后翻译完成" };
+  });
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(container.textContent).toContain("模型暂时不可用");
+  });
+  await act(async () => root.render(null));
   await act(async () =>
     root.render(
       <PluginTimelineItemView serverId="host-1" agentId="agent-1" item={translatedItem} />,
     ),
   );
+  expect(container.textContent).toContain("模型暂时不可用");
+  expect(container.textContent).not.toContain("正在翻译");
+  expect(invoke.mock.calls.filter((call) => call[1] === "translation.replies")).toHaveLength(1);
+  const retry = Array.from(container.querySelectorAll('[role="button"]')).find((button) =>
+    button.textContent?.includes("重试翻译"),
+  );
+  if (!retry) throw new Error("Missing retry action");
+  await act(async () => retry.dispatchEvent(new MouseEvent("click", { bubbles: true })));
   await vi.waitFor(async () => {
     await act(async () => {});
-    expect(container.textContent).toContain("你好！你想做些什么？");
+    expect(container.textContent).toContain("重试后翻译完成");
   });
-  expect(invoke).toHaveBeenCalledWith("conversation-translation", "translation.reply", {
-    text: "Hello! What would you like to work on?",
-    revision: "configured",
-  });
-  expect(container.textContent).not.toContain("翻译失败");
+  expect(container.textContent).not.toContain("模型暂时不可用");
+  expect(invoke.mock.calls.filter((call) => call[1] === "translation.replies")).toHaveLength(2);
 });
 
 describe("PluginTimelineItemView", () => {

@@ -1,7 +1,6 @@
 {
   "name": "@getpaseo/protocol",
-  "version": "1.5.5",
-  "private": true,
+  "version": "1.5.5+1108",
   "description": "Paseo shared protocol schemas and wire types",
   "files": [
     "dist",
@@ -18,6 +17,9 @@
       "types": "./dist/addresses.d.ts",
       "default": "./dist/addresses.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",

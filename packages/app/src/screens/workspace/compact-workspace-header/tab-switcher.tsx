@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { Keyboard, Pressable, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { SquarePen, SquareTerminal } from "lucide-react-native";
+import { SquarePen, SquareTerminal } from "@/components/icons/app-icons";
 import { StyleSheet } from "react-native-unistyles";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";

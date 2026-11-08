@@ -2,7 +2,7 @@ import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
 import { Text, View, type GestureResponderEvent, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useReducedMotion } from "react-native-reanimated";
-import { Archive, CircleAlert, Folder, FolderGit2, Monitor } from "lucide-react-native";
+import { Archive, CircleAlert, Folder, FolderGit2, Monitor } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { buttonControlHeight } from "@/components/ui/control-geometry";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";

@@ -1,7 +1,7 @@
 import { useCallback, type ReactElement } from "react";
 import { Text } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
-import { Archive } from "lucide-react-native";
+import { Archive } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { buttonControlHeight } from "@/components/ui/control-geometry";

@@ -1,10 +1,11 @@
 import { forwardRef, useCallback, type ReactElement, type ReactNode } from "react";
 import { Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { ChevronDown } from "lucide-react-native";
+import { ChevronDown } from "@/components/icons/app-icons";
 import { ComboboxTrigger } from "@/components/ui/combobox-trigger";
 import { CONTROL_HEIGHTS } from "@/components/ui/control-geometry";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { densityText } from "@/styles/density";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 
 /**
@@ -16,17 +17,22 @@ export type FieldTriggerVariant = "badge" | "field";
 
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const extraMutedColor = (theme: Theme) => ({ color: theme.colors.foregroundExtraMuted });
+const mutedColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
-// Extra-muted: the chevron is an affordance, not information, and sits behind its label.
-function Chevron(): ReactElement {
+// Extra-muted on desktop badges; muted and larger on compact field cards.
+function Chevron({ variant }: { variant: FieldTriggerVariant }): ReactElement {
   return (
     <View style={styles.chevron}>
-      <ThemedChevronDown size={ICON_SIZE.sm} uniProps={extraMutedColor} />
+      <ThemedChevronDown
+        size={variant === "field" ? ICON_SIZE.lg : ICON_SIZE.sm}
+        uniProps={variant === "field" ? mutedColor : extraMutedColor}
+      />
     </View>
   );
 }
 
-const chevron = <Chevron />;
+const badgeChevron = <Chevron variant="badge" />;
+const fieldChevron = <Chevron variant="field" />;
 
 export interface FieldTriggerContentProps {
   variant: FieldTriggerVariant;
@@ -45,33 +51,32 @@ export function FieldTriggerContent({
   value,
   detail,
 }: FieldTriggerContentProps): ReactElement {
-  const valueLine = (
-    <>
-      <View style={styles.iconBox}>{icon}</View>
-      <Text style={variant === "field" ? styles.fieldValue : styles.value} numberOfLines={1}>
-        {value}
-        {detail ? <Text style={styles.detail}> {detail}</Text> : null}
-      </Text>
-    </>
-  );
   if (variant === "badge") {
     return (
       <>
-        {valueLine}
-        {chevron}
+        <View style={styles.iconBox}>{icon}</View>
+        <Text style={styles.value} numberOfLines={1}>
+          {value}
+          {detail ? <Text style={styles.detail}> {detail}</Text> : null}
+        </Text>
+        {badgeChevron}
       </>
     );
   }
   return (
-    <>
+    <View style={styles.fieldRow}>
+      <View style={styles.fieldIconBox}>{icon}</View>
       <View style={styles.fieldBody}>
         <Text style={styles.fieldLabel} numberOfLines={1}>
           {label}
         </Text>
-        <View style={styles.fieldValueLine}>{valueLine}</View>
+        <Text style={styles.fieldValue} numberOfLines={1}>
+          {value}
+          {detail ? <Text style={styles.detail}> {detail}</Text> : null}
+        </Text>
       </View>
-      {chevron}
-    </>
+      {fieldChevron}
+    </View>
   );
 }
 
@@ -136,8 +141,8 @@ export const FieldTrigger = forwardRef<View, FieldTriggerProps>(function FieldTr
 
 // Height of a badge. The desktop row sizes from it.
 export const FIELD_BADGE_HEIGHT = CONTROL_HEIGHTS.tight;
-// Height of a compact field: label line plus value line. The compact stack reserves rows from it.
-export const FIELD_HEIGHT = 56;
+// Height of a compact field: label line plus value line.
+export const FIELD_HEIGHT = 68;
 
 const styles = StyleSheet.create((theme) => ({
   badge: {
@@ -154,11 +159,20 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     height: FIELD_HEIGHT,
-    paddingLeft: theme.spacing[3],
-    paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.xl,
+    paddingLeft: theme.spacing[4],
+    paddingRight: theme.spacing[4],
+    borderRadius: theme.borderRadius["2xl"],
     backgroundColor: theme.colors.surface1,
-    gap: theme.spacing[2],
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+    gap: theme.spacing[3],
+  },
+  fieldRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[3],
   },
   highlighted: {
     backgroundColor: theme.colors.surface2,
@@ -181,6 +195,15 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
     flexShrink: 0,
   },
+  fieldIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: theme.colors.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
   value: {
     minWidth: 0,
     flexShrink: 1,
@@ -193,18 +216,14 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[0.5],
   },
   fieldLabel: {
-    fontSize: theme.fontSize.sm,
+    ...densityText(theme, "footnote"),
     color: theme.colors.foregroundMuted,
-  },
-  fieldValueLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1.5],
   },
   fieldValue: {
     minWidth: 0,
     flexShrink: 1,
-    fontSize: theme.fontSize.base,
+    ...densityText(theme, "listTitle"),
+    lineHeight: 24,
     color: theme.colors.foreground,
   },
   detail: {

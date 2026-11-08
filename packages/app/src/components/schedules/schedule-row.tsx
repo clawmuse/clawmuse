@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { MoreVertical, Pause, Pencil, Play, RotateCw, Trash2 } from "lucide-react-native";
+import { MoreVertical, Pause, Pencil, Play, RotateCw, Trash2 } from "@/components/icons/app-icons";
 import { useCallback, useState, type ReactElement } from "react";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";

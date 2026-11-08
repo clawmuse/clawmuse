@@ -39,7 +39,7 @@ import {
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { type Theme } from "@/styles/theme";
-import { ArrowUp, Mic, MicOff, CornerDownLeft, Plus, Square } from "lucide-react-native";
+import { ArrowUp, Mic, MicOff, CornerDownLeft, Plus, Square } from "@/components/icons/app-icons";
 import * as Haptics from "expo-haptics";
 import { useDictation } from "@/hooks/use-dictation";
 import { hasFinePointer } from "@/hooks/use-fine-pointer";
@@ -2383,7 +2383,10 @@ const styles = StyleSheet.create((theme: Theme) => ({
   inputWrapper: {
     flexShrink: 1,
     flexDirection: "column",
-    gap: theme.spacing[3],
+    gap: {
+      xs: theme.spacing[6],
+      md: theme.spacing[3],
+    },
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
     borderColor: theme.colors.borderAccent,
@@ -2394,7 +2397,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
     },
     // The button row bleeds 6px horizontally, so match its corner inset at the bottom.
     paddingBottom: {
-      xs: theme.spacing[2],
+      xs: theme.spacing[3],
       md: theme.spacing[3],
     },
     paddingHorizontal: {

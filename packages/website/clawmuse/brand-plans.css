@@ -1,0 +1,106 @@
+.personal-plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.personal-plans .pricing-card {
+  display: flex;
+  flex-direction: column;
+  padding: 30px;
+  min-width: 0;
+}
+.personal-plans .pricing-card h2 {
+  font-size: 25px;
+}
+.personal-plans .price-status {
+  font-size: clamp(25px, 3vw, 36px);
+}
+.personal-plans .pricing-card .button {
+  margin-top: auto;
+}
+.personal-plans .pricing-card > p {
+  margin-bottom: 28px;
+}
+.personal-plans .pricing-source {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--accent);
+}
+.pricing-details {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0;
+  min-width: 0;
+}
+.pricing-details > div {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 26px 28px;
+  background: color-mix(in srgb, var(--surface) 55%, var(--bg));
+}
+.pricing-details > .text-link {
+  padding-inline: 4px;
+  margin-top: 4px;
+}
+.pricing-details h2 {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+.brand-promise {
+  padding: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 60px;
+  background: var(--surface);
+}
+.brand-promise p {
+  font-size: clamp(24px, 3vw, 36px);
+  color: var(--ink);
+  margin-top: 16px;
+}
+.brand-promise p[lang="en"] {
+  color: var(--accent);
+}
+.guide-directory {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 50px;
+}
+.guide-directory a {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  font-size: 15px;
+}
+.guide-directory a:hover {
+  border-color: var(--accent);
+}
+.support-data-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  padding-top: 40px;
+}
+.support-report .button {
+  margin-top: 24px;
+  margin-inline-end: 12px;
+}
+@media (max-width: 900px) {
+  .personal-plans {
+    grid-template-columns: 1fr;
+  }
+  .brand-promise {
+    padding: 28px;
+  }
+}

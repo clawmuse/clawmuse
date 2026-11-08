@@ -1,4 +1,11 @@
 import { expect, test } from "../support/fixtures";
+import { gotoAppShell } from "../support/helpers/app";
+import {
+  leaveHostAppearanceSettings,
+  openHostAppearanceSettings,
+  renameHostFromSettings,
+} from "../support/helpers/hosts";
+import { getServerId } from "../support/helpers/server-id";
 import {
   apiKeyInput,
   baseUrlInput,
@@ -90,4 +97,32 @@ test("a failed save keeps the sheet open with the user's input", async ({ page }
   } finally {
     await resetSpeechSite("voiceMode.tts");
   }
+});
+
+test("uses the renamed host from the server list in the voice assistant", async ({ page }) => {
+  await gotoAppShell(page);
+  await openHostAppearanceSettings(page, getServerId());
+  await renameHostFromSettings(page, "Voice workstation");
+  await leaveHostAppearanceSettings(page);
+  await page.getByTestId("sidebar-voice-assistant").click();
+  const panel = page.getByTestId("voice-assistant-panel");
+  await expect(panel.getByRole("button", { name: "Voice workstation", exact: true })).toBeVisible();
+  await expect(
+    panel.getByText("Watching tasks on Voice workstation", { exact: true }),
+  ).toBeVisible();
+  await panel.getByRole("button", { name: "Close", exact: true }).click();
+
+  await openHostAppearanceSettings(page, getServerId());
+  await renameHostFromSettings(page, "Renamed voice workstation");
+  await leaveHostAppearanceSettings(page);
+  await page.getByTestId("sidebar-voice-assistant").click();
+  await expect(
+    panel.getByRole("button", { name: "Renamed voice workstation", exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByText("Watching tasks on Renamed voice workstation", { exact: true }),
+  ).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Voice workstation", exact: true })).toHaveCount(
+    0,
+  );
 });

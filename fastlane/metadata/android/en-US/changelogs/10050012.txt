@@ -1,0 +1,5 @@
+Voice fixes require the updated host; late-audio protection also requires the updated client. Official speech and unified tasks depend on the corresponding account services. Device Preview requires existing simulator tools and leaves simulators running when a preview stops.
+
+Same-account authorization requires the updated Hub, host and client. Existing managed hosts must sign in again to bind their account authority.
+
+Full notes: https://paseo.sh/changelog

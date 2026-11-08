@@ -1,3 +1,5 @@
+import { toErrorMessage } from "@/utils/error-messages";
+
 export interface QuestionOption {
   label: string;
   description?: string;
@@ -17,6 +19,11 @@ export interface QuestionFormQuestion {
 
 export type QuestionSelections = Record<number, ReadonlySet<number>>;
 export type QuestionOtherTexts = Record<number, string>;
+
+export function getQuestionResponseErrorMessage(error: unknown): string | null {
+  if (!(error instanceof Error)) return null;
+  return toErrorMessage(error).trim() || null;
+}
 
 function readOptionalString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];

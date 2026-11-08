@@ -8,6 +8,8 @@ struct ClawMuseAgentLiveActivityWidgetBundle: WidgetBundle {
       ClawMuseAgentLiveActivityWidget()
     }
     if #available(iOS 17.0, *) {
+      QuotaWidget()
+      DailyUsageWidget()
       ClawMuseAgentQuotaWidget()
     }
   }

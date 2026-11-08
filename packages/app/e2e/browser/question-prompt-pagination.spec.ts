@@ -480,7 +480,9 @@ retryTest(
     questionClient.releaseFirstResponse();
     await expectQuestionPrimaryActionEnabled(page, "Submit");
     await card.screenshot({ path: testInfo.outputPath("submission-failed.png") });
-    await expect(card.getByRole("alert")).toHaveText("Could not send your response. Try again.");
+    await expect(card.getByRole("alert")).toHaveText(
+      "Could not send your response: This conversation uses openai, but the current model provider is magpie. Switch back to openai to continue, or start a new conversation with magpie.",
+    );
     await expect(card.getByRole("progressbar")).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Submit" })).toHaveText("Submit");
     await expectQuestionDismissEnabled(page);
@@ -526,7 +528,9 @@ retryTest(
       answer: "Start with the internal team.",
     });
     await card.getByRole("button", { name: "Dismiss" }).click();
-    await expect(card.getByRole("alert")).toHaveText("Could not send your response. Try again.");
+    await expect(card.getByRole("alert")).toHaveText(
+      "Could not send your response: This conversation uses openai, but the current model provider is magpie. Switch back to openai to continue, or start a new conversation with magpie.",
+    );
     await expect(card.getByRole("progressbar")).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Dismiss" })).toHaveText("Dismiss");
     await expectQuestionDismissEnabled(page);
@@ -550,5 +554,34 @@ retryTest(
       message: "Dismissed by user",
     });
     await page.screenshot({ path: testInfo.outputPath("dismissal-retried.png") });
+  },
+);
+
+retryTest(
+  "Chinese question errors explain provider conflicts and preserve answers",
+  async ({ page, questionClient }, testInfo) => {
+    retryTest.setTimeout(180_000);
+    await page.evaluate(() => {
+      const key = "@paseo:app-settings";
+      const settings = JSON.parse(localStorage.getItem(key) ?? "{}");
+      localStorage.setItem(key, JSON.stringify({ ...settings, language: "zh-CN" }));
+    });
+    await page.reload();
+    await waitForQuestionPrompt(page);
+    const card = page.getByTestId("question-form-card");
+    questionClient.releaseFirstResponse();
+    await chooseQuestionOption(page, "App");
+    await chooseQuestionOption(page, "Behind feature flag");
+    await fillQuestionAnswer(page, { question: SUCCESS_QUESTION, answer: "保留我的回答" });
+    await card.getByRole("button", { name: "提交", exact: true }).click();
+    await expect(card.getByRole("alert")).toHaveText(
+      "未能发送你的回复：这条对话使用的模型服务商是 openai，当前已切换为 magpie。请切回 openai 后继续，或使用 magpie 新建对话。",
+    );
+    await expect(card.getByRole("textbox")).toHaveValue("保留我的回答");
+    await card.screenshot({ path: testInfo.outputPath("provider-conflict-zh.png") });
+    await card.getByRole("button", { name: "提交", exact: true }).click();
+    await expect(card).toHaveCount(0);
+    await expect.poll(() => questionClient.attempts.length).toBe(2);
+    expect(questionClient.attempts[1]).toEqual(questionClient.attempts[0]);
   },
 );

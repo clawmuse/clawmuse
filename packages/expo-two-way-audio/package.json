@@ -1,7 +1,6 @@
 {
   "name": "@getpaseo/expo-two-way-audio",
-  "version": "1.5.5",
-  "private": true,
+  "version": "1.5.5+1108",
   "description": "Native module for two way audio streaming",
   "keywords": [
     "ExpoTwoWayAudio",
@@ -15,10 +14,7 @@
   },
   "license": "MIT",
   "author": "Speechmatics <devrel@speechmatics.com> (https://github.com/speechmatics)",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/clawmuse/clawmuse.git"
-  },
+  "repository": "https://github.com/boudra/expo-two-way-audio",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {

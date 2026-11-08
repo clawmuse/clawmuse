@@ -239,18 +239,38 @@ try {
       `--import=${pathToFileURL(preload).href}`,
     );
     const began = Date.now();
-    const starting = await command("start_desktop_daemon");
+    let startupSettled = false;
+    const startup = command("start_desktop_daemon").then((status) => {
+      startupSettled = true;
+      return status;
+    });
+    // Keep a failed assertion's cleanup from leaving an unhandled in-flight IPC rejection.
+    void startup.catch(() => {});
+    await expect
+      .poll(async () => (await command("desktop_daemon_status")).status, { timeout: 10_000 })
+      .toBe("starting");
+    const starting = await command("desktop_daemon_status");
     captured = await readDaemonInstance(home);
     assert.equal(starting.status, "starting");
     assert.equal(starting.ownedByDesktop, true);
     assert.equal(starting.pid, captured.pid);
-    assert.ok(Date.now() - began < 40_000, "Desktop did not return its bounded starting state");
+    assert.equal(startupSettled, false);
+    assert.ok(Date.now() - began < 40_000, "Status queries blocked behind the slow startup");
     process.kill(captured.pid, 0);
+    const ready = await startup;
+    assert.equal(ready.status, "running");
+    assert.equal(ready.ownedByDesktop, true);
+    assert.equal(ready.pid, captured.pid, "Readiness must preserve the same owned supervisor");
+    assert.ok(ready.serverId, "Startup completed without a usable server identity");
+    assert.ok(Date.now() - began >= 40_000, "Startup resolved before the delayed worker was ready");
+    const slowWorkerResponse = await fetch(`http://127.0.0.1:${port}/`);
+    assert.equal(slowWorkerResponse.status, 200);
+    assert.match(await slowWorkerResponse.text(), /Lifecycle web UI/);
     await command("stop_desktop_daemon", { reason: "quit" });
     captured = null;
     await closeDesktop();
     console.log(
-      "PASS: Desktop readiness deadline returns starting and preserves its owned slow launch.",
+      "PASS: Desktop reports its owned slow launch while startup waits for the same ready daemon.",
     );
   }
   console.log(

@@ -35,9 +35,7 @@ async function rememberModel(page: Page) {
 async function expectRecoveredModelInPicker(page: Page) {
   await openModelPicker(page);
   await selectProviderTab(page, PROVIDER);
-  await expect(
-    page.getByTestId("combobox-desktop-container").getByText(LABEL, { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByTestId(`model-row-${PROVIDER}-${MODEL}`)).toBeVisible();
   await closeModelPicker(page);
 }
 

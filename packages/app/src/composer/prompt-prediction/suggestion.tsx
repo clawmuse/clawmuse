@@ -1,7 +1,7 @@
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { X, Sparkles } from "lucide-react-native";
+import { X, Sparkles } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { ToolbarButton } from "@/components/ui/pane-content-toolbar";
 import { useIsCompactFormFactor } from "@/constants/layout";

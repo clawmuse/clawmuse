@@ -4,6 +4,7 @@ import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
+import { openProjectOnboarding } from "./open-project-onboarding";
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -150,6 +151,12 @@ export const ja: TranslationResources = {
       daemonUnavailable: "デーモンが利用できません",
       daemonClientUnavailable: "デーモンクライアントが利用できません",
       daemonClientDisconnected: "デーモンクライアントが切断されています",
+      modelProviderChanged:
+        "この会話は {{expected}} を使用していますが、現在のモデルプロバイダーは {{current}} です。{{expected}} に戻して続行するか、{{current}} で新しい会話を開始してください。",
+      hostConnectionLost:
+        "ホストとの接続が切れました。再接続を待ってから、もう一度お試しください。",
+      hostRequestTimeout:
+        "ホストからの応答がタイムアウトしました。処理結果はまだ確認できていません。接続と会話の状態を確認してから、もう一度お試しください。",
       noFileFound: "{{token}}のファイルが見つかりません",
       folderOutsideWorkspace: "{{path}} はこのワークスペースの外にあります",
       unexpectedDictationError: "音声入力処理中に予期しないエラーが発生しました。",
@@ -478,6 +485,7 @@ export const ja: TranslationResources = {
     },
     question: {
       responseFailed: "回答を送信できませんでした。もう一度お試しください。",
+      responseFailedDetail: "回答を送信できませんでした：{{error}}",
       submit: "送信",
       next: "次へ",
       answerPlaceholder: "回答を入力...",
@@ -1426,6 +1434,21 @@ export const ja: TranslationResources = {
       },
     },
     workspace: {
+      deleteWorkspace: {
+        label: "ワークスペースを完全に削除",
+        message:
+          "「{{name}}」とアーカイブ済みを含むすべての会話を完全に削除しますか？実行中のエージェントとターミナルは停止します。この操作は取り消せません。プロジェクトとワークツリーのファイルは保持されます。",
+        deleting: "ワークスペースを削除中…",
+        deleted: "ワークスペースを完全に削除しました",
+        failed: "ワークスペースの削除に失敗しました：{{error}}",
+      },
+      deleteConversation: {
+        label: "現在の会話を削除",
+        message:
+          "ClawMuse から「{{title}}」を完全に削除しますか？元に戻せません。他の会話とプロジェクトのファイルは保持されます。",
+        deleting: "会話を削除中…",
+        failed: "会話を削除できませんでした。もう一度お試しください。",
+      },
       status: {
         serviceRunning: "サービス {{name}} 実行中",
         serviceUnhealthy: "サービス {{name}} 異常",
@@ -1708,6 +1731,7 @@ export const ja: TranslationResources = {
     },
   },
   openProject: {
+    onboarding: openProjectOnboarding["ja"],
     tiles: {
       addProject: {
         title: "プロジェクトを追加",

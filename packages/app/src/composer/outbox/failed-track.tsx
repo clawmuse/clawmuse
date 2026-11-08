@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
-import { Pencil, RotateCw } from "lucide-react-native";
+import { Pencil, RotateCw } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import type { OutboxEntry } from "./model";

@@ -1,125 +1,369 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { AppState, Text, View } from "react-native";
-import { useRpc, type PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
-import {
-  startRpc,
-  statusRpc,
-  frameRpc,
-  inputRpc,
-  stopRpc,
-  type Action,
-  type Device,
-  type DevicePlatform,
-} from "../shared/contracts.js";
-import { PreviewSession } from "./session.js";
-import { previewStyles } from "./styles.js";
-import { PreviewToolbar } from "./controls.js";
-import { DeviceList } from "./devices.js";
-import { PreviewViewer } from "./viewer.js";
-import { useDeviceCatalog } from "./use-catalog.js";
+import { useCallback, useMemo, useState } from "react";
+import { Pressable, ScrollView, Text, View, type LayoutChangeEvent } from "react-native";
+import type { PluginHostProps, PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
+import { Modal } from "@getpaseo/plugin/client/ui";
+import { usePreview } from "./use-preview.js";
+import { DeviceScreen } from "./screen.js";
+import type { Device, Platform, Quality, InputAction } from "../shared/contracts.js";
 
-export function DevicePreviewPanel({ theme, layout, host }: PluginWorkspacePanelProps) {
-  const start = useRpc(startRpc);
-  const status = useRpc(statusRpc);
-  const frame = useRpc(frameRpc);
-  const input = useRpc(inputRpc);
-  const stop = useRpc(stopRpc);
-  const session = useMemo(
-    () => new PreviewSession({ start, status, frame, input, stop }),
-    [start, status, frame, input, stop],
+interface ActionProps extends PluginHostProps {
+  title: string;
+  onPress(): void;
+  disabled?: boolean;
+}
+function Action({ theme, layout, title, onPress, disabled = false }: ActionProps) {
+  const style = useMemo(
+    () => ({
+      paddingHorizontal: layout.compact ? 12 : 10,
+      paddingVertical: layout.compact ? 12 : 8,
+      borderRadius: 6,
+      backgroundColor: theme.colors.surface1,
+      opacity: disabled ? 0.45 : 1,
+    }),
+    [theme, layout.compact, disabled],
   );
-  const snapshot = useSyncExternalStore(
-    session.subscribe,
-    session.getSnapshot,
-    session.getSnapshot,
-  );
-  const [platform, setPlatform] = useState<DevicePlatform>("android");
-  const [selected, setSelected] = useState("");
-  const busy = snapshot.phase === "preparing" || snapshot.phase === "ready";
-  const { availability, catalog, loading, error, refresh } = useDeviceCatalog(platform, busy);
-  const styles = useMemo(() => previewStyles({ theme, layout }), [theme, layout]);
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (state) => {
-      if (state !== "active") void session.stop();
-    });
-    return () => {
-      subscription.remove();
-      void session.stop();
-    };
-  }, [session]);
-  const switchPlatform = useCallback(
-    async (next: DevicePlatform) => {
-      await session.stop();
-      setSelected("");
-      setPlatform(next);
-    },
-    [session],
-  );
-  const onStop = useCallback(() => {
-    void session.stop().then(() => {
-      refresh();
-      return undefined;
-    });
-  }, [session, refresh]);
-  const onAction = useCallback(
-    (action: Action) => {
-      void session.input(action);
-    },
-    [session],
-  );
-  const onSelect = useCallback(
-    (device: Device) => {
-      setSelected(device.name);
-      void session.connect(platform, device.id);
-    },
-    [session, platform],
-  );
-  const capability = availability?.[platform];
-  const message = error || snapshot.error;
+  const text = useMemo(() => ({ color: theme.colors.foreground, fontSize: 13 }), [theme]);
   return (
-    <View style={styles.root}>
-      <Text style={styles.text}>设备预览 · {host.label}</Text>
-      <Text style={styles.detail}>模拟器始终运行在此主机；手机只接收截图。约每秒 1 张。</Text>
-      <PreviewToolbar
+    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={style}>
+      <Text style={text}>{title}</Text>
+    </Pressable>
+  );
+}
+const phases = {
+  preparing: "正在准备设备与原生画面流…",
+  ready: "已连接",
+  failed: "连接失败",
+  stopped: "预览已停止",
+} as const;
+const labels = { back: "返回", home: "Home", recents: "最近任务", rotate: "旋转" } as const;
+
+interface DeviceRowProps extends PluginHostProps {
+  device: Device;
+  disabled: boolean;
+  onSelect(device: Device): void;
+}
+function DeviceRow({ device, disabled, onSelect, theme, layout, host }: DeviceRowProps) {
+  const style = useMemo(
+    () => ({ gap: layout.compact ? 6 : 8, paddingVertical: layout.compact ? 10 : 12 }),
+    [layout.compact],
+  );
+  const title = useMemo(() => ({ color: theme.colors.foreground, fontSize: 14 }), [theme]);
+  const detail = useMemo(() => ({ color: theme.colors.foregroundMuted, fontSize: 12 }), [theme]);
+  let state = "未启动";
+  if (device.state === "booted") state = "已启动";
+  if (device.state === "unavailable") state = "不可用";
+  if (device.busy) state = "占用";
+  const select = useCallback(() => onSelect(device), [onSelect, device]);
+  return (
+    <View style={style}>
+      <Text style={title}>
+        {device.name} · {state}
+      </Text>
+      {device.reason && <Text style={detail}>{device.reason}</Text>}
+      <Action
+        title={device.state === "booted" ? "预览" : "启动并预览"}
+        onPress={select}
+        disabled={disabled || device.busy || device.state === "unavailable"}
         theme={theme}
         layout={layout}
-        styles={styles}
-        platform={platform}
-        snapshot={snapshot}
-        loading={loading}
-        onPlatform={switchPlatform}
-        onRefresh={refresh}
-        onStop={onStop}
-        onAction={onAction}
+        host={host}
       />
-      <Text style={styles.detail}>{capability?.reason ?? "正在检查工具…"}</Text>
-      <Text style={styles.text}>
-        {snapshot.message}
-        {selected && busy ? ` · ${selected}` : ""}
-      </Text>
-      {!!message && (
-        <Text accessibilityRole="alert" style={styles.error}>
-          {message}
-        </Text>
+    </View>
+  );
+}
+
+interface ControlsProps extends PluginHostProps {
+  controls: string[];
+  send(action: InputAction): void;
+  disabled: boolean;
+}
+interface ControlButtonProps extends PluginHostProps {
+  action: keyof typeof labels;
+  send(action: InputAction): void;
+  disabled: boolean;
+}
+function ControlButton({ action, send, ...props }: ControlButtonProps) {
+  const press = useCallback(() => send({ type: action }), [action, send]);
+  return <Action {...props} title={labels[action]} onPress={press} />;
+}
+function Controls({ controls, send, disabled, theme, layout, host }: ControlsProps) {
+  const [menu, setMenu] = useState(false);
+  const row = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      flexWrap: "wrap" as const,
+      gap: layout.compact ? 8 : 6,
+    }),
+    [layout.compact],
+  );
+  const content = useMemo(() => ({ gap: layout.compact ? 12 : 8 }), [layout.compact]);
+  const toggle = useCallback(() => setMenu((value) => !value), []);
+  const close = useCallback(() => setMenu(false), []);
+  const available: (keyof typeof labels)[] = ["back", "home", "recents", "rotate"];
+  const buttons = available
+    .filter((key) => controls.includes(key))
+    .map((key) => (
+      <ControlButton
+        key={key}
+        action={key}
+        send={send}
+        disabled={disabled}
+        theme={theme}
+        layout={layout}
+        host={host}
+      />
+    ));
+  const dark = useCallback(() => send({ type: "appearance", dark: true }), [send]);
+  const light = useCallback(() => send({ type: "appearance", dark: false }), [send]);
+  if (controls.includes("appearance"))
+    buttons.push(
+      <Action
+        key="light"
+        title="浅色"
+        onPress={light}
+        disabled={disabled}
+        theme={theme}
+        layout={layout}
+        host={host}
+      />,
+      <Action
+        key="dark"
+        title="深色"
+        onPress={dark}
+        disabled={disabled}
+        theme={theme}
+        layout={layout}
+        host={host}
+      />,
+    );
+  if (!layout.compact) return <View style={row}>{buttons}</View>;
+  return (
+    <View>
+      <Action
+        title="设备操作"
+        onPress={toggle}
+        disabled={disabled}
+        theme={theme}
+        layout={layout}
+        host={host}
+      />
+      <Modal open={menu} onOpenChange={setMenu} title="设备操作">
+        <Modal.Content contentContainerStyle={content}>
+          {buttons}
+          <Action title="关闭" onPress={close} theme={theme} layout={layout} host={host} />
+        </Modal.Content>
+      </Modal>
+    </View>
+  );
+}
+
+interface PickerProps extends PluginHostProps {
+  quality: Quality;
+  setQuality(quality: Quality): void;
+  preview: ReturnType<typeof usePreview>;
+  busy: boolean;
+}
+function DevicePicker({ theme, layout, host, quality, setQuality, preview, busy }: PickerProps) {
+  const row = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      flexWrap: "wrap" as const,
+      gap: layout.compact ? 8 : 6,
+    }),
+    [layout.compact],
+  );
+  const scroll = useMemo(() => ({ flex: 1 }), []);
+  const muted = useMemo(() => ({ color: theme.colors.foregroundMuted, fontSize: 12 }), [theme]);
+  const saving = useCallback(() => setQuality("saving"), [setQuality]),
+    balanced = useCallback(() => setQuality("balanced"), [setQuality]),
+    clear = useCallback(() => setQuality("clear"), [setQuality]);
+  const connect = useCallback(
+    (device: Device) => preview.connect.mutate(device),
+    [preview.connect],
+  );
+  return (
+    <ScrollView style={scroll}>
+      {!preview.status && (
+        <View style={row}>
+          <Action
+            title={quality === "saving" ? "✓ 省流" : "省流"}
+            onPress={saving}
+            theme={theme}
+            layout={layout}
+            host={host}
+          />
+          <Action
+            title={quality === "balanced" ? "✓ 均衡" : "均衡"}
+            onPress={balanced}
+            theme={theme}
+            layout={layout}
+            host={host}
+          />
+          <Action
+            title={quality === "clear" ? "✓ 清晰" : "清晰"}
+            onPress={clear}
+            theme={theme}
+            layout={layout}
+            host={host}
+          />
+        </View>
       )}
-      {!busy && (
-        <DeviceList
+      {preview.devices.data?.devices.map((device) => (
+        <DeviceRow
+          key={device.id}
+          device={device}
+          disabled={busy}
+          onSelect={connect}
           theme={theme}
           layout={layout}
-          styles={styles}
-          catalog={catalog}
-          loading={loading}
-          available={capability?.available ?? false}
-          onSelect={onSelect}
+          host={host}
+        />
+      ))}
+      {preview.devices.data?.devices.length === 0 && (
+        <Text style={muted}>
+          没有已配置的可用设备。请在主机的 Xcode 或 Android Studio 中准备模拟器，再刷新。
+        </Text>
+      )}
+      {preview.devices.data?.notes.map((note) => (
+        <Text key={note} style={muted}>
+          {note}
+        </Text>
+      ))}
+    </ScrollView>
+  );
+}
+interface ConnectionProps extends PluginHostProps {
+  preview: ReturnType<typeof usePreview>;
+}
+function ConnectionStatus({ preview, theme, layout, host }: ConnectionProps) {
+  const text = useMemo(() => ({ color: theme.colors.foreground, fontSize: 14 }), [theme]);
+  let status = "选择设备";
+  if (preview.status) status = `${phases[preview.status.phase]} · ${preview.status.deviceId}`;
+  if (preview.starting) status = "正在请求预览…";
+  if (preview.controlPending) status = "正在发送设备操作…";
+  else if (preview.controlNotice) status = `${status} · ${preview.controlNotice}`;
+  const error = preview.inputError ?? preview.error?.message ?? preview.status?.reason;
+  const stop = useCallback(() => preview.disconnect.mutate(), [preview.disconnect]);
+  const canStop = preview.status !== null || preview.starting;
+  return (
+    <View>
+      <Text style={text}>{status}</Text>
+      {error && (
+        <Text style={text} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+      {canStop && (
+        <Action
+          title={preview.disconnect.isPending ? "正在停止…" : "停止预览"}
+          onPress={stop}
+          disabled={preview.disconnect.isPending}
+          theme={theme}
+          layout={layout}
+          host={host}
         />
       )}
-      <PreviewViewer platform={platform} snapshot={snapshot} session={session} styles={styles} />
-      <Text style={styles.detail}>
-        {platform === "ios"
-          ? "iOS：仅观看、深色和浅色；不支持点击或手势。"
-          : "Android：单指点击和滑动；不支持双指及以上手势或键盘。"}{" "}
-        停止预览不会关闭模拟器。
-      </Text>
+    </View>
+  );
+}
+
+export function PreviewPanel(props: PluginWorkspacePanelProps) {
+  const { theme, layout, host } = props;
+  const [platform, setPlatform] = useState<Platform>("ios"),
+    [quality, setQuality] = useState<Quality>("balanced");
+  const [visible, setVisible] = useState(true);
+  const preview = usePreview(platform, quality, visible);
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    const bounds = event.nativeEvent.layout;
+    setVisible(bounds.width > 0 && bounds.height > 0);
+  }, []);
+  const style = useMemo(
+    () => ({
+      flex: 1,
+      padding: layout.compact ? 12 : 16,
+      gap: layout.compact ? 8 : 12,
+      backgroundColor: theme.colors.surface0,
+    }),
+    [theme, layout.compact],
+  );
+  const row = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      flexWrap: "wrap" as const,
+      gap: layout.compact ? 8 : 6,
+      alignItems: "center" as const,
+    }),
+    [layout.compact],
+  );
+  const text = useMemo(() => ({ color: theme.colors.foreground, fontSize: 14 }), [theme]);
+  const muted = useMemo(() => ({ color: theme.colors.foregroundMuted, fontSize: 12 }), [theme]);
+  const busy = preview.starting || preview.status !== null || preview.disconnect.isPending;
+  const ready =
+    preview.status?.phase === "ready" && !preview.inputError && !preview.error && preview.active;
+  const ios = useCallback(() => setPlatform("ios"), []),
+    android = useCallback(() => setPlatform("android"), []);
+  const capability = preview.caps.data?.[platform];
+  return (
+    <View style={style} onLayout={onLayout}>
+      <Text style={text}>设备预览 · {host.label}</Text>
+      <View style={row}>
+        <Action
+          title={platform === "ios" ? "✓ iOS" : "iOS"}
+          onPress={ios}
+          disabled={busy}
+          theme={theme}
+          layout={layout}
+          host={host}
+        />
+        <Action
+          title={platform === "android" ? "✓ Android" : "Android"}
+          onPress={android}
+          disabled={busy}
+          theme={theme}
+          layout={layout}
+          host={host}
+        />
+        <Action
+          title="刷新"
+          onPress={preview.refresh}
+          disabled={busy}
+          theme={theme}
+          layout={layout}
+          host={host}
+        />
+      </View>
+      <Text style={muted}>{capability?.reason ?? "正在检测主机能力…"}</Text>
+      <ConnectionStatus preview={preview} theme={theme} layout={layout} host={host} />
+      {preview.status && (
+        <Controls
+          controls={preview.status.controls}
+          send={preview.send}
+          disabled={!ready || preview.controlPending}
+          theme={theme}
+          layout={layout}
+          host={host}
+        />
+      )}
+      {preview.image ? (
+        <DeviceScreen
+          image={preview.image}
+          enabled={ready}
+          send={preview.send}
+          displayed={preview.displayed}
+          decodeFailed={preview.decodeFailed}
+        />
+      ) : (
+        <DevicePicker
+          quality={quality}
+          setQuality={setQuality}
+          preview={preview}
+          busy={busy}
+          theme={theme}
+          layout={layout}
+          host={host}
+        />
+      )}
+      <Text style={muted}>设备始终运行在主机。关闭或停止预览会释放占用，保留模拟器运行。</Text>
     </View>
   );
 }

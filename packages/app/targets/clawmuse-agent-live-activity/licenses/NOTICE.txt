@@ -1,0 +1,9 @@
+Cindy iOS usage widgets
+Source: https://github.com/makecindy/cindy (commit f5470ea880)
+License: Apache-2.0; see Cindy-APACHE-2.0.txt.
+Adapted for ClawMuse: App Group, URLs, localization, native snapshot bridge,
+and usage data integration. Changes made in November 2026.
+
+Barlow Condensed fonts
+Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+License: SIL Open Font License 1.1; see BarlowCondensed-OFL.txt.

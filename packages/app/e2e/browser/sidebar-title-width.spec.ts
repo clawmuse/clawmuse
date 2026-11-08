@@ -44,6 +44,19 @@ test("scales navigation icons and workspace rows together as the sidebar narrows
       .poll(async () => (await nav.boundingBox())!.width)
       .toBeCloseTo(navBefore!.width * 0.7, 0);
     expect((await glyph.boundingBox())!.width).toBeCloseTo(glyphBefore!.width * 0.7, 0);
+    for (const id of [
+      "sidebar-global-new-workspace",
+      "sidebar-sessions",
+      "sidebar-search",
+      "sidebar-schedules",
+      "sidebar-goals",
+      "sidebar-voice-assistant",
+    ]) {
+      const icon = page.getByTestId(id).locator("svg");
+      await expect(icon).toHaveCount(1);
+      expect((await icon.boundingBox())!.width).toBeCloseTo(glyphBefore!.width * 0.7, 0);
+      await expect(icon).toHaveAttribute("viewBox", "0 0 24 24");
+    }
     expect((await row.boundingBox())!.height).toBeCloseTo(rowBefore!.height * 0.7, 0);
     expect((await menu.boundingBox())!.width).toBeCloseTo(menuBefore!.width * 0.7, 0);
     await dragBy(90);
@@ -60,6 +73,15 @@ test("scales navigation icons and workspace rows together as the sidebar narrows
     await row.click();
     await expect(page.getByTestId("workspace-header-title")).toContainText(TITLE);
     await page.screenshot({ path: test.info().outputPath("scaled-sidebar-140.png") });
+    await page.evaluate(() => {
+      document.documentElement.style.zoom = "2";
+    });
+    await expect
+      .poll(async () => (await glyph.boundingBox())!.width)
+      .toBeCloseTo(glyphBefore!.width * 0.7 * 2, 0);
+    await page.screenshot({ path: test.info().outputPath("scaled-sidebar-140-zoom-200.png") });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.screenshot({ path: test.info().outputPath("scaled-sidebar-140-zoom-200-dark.png") });
   } finally {
     await seeded.cleanup();
   }

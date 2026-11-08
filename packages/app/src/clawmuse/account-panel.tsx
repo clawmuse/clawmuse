@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
-import { Trash2 } from "lucide-react-native";
+import { Trash2 } from "@/components/icons/app-icons";
 import { StyleSheet } from "react-native-unistyles";
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "@/components/ui/external-link";

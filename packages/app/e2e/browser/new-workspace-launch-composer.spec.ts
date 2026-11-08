@@ -73,7 +73,7 @@ test.describe("New workspace: the composer is one control in two modes", () => {
 
     await fillNewWorkspaceDraft(page, "Start this conversation");
     await expect(send).toBeEnabled();
-    await expect(send.locator('svg path[d="m5 12 7-7 7 7"]')).toBeVisible();
+    await expect(send.locator('svg path[d="m6 11 6-6 6 6"]')).toBeVisible();
     await expect(voice).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("text-send.png") });
 

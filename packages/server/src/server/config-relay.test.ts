@@ -103,6 +103,17 @@ describe("daemon relay config", () => {
     expect(config.relayEnabledMutable).toBe(false);
   });
 
+  test("keeps relay off and locked when no endpoint is configured", async () => {
+    const home = await createPaseoHome({
+      version: 1,
+      daemon: { relay: { enabled: true, endpoint: "" } },
+    });
+    const config = loadConfig(home, { env: {} });
+    expect(config.relayEnabled).toBe(false);
+    expect(config.relayEnabledMutable).toBe(false);
+    expect(config.relayAutoSelect).toBe(false);
+  });
+
   test.each(["", "treu"])(
     "ignores invalid relay override %j without locking config",
     async (value) => {

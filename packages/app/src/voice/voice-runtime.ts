@@ -838,17 +838,26 @@ export function createVoiceRuntime(deps: VoiceRuntimeDeps): VoiceRuntime {
 
     const generation = ++state.generation;
     const agentId = state.snapshot.activeAgentId;
+    const isCurrentConnection = () => generation === state.generation && activeSession.connected;
     patchSnapshot((prev) => ({ ...prev, isVoiceSwitching: true }));
     try {
       if (localInputSessionId) {
         localInputSessionId = uuidv4();
         await deps.localInput!.stop();
-        if (generation !== state.generation || !activeSession.connected) return;
+        if (!isCurrentConnection()) return;
         await startLocalInput(generation);
       }
-      if (generation !== state.generation || !activeSession.connected) return;
+      if (!isCurrentConnection()) return;
       await enableSessionVoice(activeSession.adapter, agentId ?? undefined);
-      if (generation !== state.generation || !activeSession.connected) return;
+      if (!isCurrentConnection()) return;
+      // An assistant failure releases capture. Re-establish the microphone before
+      // reporting a restored conversation; reconnecting the socket alone cannot hear speech.
+      await deps.engine.startCapture();
+      if (!isCurrentConnection()) {
+        await discardCanceledCapture();
+        return;
+      }
+      if (deps.engine.isMuted() !== state.snapshot.isMuted) deps.engine.toggleMute();
       state.transportReady = true;
       patchSnapshot((prev) => ({
         ...prev,

@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import type { PluginIcon, PluginScreenParams, PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { X } from "lucide-react-native";
+import { X } from "@/components/icons/app-icons";
 import { useCallback, useMemo, type ComponentType } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";

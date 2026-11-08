@@ -1,0 +1,8 @@
+Fixed
+- Keep conversations within sidebar project groups sorted by their last prompt when connected to hosts that do not yet support project run ordering. Restore the Last prompt and Created sorting options for those hosts.
+- Scale narrow sidebars correctly on foldables and wide screens: remove the doubled left inset, keep sidebar actions reachable, respect display cutouts, and refresh the Android viewport after rotation.
+- Limit translated native permission prompts to iOS so Android permission dialogs keep their standard system wording.
+- Show the welcome tagline in the app's active language.
+- Serve the plugin marketplace from ClawMuse's own reviewed registry instead of the upstream community directory.
+
+Full notes: https://paseo.sh/changelog

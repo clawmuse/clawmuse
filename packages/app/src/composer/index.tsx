@@ -50,7 +50,7 @@ import {
   Image as ImageIcon,
   ClipboardPaste,
   Paperclip,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import * as Clipboard from "expo-clipboard";
 import { FOOTER_HEIGHT } from "@/constants/layout";
 import {
@@ -311,8 +311,6 @@ interface RenderLeftContentArgs {
   focusInput: () => void;
   isCompactLayout: boolean;
   showAgentControls: boolean;
-  /** The usage strip when the desktop toolbar carries it, between the controls and archive. */
-  usageStrip: ReactElement | null;
   archiveButton: ReactElement | null;
 }
 
@@ -334,11 +332,10 @@ function renderAgentControls(args: RenderLeftContentArgs): ReactElement | null {
 
 function renderLeftContent(args: RenderLeftContentArgs): ReactElement | null {
   const controls = renderAgentControls(args);
-  if (!args.usageStrip && !args.archiveButton) return controls;
+  if (!args.archiveButton) return controls;
   return (
     <>
       {controls}
-      {args.usageStrip}
       {args.archiveButton}
     </>
   );
@@ -2414,18 +2411,6 @@ function ComposerContentImpl({
     [buttonIconSize, isArchivePending, isConnected, onArchive],
   );
   const showUsageStrip = !isFullscreen && hasAgent;
-  const toolbarUsageStrip = useMemo(
-    () =>
-      showUsageStrip && isDesktopLayout ? (
-        <AgentUsageStrip
-          serverId={serverId}
-          agentId={agentId}
-          totalCostUsd={agentState.totalCostUsd}
-          inline
-        />
-      ) : null,
-    [agentId, agentState.totalCostUsd, isDesktopLayout, serverId, showUsageStrip],
-  );
   const leftContent = useMemo(
     () =>
       renderLeftContent({
@@ -2435,7 +2420,6 @@ function ComposerContentImpl({
         focusInput,
         isCompactLayout,
         showAgentControls: mode.showAgentControls,
-        usageStrip: toolbarUsageStrip,
         archiveButton,
       }),
     [
@@ -2446,7 +2430,6 @@ function ComposerContentImpl({
       isCompactLayout,
       mode.showAgentControls,
       serverId,
-      toolbarUsageStrip,
     ],
   );
 
@@ -2763,7 +2746,7 @@ function ComposerContentImpl({
               />
               {pluginAttachments.picker}
             </ComposerAutocompleteBinding>
-            {showUsageStrip && !isDesktopLayout ? (
+            {showUsageStrip && isCompactFormFactor ? (
               <AgentUsageStrip
                 serverId={serverId}
                 agentId={agentId}

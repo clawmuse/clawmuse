@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState, type ReactElement } from "react";
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
-import { MessageCircle, SquareTerminal } from "lucide-react-native";
+import { MessageCircle, SquareTerminal } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
   DropdownMenu,
@@ -92,17 +92,20 @@ export interface LaunchControlProps {
 function TriggerIcon({
   target,
   profile,
+  variant,
 }: {
   target: LaunchTarget;
   profile: TerminalProfile | null;
+  variant: FieldTriggerVariant;
 }): ReactElement {
+  const iconSize = variant === "field" ? ICON_SIZE.lg : ICON_SIZE.sm;
   if (target.kind === "chat") {
-    return <ThemedMessageCircle size={ICON_SIZE.sm} uniProps={mutedColorMapping} />;
+    return <ThemedMessageCircle size={iconSize} uniProps={mutedColorMapping} />;
   }
   if (profile) {
     return <TerminalProfileIcon iconKey={getTerminalProfileIcon(profile)} />;
   }
-  return <ThemedSquareTerminal size={ICON_SIZE.sm} uniProps={mutedColorMapping} />;
+  return <ThemedSquareTerminal size={iconSize} uniProps={mutedColorMapping} />;
 }
 
 /**
@@ -126,8 +129,8 @@ export function LaunchControl({
   const selectedProfile = useMemo(() => resolveLaunchProfile(target, profiles), [target, profiles]);
   const triggerStyle = useFieldTriggerStyle(variant, disabled);
   const triggerIcon = useMemo(
-    () => <TriggerIcon target={target} profile={selectedProfile} />,
-    [selectedProfile, target],
+    () => <TriggerIcon target={target} profile={selectedProfile} variant={variant} />,
+    [selectedProfile, target, variant],
   );
 
   // A profile's own name and logo say nothing about where it runs: a row

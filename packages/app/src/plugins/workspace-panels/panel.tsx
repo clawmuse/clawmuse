@@ -6,7 +6,7 @@ import type {
 } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { PluginClientStateProvider } from "@getpaseo/plugin/client/host";
-import { CircleAlert } from "lucide-react-native";
+import { CircleAlert } from "@/components/icons/app-icons";
 import { useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";

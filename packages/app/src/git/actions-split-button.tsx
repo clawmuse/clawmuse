@@ -2,7 +2,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useCallback, useMemo } from "react";
 import { View, Text, Pressable, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ChevronDown, GitBranch, MoreVertical } from "lucide-react-native";
+import { ChevronDown, GitBranch, MoreVertical } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
@@ -213,7 +213,7 @@ export function GitActionsSplitButton({
                 accessibilityRole="button"
                 accessibilityLabel={t("workspace.git.actions.moreOptions")}
               >
-                <ChevronDown size={16} color={theme.colors.foregroundExtraMuted} />
+                <ChevronDown size={14} color={theme.colors.foregroundExtraMuted} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" testID="changes-primary-cta-menu">
                 {gitActions.secondary.map((action, index) => (
@@ -312,10 +312,13 @@ const styles = StyleSheet.create((theme) => ({
     opacity: 0.6,
   },
   splitButtonText: {
-    fontSize: theme.fontSize.base,
-    lineHeight: theme.fontSize.base * 1.5,
+    fontSize: {
+      xs: theme.fontSize.base,
+      md: theme.fontSize.sm,
+    },
+    lineHeight: theme.fontSize.base * 1.4,
     color: theme.colors.foreground,
-    fontWeight: theme.fontWeight.normal,
+    fontWeight: theme.fontWeight.medium,
   },
   splitButtonContent: {
     flexDirection: "row",
@@ -323,7 +326,7 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
     gap: {
       xs: theme.spacing[2],
-      md: theme.spacing[1],
+      md: theme.spacing[1.5],
     },
   },
   splitButtonSpinnerOnly: {
@@ -332,7 +335,7 @@ const styles = StyleSheet.create((theme) => ({
   splitButtonCaret: {
     width: {
       xs: buttonControlHeight.xs,
-      md: HEADER_CONTROL_HEIGHT,
+      md: 22,
     },
     alignItems: "center",
     justifyContent: "center",

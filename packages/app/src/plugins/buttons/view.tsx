@@ -13,7 +13,12 @@ import {
 } from "react";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { AlertCircle, ChevronDown, MoreHorizontal, LucideProvider } from "lucide-react-native";
+import {
+  AlertCircle,
+  ChevronDown,
+  MoreHorizontal,
+  LucideProvider,
+} from "@/components/icons/app-icons";
 import { COMPOSER_PLUGIN_ICON_STROKE_WIDTH } from "@/composer/control-geometry";
 import { useTranslation } from "react-i18next";
 import {

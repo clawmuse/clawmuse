@@ -1702,15 +1702,9 @@ function NewWorkspaceLayout({
 }) {
   // In the header on compact layouts, under the composer otherwise.
   const importSessionButton = <ImportSessionButton compact={isCompact} onPress={onImportSession} />;
-  // Compact has no title: the fields name themselves. The free space above pushes them down onto
-  // the composer, where the thumb is.
-  const setupFields = isCompact ? (
+  const setupFields = (
     <>
-      <View style={styles.compactSetupSpace} pointerEvents="none" />
-      {formStack}
-    </>
-  ) : (
-    <>
+      {isCompact ? <View style={styles.compactSetupSpace} pointerEvents="none" /> : null}
       <View style={styles.composerTitleContainer} pointerEvents="none">
         <Text style={styles.composerTitle}>{title}</Text>
       </View>
@@ -1750,13 +1744,14 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
   },
   composerTitleContainer: {
-    marginBottom: theme.spacing[8],
-    paddingLeft: theme.spacing[6],
+    marginBottom: { xs: theme.spacing[4], md: theme.spacing[8] },
+    paddingLeft: { xs: theme.spacing[4], md: theme.spacing[6] },
     paddingRight: theme.spacing[4],
   },
   composerTitle: {
     ...densityText(theme, "title"),
-    fontSize: { xs: densityText(theme, "title").fontSize.xs, md: theme.fontSize["2xl"] },
+    fontSize: { xs: theme.fontSize["4xl"], md: theme.fontSize["2xl"] },
+    lineHeight: { xs: 34, md: Math.round(theme.fontSize["2xl"] * 1.4) },
     fontWeight: { xs: theme.fontWeight.semibold, md: theme.fontWeight.normal },
     color: theme.colors.foreground,
   },

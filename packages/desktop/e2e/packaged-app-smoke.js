@@ -956,6 +956,15 @@ async function smokePackagedDesktopApp({
       deadline,
     });
     console.log("Packaged desktop smoke: renderer-started desktop daemon reported running");
+    await page.getByTestId("sidebar-settings").waitFor({
+      state: "visible",
+      timeout: remainingTime(deadline),
+    });
+    await page.getByTestId("open-project-onboarding").waitFor({
+      state: "visible",
+      timeout: remainingTime(deadline),
+    });
+    console.log("Packaged desktop smoke: sidebar and onboarding screen are visible");
     if (process.platform === "linux") {
       assert.equal(
         fs.realpathSync(`/proc/${status.pid}/cwd`),

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Platform, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { router } from "expo-router";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft } from "@/components/icons/app-icons";
 import type { PluginHostProps } from "@getpaseo/plugin/client";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";

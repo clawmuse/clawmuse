@@ -1,6 +1,7 @@
 import { createElement, type ComponentType, type ReactElement } from "react";
 import * as LucideIcons from "lucide-react-native";
-import type { LucideIcon } from "lucide-react-native";
+import * as AppIcons from "@/components/icons/app-icons";
+import type { LucideIcon } from "@/components/icons/app-icons";
 import {
   findSvgIconProblem,
   type PluginIconProps,
@@ -19,7 +20,12 @@ type HostIcon = (props: HostIconProps) => ReactElement | null;
 const lucideIconComponents = new Map<string, HostIcon>();
 const svgIconComponents = new Map<string, HostIcon>();
 
+/** Plugins name Lucide icons; the app's redrawn glyph wins so plugin rows match the host's. */
 function findLucideIcon(name: string): LucideIcon | null {
+  if (name !== "LucideProvider") {
+    const redrawn = Reflect.get(AppIcons, name);
+    if (isComponent(redrawn)) return redrawn as LucideIcon;
+  }
   const candidate = Reflect.get(LucideIcons, name);
   if (candidate === LucideIcons.Icon || candidate === LucideIcons.createLucideIcon) return null;
   return isComponent(candidate) ? (candidate as LucideIcon) : null;

@@ -318,14 +318,18 @@ function resolveRelayEndpoints(input: ResolveRelayInput): {
 
 function resolveRelayConfig(input: ResolveRelayInput): ResolvedRelay {
   const environmentEnabled = parseBooleanEnv(input.env.PASEO_RELAY_ENABLED);
+  const { endpoint, publicEndpoint } = resolveRelayEndpoints(input);
+  // The open-source build ships without a hosted relay. With no endpoint configured
+  // there is nothing to connect to, so relay stays off and clients cannot enable it.
+  const hasEndpoint = endpoint !== "";
   // COMPAT(relayOptInDefault): daemons whose startup config omitted this field
   // retain relay-on removal semantics until 2027-01-31. Modern homes use false.
   const enabled =
-    input.cliRelayEnabled ??
-    environmentEnabled ??
-    input.persisted.daemon?.relay?.enabled ??
-    input.enabledFallback;
-  const { endpoint, publicEndpoint } = resolveRelayEndpoints(input);
+    hasEndpoint &&
+    (input.cliRelayEnabled ??
+      environmentEnabled ??
+      input.persisted.daemon?.relay?.enabled ??
+      input.enabledFallback);
   const useTls =
     input.cliRelayUseTls ??
     resolveTlsFromEnv(
@@ -340,7 +344,8 @@ function resolveRelayConfig(input: ResolveRelayInput): ResolvedRelay {
   );
   return {
     enabled,
-    enabledMutable: input.cliRelayEnabled === undefined && environmentEnabled === undefined,
+    enabledMutable:
+      hasEndpoint && input.cliRelayEnabled === undefined && environmentEnabled === undefined,
     requireProtectedSecurity: input.persisted.daemon?.relay?.requireProtectedSecurity ?? false,
     endpoint,
     publicEndpoint,

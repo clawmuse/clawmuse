@@ -54,8 +54,8 @@ describe("desktop sidebar layout", () => {
         sidebarControlsEnabled: true,
       }),
     ).toEqual({
-      sidebarCorners: "none",
-      contentCorners: "both",
+      sidebarCorners: "top-left",
+      contentCorners: "top-right",
       sidebarToggleOwner: "window",
     });
     expect(

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Text, View, type LayoutChangeEvent } from "react-native";
 import { SvgXml } from "react-native-svg";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { PackagePlus } from "lucide-react-native";
+import { PackagePlus } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "@/components/ui/external-link";
 import { SearchField } from "@/components/ui/search-field";

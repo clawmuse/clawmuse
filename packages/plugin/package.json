@@ -1,7 +1,6 @@
 {
   "name": "@getpaseo/plugin",
-  "version": "1.5.5",
-  "private": true,
+  "version": "1.5.5+1108",
   "description": "Paseo plugin SDK package",
   "files": [
     "dist",
@@ -60,6 +59,9 @@
       "default": "./dist/server/lifecycle.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "tsc -p tsconfig.json --incremental false",
@@ -75,8 +77,8 @@
     "use-sync-external-store": "^1.6.0"
   },
   "devDependencies": {
-    "@getpaseo/client": "1.5.5",
-    "@getpaseo/protocol": "1.5.5",
+    "@getpaseo/client": "1.5.5+1108",
+    "@getpaseo/protocol": "1.5.5+1108",
     "@types/node": "^20.9.0",
     "@types/react": "~19.2.0",
     "react": "19.2.3",
@@ -86,8 +88,8 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@getpaseo/client": "1.5.5",
-    "@getpaseo/protocol": "1.5.5",
+    "@getpaseo/client": "1.5.5+1108",
+    "@getpaseo/protocol": "1.5.5+1108",
     "react": ">=19.1.0 <20",
     "react-native": ">=0.81.5",
     "zod": "^4.4.3"

@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react-native";
+import { ChevronRight } from "@/components/icons/app-icons";
 import { useCallback, useMemo } from "react";
 import { Text, View, type AccessibilityState, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";

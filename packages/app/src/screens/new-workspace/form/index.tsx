@@ -11,13 +11,16 @@ import type { LaunchTarget } from "@/new-workspace-launch/target";
 import type { HostProjectListItem } from "@/projects/host-projects";
 import type { HostProfile } from "@/types/host-connection";
 import type { PickerItem } from "../../new-workspace-picker-item";
+import { FIELD_BADGE_HEIGHT, FieldTrigger, type FieldTriggerVariant } from "./field-trigger";
 import {
-  FIELD_BADGE_HEIGHT,
-  FIELD_HEIGHT,
-  FieldTrigger,
-  type FieldTriggerVariant,
-} from "./field-trigger";
-import { branchIcon, folderIcon, ProjectIcon, pullRequestIcon } from "./icons";
+  branchIcon,
+  compactBranchIcon,
+  compactFolderIcon,
+  compactPullRequestIcon,
+  folderIcon,
+  ProjectIcon,
+  pullRequestIcon,
+} from "./icons";
 import { LaunchControl } from "./launch-control";
 import { AddProjectOption, IsolationOption, ProjectOption, RefOption } from "./options";
 
@@ -181,6 +184,9 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
   const selectedProjectIconUri = selectedProject
     ? (project.iconDataByProjectViewKey.get(selectedProject.viewKey) ?? null)
     : null;
+  const activeBranchIcon = isCompact ? compactBranchIcon : branchIcon;
+  const activeFolderIcon = isCompact ? compactFolderIcon : folderIcon;
+  const activePullRequestIcon = isCompact ? compactPullRequestIcon : pullRequestIcon;
   const projectIcon = useMemo(
     () =>
       selectedProject ? (
@@ -188,11 +194,12 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
           projectViewKey={selectedProject.viewKey}
           projectName={selectedProject.projectName}
           iconDataUri={selectedProjectIconUri}
+          compact={isCompact}
         />
       ) : (
-        folderIcon
+        activeFolderIcon
       ),
-    [selectedProject, selectedProjectIconUri],
+    [activeFolderIcon, isCompact, selectedProject, selectedProjectIconUri],
   );
   const hostIcon = useMemo(
     () => <HostStatusDot serverId={host.selectedServerId} />,
@@ -202,7 +209,8 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
   const isolationValue = isWorktree
     ? t("newWorkspace.isolation.worktree")
     : t("newWorkspace.isolation.local");
-  const refIcon = base.selectedItem?.kind === "github-pr" ? pullRequestIcon : branchIcon;
+  const refIcon =
+    base.selectedItem?.kind === "github-pr" ? activePullRequestIcon : activeBranchIcon;
 
   const projectField = (
     <FieldTrigger
@@ -255,7 +263,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
       label={t("newWorkspace.isolation.label")}
       accessibilityLabel="Workspace isolation"
       tooltip={t("newWorkspace.tooltips.isolation")}
-      icon={isWorktree ? branchIcon : folderIcon}
+      icon={isWorktree ? activeBranchIcon : activeFolderIcon}
       value={isolationValue}
       onPress={isolation.open}
       disabled={isPending}
@@ -342,10 +350,6 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         {isolationField}
         {baseField}
         {launchField}
-        {/* Isolation and Base come and go with the project; their rows stay reserved so the
-            stack keeps one height and nothing above the composer jumps. */}
-        {isolationField ? null : <View style={styles.reservedField} pointerEvents="none" />}
-        {baseField ? null : <View style={styles.reservedField} pointerEvents="none" />}
         {pickers}
       </View>
     );
@@ -368,10 +372,7 @@ const styles = StyleSheet.create((theme) => ({
   compactStack: {
     marginBottom: theme.spacing[4],
     paddingHorizontal: theme.spacing[4],
-    gap: theme.spacing[2],
-  },
-  reservedField: {
-    height: FIELD_HEIGHT,
+    gap: theme.spacing[3],
   },
   desktopRow: {
     flexDirection: "row",

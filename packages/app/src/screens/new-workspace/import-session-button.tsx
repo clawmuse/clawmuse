@@ -1,4 +1,4 @@
-import { Import } from "lucide-react-native";
+import { Import } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";

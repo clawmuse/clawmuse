@@ -4,6 +4,7 @@ import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
+import { openProjectOnboarding } from "./open-project-onboarding";
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -148,6 +149,12 @@ export const ru: TranslationResources = {
       daemonUnavailable: "Daemon недоступен",
       daemonClientUnavailable: "Daemon клиента недоступен",
       daemonClientDisconnected: "Daemon клиента отключен",
+      modelProviderChanged:
+        "В этом разговоре используется {{expected}}, но текущий поставщик моделей — {{current}}. Вернитесь к {{expected}}, чтобы продолжить, или начните новый разговор с {{current}}.",
+      hostConnectionLost:
+        "Соединение с хостом потеряно. Дождитесь восстановления соединения и повторите попытку.",
+      hostRequestTimeout:
+        "Хост не ответил вовремя. Результат пока не подтверждён. Проверьте соединение и состояние разговора, прежде чем повторять попытку.",
       noFileFound: "Файл для {{token}} не найден",
       folderOutsideWorkspace: "{{path}} находится вне этого рабочего пространства",
       unexpectedDictationError: "При обработке диктовки произошла непредвиденная ошибка.",
@@ -475,6 +482,7 @@ export const ru: TranslationResources = {
     },
     question: {
       responseFailed: "Не удалось отправить ответ. Попробуйте ещё раз.",
+      responseFailedDetail: "Не удалось отправить ответ: {{error}}",
       submit: "Отправить",
       next: "Далее",
       answerPlaceholder: "Введите ответ...",
@@ -1428,6 +1436,21 @@ export const ru: TranslationResources = {
       },
     },
     workspace: {
+      deleteWorkspace: {
+        label: "Удалить пространство навсегда",
+        message:
+          "Удалить «{{name}}» и все его диалоги, включая архивные, навсегда? Работающие агенты и терминалы будут остановлены. Это действие нельзя отменить. Файлы проекта и рабочего дерева будут сохранены.",
+        deleting: "Удаление пространства…",
+        deleted: "Пространство удалено навсегда",
+        failed: "Не удалось удалить пространство: {{error}}",
+      },
+      deleteConversation: {
+        label: "Удалить текущий диалог",
+        message:
+          "Навсегда удалить «{{title}}» из ClawMuse? Это действие нельзя отменить. Другие диалоги и файлы проекта сохранятся.",
+        deleting: "Удаление диалога…",
+        failed: "Не удалось удалить диалог. Повторите попытку.",
+      },
       status: {
         serviceRunning: "Сервис {{name}} запущен",
         serviceUnhealthy: "Сервис {{name}} работает некорректно",
@@ -1716,6 +1739,7 @@ export const ru: TranslationResources = {
     },
   },
   openProject: {
+    onboarding: openProjectOnboarding["ru"],
     tiles: {
       addProject: {
         title: "Добавить проект",

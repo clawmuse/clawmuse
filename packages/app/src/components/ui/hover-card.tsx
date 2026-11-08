@@ -183,7 +183,7 @@ function WebHoverCard({
     const focusEntered = (event: FocusEvent) => {
       const target = event.target as Element;
       keyboardFocusedRef.current = target.matches(":focus-visible");
-      if (trigger.contains(target)) {
+      if (trigger.contains(target) && keyboardFocusedRef.current) {
         openNow();
       } else if ((contentRef.current as unknown as HTMLElement | null)?.contains(target)) {
         clearGraceTimer();

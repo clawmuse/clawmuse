@@ -4,6 +4,7 @@ import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
+import { openProjectOnboarding } from "./open-project-onboarding";
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -397,6 +398,10 @@ export const zhCN: TranslationResources = {
       daemonUnavailable: "Daemon 不可用",
       daemonClientUnavailable: "Daemon client 不可用",
       daemonClientDisconnected: "Daemon client 已断开连接",
+      modelProviderChanged:
+        "这条对话使用的模型服务商是 {{expected}}，当前已切换为 {{current}}。请切回 {{expected}} 后继续，或使用 {{current}} 新建对话。",
+      hostConnectionLost: "与主机的连接已中断。请等待重新连接后再试。",
+      hostRequestTimeout: "主机响应超时，暂时无法确认操作是否成功。请检查连接和会话状态后再试。",
       noFileFound: "未找到 {{token}} 对应的文件",
       folderOutsideWorkspace: "{{path}} 不在此工作区内",
       unexpectedDictationError: "处理听写时发生意外错误。",
@@ -720,6 +725,7 @@ export const zhCN: TranslationResources = {
     },
     question: {
       responseFailed: "未能发送你的回复，请重试。",
+      responseFailedDetail: "未能发送你的回复：{{error}}",
       submit: "提交",
       next: "下一步",
       answerPlaceholder: "输入你的回答...",
@@ -1648,6 +1654,21 @@ export const zhCN: TranslationResources = {
       },
     },
     workspace: {
+      deleteWorkspace: {
+        label: "永久删除空间",
+        message:
+          "永久删除“{{name}}”及其全部对话（包括已归档对话）？运行中的智能体和终端将停止。此操作无法撤销。项目和工作树文件会保留。",
+        deleting: "正在删除空间…",
+        deleted: "空间已永久删除",
+        failed: "删除空间失败：{{error}}",
+      },
+      deleteConversation: {
+        label: "删除当前对话",
+        message:
+          "确定从 ClawMuse 永久删除「{{title}}」？删除后不可恢复。其他对话和项目文件会保留。",
+        deleting: "正在删除对话…",
+        failed: "删除对话失败，请重试。",
+      },
       status: {
         serviceRunning: "服务 {{name}} 运行中",
         serviceUnhealthy: "服务 {{name}} 异常",
@@ -1700,7 +1721,7 @@ export const zhCN: TranslationResources = {
     },
   },
   newWorkspace: {
-    title: "新建 workspace",
+    title: "新建工作区",
     create: "创建",
     isolation: {
       local: "本地",
@@ -1933,6 +1954,7 @@ export const zhCN: TranslationResources = {
     },
   },
   openProject: {
+    onboarding: openProjectOnboarding["zh-CN"],
     tiles: {
       addProject: {
         title: "添加 project",

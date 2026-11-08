@@ -199,6 +199,62 @@ describe("voice runtime", () => {
     runtime.handleCapturePcm(new Uint8Array([1, 2]));
     expect(adapter.sendVoiceAudioChunk).toHaveBeenCalledTimes(2);
   });
+  it.each([false, true])(
+    "restores microphone capture and mute=%s after a transport reconnect",
+    async (initialMuted) => {
+      const info = {
+        ...createServerInfo(),
+        features: { voiceAssistant: true, voiceAssistantEnabled: true },
+      };
+      const { runtime, engine } = createRuntime({ getServerInfo: () => info });
+      let muted = false;
+      vi.mocked(engine.isMuted).mockImplementation(() => muted);
+      vi.mocked(engine.toggleMute).mockImplementation(() => (muted = !muted));
+      vi.mocked(engine.stopCapture).mockImplementation(async () => {
+        muted = false;
+      });
+      const adapter = createSessionAdapter();
+      runtime.registerSession(adapter);
+      await runtime.startVoice("server-1", "", undefined, true);
+      if (initialMuted) runtime.toggleMute();
+      runtime.updateSessionConnection("server-1", false);
+      // The audio session can lose its engine mute state while disconnected.
+      muted = false;
+      runtime.updateSessionConnection("server-1", true);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(engine.startCapture).toHaveBeenCalledTimes(2);
+      expect(runtime.getSnapshot().phase).toBe("listening");
+      expect(engine.isMuted()).toBe(initialMuted);
+      expect(runtime.getSnapshot().isMuted).toBe(initialMuted);
+      if (initialMuted) runtime.toggleMute();
+      expect(runtime.getSnapshot().isMuted).toBe(false);
+      runtime.handleCapturePcm(new Uint8Array([1, 2]));
+      expect(adapter.sendVoiceAudioChunk).toHaveBeenLastCalledWith("AQI=", CUE_MIME_TYPE);
+      await runtime.stopVoice();
+    },
+  );
+
+  it("keeps a failed assistant stopped across socket reconnect until explicitly restarted", async () => {
+    const info = {
+      ...createServerInfo(),
+      features: { voiceAssistant: true, voiceAssistantEnabled: true },
+    };
+    const { runtime, engine } = createRuntime({ getServerInfo: () => info });
+    runtime.registerSession(createSessionAdapter());
+    await runtime.startVoice("server-1", "", undefined, true);
+    runtime.onServerSpeechStateChanged("server-1", false, undefined, "connection_failed");
+    runtime.updateSessionConnection("server-1", false);
+    runtime.updateSessionConnection("server-1", true);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(engine.stopCapture).toHaveBeenCalledOnce();
+    expect(engine.startCapture).toHaveBeenCalledOnce();
+    expect(runtime.getSnapshot().phase).toBe("connection_failed");
+    await runtime.stopVoice();
+    await runtime.startVoice("server-1", "", undefined, true);
+    expect(engine.startCapture).toHaveBeenCalledTimes(2);
+    expect(runtime.getSnapshot().phase).toBe("listening");
+    await runtime.stopVoice();
+  });
 
   it("stops capture even when the host cannot acknowledge ending voice", async () => {
     const { runtime, engine } = createRuntime();
@@ -1482,6 +1538,62 @@ describe("Apple turn boundaries and native lifecycle", () => {
       true,
     );
     expect(events.map((event) => event.type)).toEqual(["speech", "partial"]);
+    await session.stop();
+  });
+
+  it("discards Apple transcripts when the detector only reports environmental noise", async () => {
+    const { session, native, receive, events } = await sessionHarness();
+    receive({ type: "ready", sessionId: "apple-1" });
+    receive({ type: "activity", sessionId: "apple-1", speechDetected: false });
+    session.append(pcm(200, 3000));
+    receive({ type: "partial", sessionId: "apple-1", text: "噪声幻觉" });
+    expect(events).toEqual([]);
+    session.append(pcm(2000, 3000));
+    expect(native.appendAppleSpeechAudio).toHaveBeenLastCalledWith(
+      "apple-1",
+      pcm(2000, 3000),
+      true,
+    );
+    receive({ type: "final", sessionId: "apple-1", text: "噪声幻觉", finalizationMs: 10 });
+    expect(events).toEqual([{ type: "idle" }]);
+    await session.stop();
+  });
+
+  it("retains a quiet short phrase when Apple speech detection arrives after the text", async () => {
+    const { session, receive, events } = await sessionHarness();
+    receive({ type: "ready", sessionId: "apple-1" });
+    receive({ type: "activity", sessionId: "apple-1", speechDetected: false });
+    session.append(pcm(200, 10));
+    receive({ type: "partial", sessionId: "apple-1", text: "好" });
+    expect(events).toEqual([]);
+    receive({ type: "activity", sessionId: "apple-1", speechDetected: true, audioTimeMs: 0 });
+    expect(events).toEqual([
+      { type: "speech" },
+      { type: "partial", sessionId: "apple-1", text: "好" },
+    ]);
+    receive({ type: "activity", sessionId: "apple-1", speechDetected: false, audioTimeMs: 200 });
+    session.append(pcm(2000));
+    receive({ type: "final", sessionId: "apple-1", text: "好", finalizationMs: 10 });
+    expect(events.at(-1)).toMatchObject({ type: "final", text: "好" });
+    await session.stop();
+  });
+
+  it("accepts speech evidence drained during Apple finalization and resets it for the next turn", async () => {
+    const { session, receive, events } = await sessionHarness();
+    receive({ type: "ready", sessionId: "apple-1" });
+    receive({ type: "activity", sessionId: "apple-1", speechDetected: false });
+    receive({ type: "partial", sessionId: "apple-1", text: "继续" });
+    session.append(pcm(2000));
+    receive({ type: "activity", sessionId: "apple-1", speechDetected: true });
+    receive({ type: "final", sessionId: "apple-1", text: "继续", finalizationMs: 10 });
+    expect(events.at(-1)).toMatchObject({ type: "final", text: "继续" });
+    receive({ type: "ready", sessionId: "apple-1" });
+    receive({ type: "activity", sessionId: "apple-1", speechDetected: false });
+    receive({ type: "partial", sessionId: "apple-1", text: "噪声幻觉" });
+    session.append(pcm(2000));
+    receive({ type: "final", sessionId: "apple-1", text: "噪声幻觉", finalizationMs: 10 });
+    expect(events.filter((event) => event.type === "final")).toHaveLength(1);
+    expect(events.at(-1)).toEqual({ type: "idle" });
     await session.stop();
   });
 

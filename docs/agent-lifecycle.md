@@ -46,6 +46,8 @@ still own an exclusive writer. A close failure retains that runtime for cleanup 
 replacement. Once closure succeeds, a failed resume leaves the durable agent closed and retryable.
 
 Idle resumable runtimes are collected after one hour without activity, checked once a minute.
+Opening or restoring a runtime starts a fresh idle hour without changing the conversation's
+historical timestamps or sidebar ordering.
 Collection releases the process and preserves the agent record, conversation, relationships, and
 provider session. The next prompt resumes that session. Set `agents.idleRuntimeCleanup: false` in
 host config to disable automatic collection. The host setting applies immediately; config-file edits
@@ -295,6 +297,18 @@ neither, so resuming carries the stored attention and the stored last-activity t
 untouched. Forging either makes a background resume look like the user read a workspace and like the
 agent worked in it just now, which rewrites the sidebar timestamp permanently — persisted
 `updatedAt` is what workspace `statusEnteredAt` is re-derived from on the next daemon start.
+
+## Permanent workspace deletion
+
+**Permanently delete workspace** removes the workspace and all its ClawMuse conversation
+records, including archived conversations. It stops the workspace's agents, terminals and setup.
+The confirmation names the workspace; cancellation leaves it unchanged. The host must advertise
+`workspaceDeletion`. Older hosts require an update.
+
+Deletion retains the project registration, project files and Git worktree, even for a managed
+worktree. It does not erase the provider CLI's independent history or backups. Other workspaces
+sharing the directory retain their records. The workspace record is removed only after cleanup
+succeeds; a failed operation remains retryable, though completed deletions cannot be undone.
 
 ## The subagents track
 

@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "expo-router/react-navigation";
-import { Plus, Sparkles } from "lucide-react-native";
+import { Plus, Sparkles } from "@/components/icons/app-icons";
 import { StyleSheet } from "react-native-unistyles";
 import {
   getClawMuseStatusApiClient,

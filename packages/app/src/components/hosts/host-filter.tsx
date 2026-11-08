@@ -2,7 +2,7 @@ import { useClawMuseDeviceLabel } from "@/clawmuse/device-label";
 import { useTranslation } from "react-i18next";
 import { useCallback, useMemo, useRef, useState, type ReactElement } from "react";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
-import { ChevronDown, Server } from "lucide-react-native";
+import { ChevronDown, Server } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { Theme } from "@/styles/theme";
 import {

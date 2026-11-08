@@ -540,8 +540,11 @@ async function measureDockedNavigation(page: import("@playwright/test").Page, wi
   await expect(settings).toBeVisible();
   const logicalHeight = (el: HTMLElement | SVGElement) => {
     const scaledContent = el.closest('[data-testid="sidebar-scaled-content"]');
-    const transform = scaledContent ? getComputedStyle(scaledContent).transform : "none";
-    const scale = transform === "none" ? 1 : new DOMMatrixReadOnly(transform).a;
+    const style = scaledContent ? getComputedStyle(scaledContent) : null;
+    const transform = style?.transform ?? "none";
+    const scale =
+      (transform === "none" ? 1 : new DOMMatrixReadOnly(transform).a) *
+      (Number.parseFloat(style?.zoom ?? "1") || 1);
     return el.getBoundingClientRect().height / scale;
   };
   return {

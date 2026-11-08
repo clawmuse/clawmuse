@@ -9,7 +9,7 @@ import {
   Sparkles,
   SquareTerminal,
   Wrench,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import type { ToolCallDetail } from "@getpaseo/protocol/agent-types";
 import { ClawMuseLogo } from "@/components/icons/clawmuse-logo";

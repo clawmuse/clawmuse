@@ -7,18 +7,10 @@
   "websiteUrl": "https://clawmuse.com",
   "pluginRegistryUrl": "https://clawmuse.com/registry",
   "appBaseUrl": "https://app.clawmuse.com",
-  "relayEndpoint": "agent-relay.clawmuse.com:443",
+  "relayEndpoint": "",
   "automaticUpdates": false,
   "iosBundleId": "com.clawmuse",
-  "relayEndpoints": [
-    "agent-relay.clawmuse.com:443",
-    "agent-relay-cn.clawmuse.com:443",
-    "agent-relay.ppb.cn:443",
-    "agent-relay-cn.ppb.cn:443"
-  ],
-  "regionalRelayEndpoints": ["agent-relay.clawmuse.com:443", "agent-relay-cn.ppb.cn:443"],
-  "relayPublicEndpoints": {
-    "agent-relay.clawmuse.com:443": "agent-relay.ppb.cn:443",
-    "agent-relay-cn.clawmuse.com:443": "agent-relay-cn.ppb.cn:443"
-  }
+  "relayEndpoints": [],
+  "regionalRelayEndpoints": [],
+  "relayPublicEndpoints": {}
 }

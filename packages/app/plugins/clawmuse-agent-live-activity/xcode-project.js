@@ -5,7 +5,7 @@ const TARGET_PRODUCT_TYPE = '"com.apple.product-type.app-extension"';
 const EMBED_PHASE_NAME = "Embed Foundation Extensions";
 
 function isResourceFile(filePath) {
-  return /\.(strings|stringsdict|xcstrings)$/.test(filePath);
+  return /\.(strings|stringsdict|xcstrings|xcassets|ttf|otf|txt)$/.test(filePath);
 }
 
 function unquote(value) {

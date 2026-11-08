@@ -1,7 +1,7 @@
-export const COMPOSER_ACTION_BUTTON_SIZE = { xs: 32, md: 36 };
+export const COMPOSER_ACTION_BUTTON_SIZE = { xs: 36, md: 36 };
 export const COMPOSER_ACTION_ICON_SIZE = 24;
 export const COMPOSER_COMPACT_ACTION_ICON_SIZE = 22;
-export const COMPOSER_PRIMARY_BUTTON_SIZE = { xs: 32, md: 32 };
+export const COMPOSER_PRIMARY_BUTTON_SIZE = { xs: 36, md: 32 };
 export const COMPOSER_PRIMARY_ICON_SIZE = 20;
 export const COMPOSER_DICTATION_ICON_SIZE = 24;
 export const COMPOSER_PRIMARY_HIT_SLOP = 6;

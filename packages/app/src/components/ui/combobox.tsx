@@ -33,7 +33,7 @@ import { useRetainedPanelActive } from "@/components/retained-panel";
 import { BottomSheetScrollView, type BottomSheetBackgroundProps } from "@gorhom/bottom-sheet";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Check, File, Folder, Search } from "lucide-react-native";
+import { Check, File, Folder, Search } from "@/components/icons/app-icons";
 import {
   flip,
   offset as floatingOffset,

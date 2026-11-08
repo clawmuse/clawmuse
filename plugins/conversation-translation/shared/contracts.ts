@@ -19,7 +19,11 @@ export const preferences = defineSettings({
 export type Preferences = z.output<typeof configuredPreferencesSchema>;
 export const translationRpc = defineRpc({
   name: "translation.reply",
-  input: z.object({ text: z.string().max(100000), revision: z.string().optional() }),
+  input: z.object({
+    text: z.string().max(100000),
+    agentId: z.string().max(200).optional(),
+    revision: z.string().optional(),
+  }),
   output: z.object({ text: z.string() }),
 });
 export const fieldsRpc = defineRpc({
@@ -35,6 +39,20 @@ export const fieldsRpc = defineRpc({
     revision: z.string(),
   }),
   output: z.object({ texts: z.array(z.string()) }),
+});
+export const repliesRpc = defineRpc({
+  name: "translation.replies",
+  input: z.object({
+    texts: z.array(z.string().max(24000)).min(1).max(16),
+    agentId: z.string().min(1).max(200),
+    revision: z.string().optional(),
+  }),
+  output: z.object({ texts: z.array(z.string()).min(1).max(16) }),
+});
+export const prepareRpc = defineRpc({
+  name: "translation.prepare",
+  input: z.object({ agentId: z.string().min(1).max(200), revision: z.string().optional() }),
+  output: z.object({}),
 });
 export const originalRpc = defineRpc({
   name: "translation.original",

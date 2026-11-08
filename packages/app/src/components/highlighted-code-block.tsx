@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import * as Clipboard from "expo-clipboard";
-import { Check, Copy } from "lucide-react-native";
+import { Check, Copy } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import type { HighlightToken } from "@getpaseo/highlight";
 import { isNative, isWeb } from "@/constants/platform";

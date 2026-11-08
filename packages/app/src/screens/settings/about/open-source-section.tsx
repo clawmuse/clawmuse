@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react-native";
+import { ExternalLink } from "@/components/icons/app-icons";
 import { useCallback } from "react";
 import { Text, View, type PressableStateCallbackType } from "react-native";
 import { useTranslation } from "react-i18next";

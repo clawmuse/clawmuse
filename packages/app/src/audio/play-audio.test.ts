@@ -94,6 +94,31 @@ test("closing one chat preserves microphone capture in another initialized chat"
   }
 });
 
+test.each(["stopCapture", "destroy"] as const)(
+  "%s releases only its owner's capture while another conversation is listening",
+  async (release) => {
+    const callbacks = { onCaptureData() {}, onVolumeLevel() {} };
+    const voice = createAudioEngine(callbacks);
+    const dictation = createAudioEngine(callbacks, { captureMode: "dictation" });
+    try {
+      await voice.startCapture();
+      await dictation.startCapture();
+      expect(native.isRecording()).toBe(true);
+
+      await dictation[release]();
+      expect(native.isRecording()).toBe(true);
+      await voice.startCapture();
+      expect(native.isRecording()).toBe(true);
+
+      await voice.stopCapture();
+      expect(native.isRecording()).toBe(false);
+    } finally {
+      await dictation.destroy();
+      await voice.destroy();
+    }
+  },
+);
+
 test("native initialization is shared and the final owner releases the engine", async () => {
   const callbacks = { onCaptureData() {}, onVolumeLevel() {} };
   const first = createAudioEngine(callbacks);

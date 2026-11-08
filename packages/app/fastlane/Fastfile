@@ -1,0 +1,518 @@
+# ClawMuse iOS release lanes.
+#
+# Ported from the EndToAI/Orca fork (`agent/mobile/fastlane/Fastfile`). Builds the
+# prebuilt iOS workspace, signs it with the distribution identity in the release
+# keychain plus explicit App Store provisioning profiles fetched via the App Store
+# Connect API key, uploads the .ipa, then distributes the processed build to
+# TestFlight. Credentials come from the environment
+# (`~/.endto-secrets/clawmuse-ios/release.env`, see docs/ios-release-from-mac.md)
+# so nothing secret lives in the repo.
+#
+# Why manual signing (not -allowProvisioningUpdates / automatic cloud signing):
+# mixing a pre-imported distribution .p12 with xcodebuild's cloud-managed
+# automatic signing produced "Cloud signing permission error / No profiles
+# found" at exportArchive (cloud signing also needs an Admin-role API key).
+# Instead we fetch explicit profiles with the API key and sign manually against
+# the imported cert — works with any team API key.
+
+require "json"
+require "shellwords"
+require_relative "ios_release_version"
+require_relative "native_release_version"
+require_relative "release_version_file"
+require "fileutils"
+require "tmpdir"
+
+default_platform(:ios)
+
+APP_ROOT = File.expand_path("..", __dir__)
+REPO_ROOT = File.expand_path("../..", APP_ROOT)
+# Why: fastlane executes lanes from packages/app/fastlane even when the release
+# script starts in packages/app, so release paths must be rooted explicitly.
+BRAND = JSON.parse(File.read(File.join(REPO_ROOT, "branding", "brand.json"))).freeze
+EAS_CONFIG = JSON.parse(File.read(File.join(APP_ROOT, "eas.json"))).freeze
+
+BUNDLE_ID = BRAND.fetch("iosBundleId")
+APP_IDENTIFIER = BUNDLE_ID
+# Expo names the generated project after expo.name, which app.config.js takes
+# from brand.json, with everything Xcode cannot use in an identifier stripped.
+NATIVE_PROJECT_NAME = BRAND.fetch("name").gsub(/[^A-Za-z0-9]/, "")
+WORKSPACE = File.join(APP_ROOT, "ios", "#{NATIVE_PROJECT_NAME}.xcworkspace")
+PROJECT = File.join(APP_ROOT, "ios", "#{NATIVE_PROJECT_NAME}.xcodeproj")
+BUILD_OUTPUT_DIRECTORY = File.join(APP_ROOT, "build")
+RELEASE_VERSION_FILE = File.join(BUILD_OUTPUT_DIRECTORY, "ios-release-version.json")
+IPA_NAME = "#{NATIVE_PROJECT_NAME}.ipa".freeze
+SCHEME = NATIVE_PROJECT_NAME
+APP_TARGET = NATIVE_PROJECT_NAME
+LIVE_ACTIVITY_EXTENSION_TARGET = "ClawMuseAgentLiveActivityExtension"
+LIVE_ACTIVITY_EXTENSION_BUNDLE_ID = "#{BUNDLE_ID}.AgentLiveActivityExtension".freeze
+# The numeric App Store Connect app id, kept in eas.json so the cloud submit and
+# this lane cannot disagree about which app they are talking to.
+ASC_APP_ID = EAS_CONFIG.fetch("submit").fetch("production").fetch("ios").fetch("ascAppId")
+
+def env_groups(name, fallback)
+  raw = ENV.fetch(name, "").split(",").map(&:strip).reject(&:empty?)
+  raw.empty? ? fallback : raw
+end
+
+TESTFLIGHT_GROUPS = env_groups("CLAWMUSE_TESTFLIGHT_GROUPS", ["External Testers"]).freeze
+INTERNAL_TESTFLIGHT_GROUPS =
+  env_groups("CLAWMUSE_INTERNAL_TESTFLIGHT_GROUPS", ["内部测试"]).freeze
+DEFAULT_TESTFLIGHT_CHANGELOG = "Latest ClawMuse updates and fixes.".freeze
+TESTFLIGHT_PROCESSING_TIMEOUT_SECONDS = 20 * 60
+
+# App Store version states in which the version "train" is terminally closed to
+# new TestFlight build uploads (altool rejects with 90186 "train ... is
+# closed"). Only approved/released/removed states qualify: a version that is
+# merely IN_REVIEW / WAITING_FOR_REVIEW / PROCESSING_FOR_APP_STORE still accepts
+# TestFlight builds, so bumping on those would break normal beta iteration.
+#
+# Covers both vocabularies: `appStoreState` is deprecated as of App Store
+# Connect API 3.3 in favor of `appVersionState`, which renames the shipped state
+# (READY_FOR_SALE -> READY_FOR_DISTRIBUTION) and drops the removed-from-sale
+# ones. Reading whichever field Apple populates keeps the guard working through
+# the transition instead of silently finding zero closed versions.
+CLOSED_APP_STORE_STATES = %w[
+  READY_FOR_SALE
+  READY_FOR_DISTRIBUTION
+  PENDING_DEVELOPER_RELEASE
+  PENDING_APPLE_RELEASE
+  REPLACED_WITH_NEW_VERSION
+  REMOVED_FROM_SALE
+  DEVELOPER_REMOVED_FROM_SALE
+].freeze
+
+def app_store_connect_api_key_from_env
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_content: ENV.fetch("ASC_API_KEY_P8"),
+    is_key_content_base64: true,
+    in_house: false,
+  )
+end
+
+def testflight_changelog
+  changelog = ENV.fetch("TESTFLIGHT_CHANGELOG", "").strip
+  changelog.empty? ? DEFAULT_TESTFLIGHT_CHANGELOG : changelog
+end
+
+def signing_keychain_xcargs
+  keychain_path = ENV.fetch("CLAWMUSE_IOS_KEYCHAIN_PATH", "").strip
+  return nil if keychain_path.empty?
+
+  "OTHER_CODE_SIGN_FLAGS=#{Shellwords.escape("--keychain #{keychain_path}")}"
+end
+
+def require_prebuilt_workspace
+  return if Dir.exist?(WORKSPACE)
+
+  UI.user_error!(
+    "#{WORKSPACE} is missing. Run `expo prebuild --platform ios --clean` and `pod install` " \
+    "first, or use scripts/release-ios-local.sh which does both.",
+  )
+end
+
+def require_beta_groups(app, groups)
+  available = app.get_beta_groups.map(&:name)
+  missing = groups - available
+  return if missing.empty?
+
+  UI.user_error!(
+    "Missing TestFlight group(s): #{missing.join(', ')}. Create them in App Store Connect, " \
+    "or set CLAWMUSE_TESTFLIGHT_GROUPS / CLAWMUSE_INTERNAL_TESTFLIGHT_GROUPS.",
+  )
+end
+
+# True when either state field reports a terminally closed train. `respond_to?`
+# guards the newer field, which older spaceship versions do not define.
+def closed_state?(app_store_version)
+  states = [app_store_version.app_store_state]
+  states << app_store_version.app_version_state if app_store_version.respond_to?(:app_version_state)
+
+  states.compact.any? { |state| CLOSED_APP_STORE_STATES.include?(state) }
+end
+
+# Highest version whose App Store record is in a terminally closed state, or nil
+# when none is (or the lookup fails). Fetched once because the answer is a
+# property of the app, not of any single candidate version.
+#
+# Why the whole list rather than a per-version lookup: a version only gets an
+# App Store record once someone submits it. A version uploaded to TestFlight but
+# never submitted has no record, so a filtered lookup finds nothing closed —
+# while the version that did ship closes it too (Apple: 90062 requires a
+# *higher* version than the last approved one).
+#
+# On a nil app or any API error, degrade to "open": we then proceed as before
+# this check existed — the upload either succeeds or fails with the same 90186
+# we have always seen, never worse than today's behavior.
+def highest_closed_app_store_version(app)
+  return nil unless app
+
+  closed = app
+    .get_app_store_versions
+    .select { |app_store_version| closed_state?(app_store_version) }
+    .map(&:version_string)
+
+  IosReleaseVersion.max_version(closed)
+rescue StandardError => error
+  # Loud, not silent: a swallowed error here un-fixes the 90186 guard, so the
+  # degraded run must be visible rather than buried.
+  UI.error("Could not determine closed App Store versions (#{error.message}); assuming open and proceeding.")
+  nil
+end
+
+def find_app_store_app
+  Spaceship::ConnectAPI::App.find(APP_IDENTIFIER)
+rescue StandardError => error
+  UI.error("Could not look up App Store app #{APP_IDENTIFIER} (#{error.message}).")
+  nil
+end
+
+# Store screenshots are rendered into assets/store-screenshots/output; see the
+# README there. Google Play and F-Droid both read fastlane/metadata/android at
+# the repo root, whose screenshot files link to those renders.
+REPO_ROOT = File.expand_path("../../..", __dir__)
+STORE_SCREENSHOTS = File.join(REPO_ROOT, "assets/store-screenshots/output")
+ANDROID_METADATA = File.join(REPO_ROOT, "fastlane/metadata/android")
+
+# deliver reads screenshots from one folder per language and picks the device
+# slot from each image's size, so both Apple sets go into en-US together.
+def stage_app_store_screenshots
+  root = Dir.mktmpdir("app-store-screenshots")
+  locale = File.join(root, "en-US")
+  FileUtils.mkdir_p(locale)
+  { "apple" => "iphone", "apple-ipad" => "ipad" }.each do |set, device|
+    Dir.glob(File.join(STORE_SCREENSHOTS, set, "*.png")).sort.each do |file|
+      FileUtils.cp(file, File.join(locale, "#{device}-#{File.basename(file)}"))
+    end
+  end
+  root
+end
+
+# Google Play only has en-US screenshots, and some F-Droid locales in
+# ANDROID_METADATA are not Play languages (Play rejects "ja"). supply uploads
+# every locale folder in one edit, so give it only the en-US images.
+def stage_google_play_screenshots
+  root = Dir.mktmpdir("google-play-screenshots")
+  images = File.join(ANDROID_METADATA, "en-US/images")
+  %w[phoneScreenshots tenInchScreenshots].each do |kind|
+    target = File.join(root, "en-US/images", kind)
+    FileUtils.mkdir_p(target)
+    Dir.glob(File.join(images, kind, "*.png")).sort.each do |file|
+      FileUtils.cp(File.realpath(file), File.join(target, File.basename(file)))
+    end
+  end
+  root
+end
+
+platform :ios do
+  desc "Resolve the iOS release version and next TestFlight build number"
+  lane :prepare_release_version do
+    api_key = app_store_connect_api_key_from_env
+    native = NativeReleaseVersion.read(APP_ROOT)
+    version = native.fetch("appVersion")
+
+    highest_closed = highest_closed_app_store_version(find_app_store_app)
+    UI.message("Highest closed App Store version: #{highest_closed || 'none'}")
+    if IosReleaseVersion.closed_train?(version, highest_closed)
+      UI.user_error!(
+        "iOS version #{version} is not higher than #{highest_closed}, which is already " \
+        "submitted/released on the App Store, so Apple will reject the upload. The marketing " \
+        "version comes from packages/app/package.json — cut a release (docs/release.md) before " \
+        "retrying.",
+      )
+    end
+
+    latest_build_number = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      version: version,
+      initial_build_number: 0,
+    )
+    build_number = IosReleaseVersion.next_build_number(
+      derived: native.fetch("iosBuildNumber"),
+      latest_testflight: latest_build_number,
+    )
+
+    ReleaseVersionFile.write(RELEASE_VERSION_FILE, version: version, build_number: build_number)
+    UI.message("Prepared ClawMuse iOS #{version} (#{build_number}) in #{RELEASE_VERSION_FILE}")
+  end
+
+  desc "Build, sign, and upload ClawMuse to App Store Connect / TestFlight"
+  lane :build_and_upload do
+    require_prebuilt_workspace
+    api_key = app_store_connect_api_key_from_env
+
+    team_id = ENV.fetch("APPLE_TEAM_ID")
+    signing_identity = ENV.fetch("CLAWMUSE_IOS_SIGNING_IDENTITY", "Apple Distribution")
+    keychain_xcargs = signing_keychain_xcargs
+
+    # Each bundle needs its own installed App Store profile. Capture SIGH_NAME
+    # immediately because the next profile lookup overwrites the lane value.
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      force: true,
+    )
+    app_profile_name = lane_context[SharedValues::SIGH_NAME]
+
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: LIVE_ACTIVITY_EXTENSION_BUNDLE_ID,
+      force: true,
+    )
+    live_activity_extension_profile_name = lane_context[SharedValues::SIGH_NAME]
+
+    # Project settings are target-scoped so the archive can select both profiles;
+    # a command-line profile setting would override every target with one value.
+    update_code_signing_settings(
+      path: PROJECT,
+      use_automatic_signing: false,
+      team_id: team_id,
+      bundle_identifier: BUNDLE_ID,
+      code_sign_identity: signing_identity,
+      sdk: "iphoneos*",
+      profile_name: app_profile_name,
+      targets: [APP_TARGET],
+      build_configurations: ["Release"],
+    )
+    update_code_signing_settings(
+      path: PROJECT,
+      use_automatic_signing: false,
+      team_id: team_id,
+      bundle_identifier: LIVE_ACTIVITY_EXTENSION_BUNDLE_ID,
+      code_sign_identity: signing_identity,
+      sdk: "iphoneos*",
+      profile_name: live_activity_extension_profile_name,
+      targets: [LIVE_ACTIVITY_EXTENSION_TARGET],
+      build_configurations: ["Release"],
+    )
+
+    # Manual signing is already pinned per target above; keep command-line build
+    # settings out so Xcode can resolve each target's own profile.
+    build_app(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: {
+        teamID: team_id,
+        signingCertificate: signing_identity,
+        signingStyle: "manual",
+        provisioningProfiles: {
+          BUNDLE_ID => app_profile_name,
+          LIVE_ACTIVITY_EXTENSION_BUNDLE_ID => live_activity_extension_profile_name,
+        },
+      },
+      output_directory: BUILD_OUTPUT_DIRECTORY,
+      output_name: IPA_NAME,
+      clean: true,
+      codesigning_identity: signing_identity,
+      xcargs: keychain_xcargs,
+    )
+
+    # An .ipa whose extension silently failed to embed still uploads and still
+    # installs; the capsule and widget are just missing on device.
+    sh(
+      "node",
+      File.join(APP_ROOT, "scripts", "verify-ios-release-artifact.mjs"),
+      File.join(BUILD_OUTPUT_DIRECTORY, IPA_NAME),
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      apple_id: ASC_APP_ID,
+      # Distribution runs separately so a processing timeout can be retried
+      # against this exact build without uploading another binary.
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+    )
+  end
+
+  desc "Wait for and distribute an uploaded build to internal TestFlight testers"
+  lane :distribute_internal_testflight do |options|
+    version = options[:version].to_s.strip
+    build_number = options[:build_number].to_s.strip
+    UI.user_error!("version is required") if version.empty?
+    UI.user_error!("build_number is required") if build_number.empty?
+
+    api_key = app_store_connect_api_key_from_env
+    app = Spaceship::ConnectAPI::App.find(APP_IDENTIFIER)
+    UI.user_error!("Could not find App Store Connect app #{APP_IDENTIFIER}") unless app
+    require_beta_groups(app, INTERNAL_TESTFLIGHT_GROUPS)
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      apple_id: ASC_APP_ID,
+      app_platform: "ios",
+      app_version: version,
+      build_number: build_number,
+      distribute_only: true,
+      skip_waiting_for_build_processing: false,
+      wait_processing_timeout_duration: TESTFLIGHT_PROCESSING_TIMEOUT_SECONDS,
+      distribute_external: false,
+      submit_beta_review: false,
+      notify_external_testers: false,
+      groups: INTERNAL_TESTFLIGHT_GROUPS,
+    )
+  end
+
+  desc "Wait for and distribute an uploaded build to external TestFlight testers"
+  lane :distribute_testflight do |options|
+    version = options[:version].to_s.strip
+    build_number = options[:build_number].to_s.strip
+    UI.user_error!("version is required") if version.empty?
+    UI.user_error!("build_number is required") if build_number.empty?
+
+    api_key = app_store_connect_api_key_from_env
+    app = Spaceship::ConnectAPI::App.find(APP_IDENTIFIER)
+    UI.user_error!("Could not find App Store Connect app #{APP_IDENTIFIER}") unless app
+    require_beta_groups(app, TESTFLIGHT_GROUPS)
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      apple_id: ASC_APP_ID,
+      # distribute_only means there is no local .ipa to sniff, so fastlane would
+      # otherwise fall through to an interactive platform prompt and crash.
+      app_platform: "ios",
+      app_version: version,
+      build_number: build_number,
+      distribute_only: true,
+      skip_waiting_for_build_processing: false,
+      wait_processing_timeout_duration: TESTFLIGHT_PROCESSING_TIMEOUT_SECONDS,
+      # submit_beta_review is on by default, so a superseded build of this same
+      # version train still sitting in beta review blocks the new submission
+      # ("Another build is in review"). Fastlane filters by this build's
+      # preReleaseVersion, so it can only expire a build of the train this run
+      # is already replacing.
+      reject_build_waiting_for_review: true,
+      distribute_external: true,
+      groups: TESTFLIGHT_GROUPS,
+      notify_external_testers: true,
+      changelog: testflight_changelog,
+    )
+  end
+
+  desc "Submit the latest TestFlight build to App Store Review"
+  lane :submit_review do
+    encryption_answer = ENV["CLAWMUSE_EXPORT_COMPLIANCE_USES_ENCRYPTION"]
+    unless encryption_answer == "true"
+      UI.user_error!("ClawMuse uses end-to-end encryption. Complete the export-compliance assessment in App Store Connect and set CLAWMUSE_EXPORT_COMPLIANCE_USES_ENCRYPTION=true before submitting.")
+    end
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: ENV.fetch("ASC_KEY_P8"),
+    )
+
+    require "spaceship"
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      filepath: ENV.fetch("ASC_KEY_P8"),
+    )
+    app = Spaceship::ConnectAPI::App.find(APP_IDENTIFIER)
+    UI.user_error!("Could not find app #{APP_IDENTIFIER} on App Store Connect") if app.nil?
+
+    # The release workflow forwards the marketing version and CFBundleVersion of
+    # the binary it just built. Use them to identify the exact build, since
+    # CFBundleVersion is not unique across marketing versions in this project
+    # (the production profile resets it per app_version). The resubmit workflow
+    # leaves these unset and falls back to "most recently uploaded iOS build".
+    target_version = ENV["APP_VERSION"].to_s.strip
+    target_build = ENV["APP_BUILD_VERSION"].to_s.strip
+    target_version = nil if target_version.empty?
+    target_build = nil if target_build.empty?
+
+    if target_version
+      UI.message("Targeting App Store version #{target_version}#{target_build ? " build #{target_build}" : ""} from workflow input")
+    else
+      UI.message("No APP_VERSION provided; selecting the most recently uploaded iOS build")
+    end
+
+    valid_build = nil
+    deadline = Time.now + (30 * 60)
+    loop do
+      builds = Spaceship::ConnectAPI::Build.all(
+        app_id: app.id,
+        sort: "-uploadedDate",
+        limit: 100,
+      ).select { |b| b.pre_release_version&.platform == "IOS" }
+      builds = builds.select { |b| b.pre_release_version&.version == target_version } if target_version
+      builds = builds.select { |b| b.version == target_build } if target_build
+
+      build = builds.first
+      if build.nil?
+        UI.user_error!("Timed out waiting for build to appear on App Store Connect.") if Time.now > deadline
+        UI.message("No matching iOS build visible on App Store Connect yet; waiting...")
+        sleep(30)
+        next
+      end
+
+      state = build.processing_state
+      UI.message("Build #{build.pre_release_version.version} (#{build.version}) processing state: #{state || 'unknown'}")
+      if state == "VALID"
+        valid_build = build
+        break
+      end
+      if state == "INVALID" || state == "FAILED"
+        UI.user_error!("Build #{build.version} failed App Store processing (state: #{state}).")
+      end
+      if Time.now > deadline
+        UI.user_error!("Timed out waiting for build #{build.version} to finish processing on App Store Connect.")
+      end
+      sleep(30)
+    end
+
+    app_version = valid_build.pre_release_version.version
+    build_number = valid_build.version
+    UI.message("Submitting build #{build_number} as App Store version #{app_version} for review")
+
+    deliver(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      app_version: app_version,
+      build_number: build_number.to_s,
+      submit_for_review: true,
+      automatic_release: true,
+      reject_if_possible: true,
+      release_notes: {
+        "en-US" => "Bug fixes and improvements.",
+      },
+      force: true,
+      skip_binary_upload: true,
+      screenshots_path: stage_app_store_screenshots,
+      overwrite_screenshots: true,
+      precheck_include_in_app_purchases: false,
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        export_compliance_uses_encryption: true,
+      },
+    )
+  end
+end
+
+platform :android do
+  desc "Replace the Google Play store screenshots with the ones in the repo"
+  lane :upload_screenshots do
+    # supply attaches listing changes to a release on the production track.
+    # The release workflow passes the version code it just submitted; without
+    # it, supply uses the track's only release.
+    version_code = ENV["ANDROID_VERSION_CODE"].to_s.strip
+    supply(
+      package_name: APP_IDENTIFIER,
+      json_key: ENV.fetch("GOOGLE_PLAY_JSON_KEY"),
+      metadata_path: stage_google_play_screenshots,
+      version_code: version_code.empty? ? nil : version_code.to_i,
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      sync_image_upload: true,
+    )
+  end
+end

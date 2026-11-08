@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,7 +48,7 @@ async function harness(env: Record<string, string> = {}) {
   const launch: ProviderLaunch = {
     command: process.execPath,
     args: [fake, "--launch-prefix"],
-    env: { AGY_TEST_LOG: log, ...env },
+    env: { HOME: cwd, USERPROFILE: cwd, AGY_TEST_LOG: log, ...env },
   };
   const connection = await provider.connect({
     versions: [1],
@@ -80,13 +80,17 @@ async function harness(env: Record<string, string> = {}) {
             event.type === "catalog"),
       );
   }
-  async function open(restored?: ProviderPersistence, sessionId = "s") {
+  async function open(
+    restored?: ProviderPersistence,
+    sessionId = "s",
+    history: "replay" | "skip" = "replay",
+  ) {
     await request({
       type: "session.open",
       requestId: `open-${events.length}`,
       sessionId,
       persistence: restored,
-      history: "replay",
+      history,
       config: {
         cwd,
         env: { AGY_SESSION_VALUE: "session-overlay" },
@@ -835,7 +839,11 @@ it("emits one full-access warning per open, none on respawn, and one again on re
   const resumed = await harness();
   await resumed.open(persistence);
   await resumed.completed(await resumed.prompt("RESUME"));
-  expect(resumed.events.filter((event) => event.type === "session.notice")).toEqual([warning]);
+  expect(
+    resumed.events.filter(
+      (event) => event.type === "session.notice" && event.notice.id === "s:full-access",
+    ),
+  ).toEqual([warning]);
 });
 
 it("defers model and mode changes until the next prompt, then respawns with validated flags", async () => {
@@ -876,7 +884,137 @@ it("defers model and mode changes until the next prompt, then respawns with vali
   );
 });
 
-it("resumes after connection close without replay or another system prefix", async () => {
+it("replays the native transcript before ready, preserving messages and tool results", async () => {
+  const h = await harness();
+  const conversationId = "history-conversation";
+  const directory = path.join(
+    h.cwd,
+    ".gemini/antigravity-cli/brain",
+    conversationId,
+    ".system_generated/logs",
+  );
+  await mkdir(directory, { recursive: true });
+  const created_at = "2026-11-05T11:41:54Z";
+  const rows = [
+    {
+      step_index: 0,
+      type: "USER_INPUT",
+      status: "DONE",
+      created_at,
+      content:
+        "<USER_REQUEST>\n检查页面\n</USER_REQUEST>\n<ADDITIONAL_METADATA>private</ADDITIONAL_METADATA>",
+    },
+    {
+      step_index: 1,
+      type: "PLANNER_RESPONSE",
+      status: "DONE",
+      created_at,
+      thinking: "Check the file",
+      tool_calls: [{ name: "run_command", args: { CommandLine: "cat proof.txt" } }],
+    },
+    { step_index: 2, type: "GENERIC", status: "DONE", created_at, content: "proof output" },
+    { step_index: 3, type: "PLANNER_RESPONSE", status: "DONE", created_at, content: "检查完成" },
+  ];
+  await writeFile(
+    path.join(directory, "transcript_full.jsonl"),
+    rows.map((row) => JSON.stringify(row)).join("\n") + "\n",
+  );
+  await h.open({ version: 1, data: { conversationId } });
+  const items = h.events.filter((event) => event.type === "timeline.item");
+  expect(items.map((event) => event.item.type)).toEqual([
+    "user_message",
+    "reasoning",
+    "tool_call",
+    "assistant_message",
+  ]);
+  expect(items[0]).toMatchObject({ timestamp: created_at, item: { text: "检查页面" } });
+  expect(items[2]).toMatchObject({
+    item: {
+      name: "run_command",
+      status: "completed",
+      detail: { type: "shell", command: "cat proof.txt", output: "proof output" },
+    },
+  });
+  expect(items[3]).toMatchObject({ item: { text: "检查完成" } });
+  expect(h.events.at(-1)?.type).toBe("session.ready");
+  await h.completed(await h.prompt("RESUME"));
+  await h.request({ type: "session.close", sessionId: "s", requestId: "close-history" });
+  h.events.length = 0;
+  await h.open({ version: 1, data: { conversationId } }, "s", "skip");
+  expect(h.events.filter((event) => event.type === "timeline.item")).toEqual([]);
+});
+
+it.each(["transcript_full.jsonl", "transcript.jsonl"])(
+  "restores %s with stable IDs and reports corrupt history",
+  async (filename) => {
+    const h = await harness();
+    const conversationId = "native-history";
+    const directory = path.join(
+      h.cwd,
+      ".gemini/antigravity-cli/brain",
+      conversationId,
+      ".system_generated/logs",
+    );
+    await mkdir(directory, { recursive: true });
+    const file = path.join(directory, filename);
+    const rows = [
+      { step_index: 0, type: "USER_INPUT", status: "DONE", content: "literal <USER_REQUEST> text" },
+      {
+        step_index: 1,
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        tool_calls: [
+          { name: "read_file", args: { Path: "/tmp/proof.txt" } },
+          { name: "run_command", args: { CommandLine: "false" } },
+          { name: "write_file", args: { Path: "/tmp/unfinished.txt" } },
+        ],
+      },
+      { step_index: 2, type: "GENERIC", status: "DONE", content: "file contents" },
+      { step_index: 3, type: "GENERIC", status: "ERROR", content: "command failed" },
+    ];
+    await writeFile(file, rows.map((row) => JSON.stringify(row)).join("\n"));
+    await h.open({ version: 1, data: { conversationId } });
+    const items = h.events
+      .filter((event) => event.type === "timeline.item")
+      .map((event) => event.item);
+    expect(items).toMatchObject([
+      { type: "user_message", text: "literal <USER_REQUEST> text" },
+      {
+        type: "tool_call",
+        status: "completed",
+        detail: { type: "read", filePath: "/tmp/proof.txt", content: "file contents" },
+      },
+      { type: "tool_call", status: "failed", error: "command failed" },
+      { type: "tool_call", status: "canceled" },
+    ]);
+    await h.request({ type: "session.close", sessionId: "s", requestId: "close" });
+    h.events.length = 0;
+    await h.open({ version: 1, data: { conversationId } });
+    expect(
+      h.events.filter((event) => event.type === "timeline.item").map((event) => event.item),
+    ).toEqual(items);
+    await h.request({ type: "session.close", sessionId: "s", requestId: "close-again" });
+    h.events.length = 0;
+    await writeFile(file, "{broken JSON");
+    await h.open({ version: 1, data: { conversationId } });
+    expect(h.events).toContainEqual(
+      expect.objectContaining({
+        type: "request.failed",
+        error: expect.objectContaining({ code: "INVALID_HISTORY" }),
+      }),
+    );
+    expect(h.events.filter((event) => event.type === "session.ready")).toEqual([]);
+  },
+);
+
+it("rejects transcript path traversal before launching a session", async () => {
+  const h = await harness();
+  await h.open({ version: 1, data: { conversationId: "../../outside" } });
+  expect(h.events).toContainEqual(expect.objectContaining({ type: "request.failed" }));
+  expect((await h.records()).filter((entry) => entry.args?.includes("--conversation"))).toEqual([]);
+});
+
+it("reports missing history and resumes without another system prefix", async () => {
   const first = await harness();
   await first.open();
   await first.completed(await first.prompt("HELLO"));
@@ -885,6 +1023,12 @@ it("resumes after connection close without replay or another system prefix", asy
   const second = await harness();
   await second.open(persistence);
   expect(second.events.filter((event) => event.type === "timeline.item")).toEqual([]);
+  expect(second.events).toContainEqual(
+    expect.objectContaining({
+      type: "session.notice",
+      notice: expect.objectContaining({ id: "s:history-unavailable" }),
+    }),
+  );
   await second.completed(await second.prompt("RESUME"));
   expect(
     (await second.records())

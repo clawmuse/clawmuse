@@ -1,7 +1,6 @@
 {
   "name": "@getpaseo/client",
-  "version": "1.5.5",
-  "private": true,
+  "version": "1.5.5+1108",
   "description": "Paseo client SDK package",
   "files": [
     "dist",
@@ -35,6 +34,9 @@
       "default": "./dist/hosts/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "clean": "node ../../scripts/clean-package-dist.mjs",
     "build": "npm run build --workspace=@getpaseo/protocol && npm run build --workspace=@getpaseo/relay && tsc -p tsconfig.json --incremental false",
@@ -45,8 +47,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@getpaseo/protocol": "1.5.5",
-    "@getpaseo/relay": "1.5.5",
+    "@getpaseo/protocol": "1.5.5+1108",
+    "@getpaseo/relay": "1.5.5+1108",
     "ws": "^8.20.0",
     "zod": "^4.4.3"
   },

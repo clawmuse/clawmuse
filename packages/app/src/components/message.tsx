@@ -50,7 +50,7 @@ import {
   Scissors,
   TriangleAlertIcon,
   XCircle,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import type { ComponentType, ReactNode } from "react";
 import * as React from "react";
 import {
@@ -868,11 +868,15 @@ export const TurnCopyButton = memo(function TurnCopyButton({
           : (accessibilityLabel ?? t("message.actions.copyTurn"))
       }
     >
-      {copied ? (
-        <ThemedCheck size={ICON_SIZE.lg} uniProps={foregroundIconColorMapping} />
-      ) : (
-        <ThemedCopy size={ICON_SIZE.lg} uniProps={mutedIconColorMapping} />
-      )}
+      {/* Keep the button as the pointer target while the feedback glyph is replaced.
+          Removing a hovered SVG can lose the leave event when the pointer moves away. */}
+      <View pointerEvents="none">
+        {copied ? (
+          <ThemedCheck size={ICON_SIZE.lg} uniProps={foregroundIconColorMapping} />
+        ) : (
+          <ThemedCopy size={ICON_SIZE.lg} uniProps={mutedIconColorMapping} />
+        )}
+      </View>
     </ToolbarButton>
   );
 });

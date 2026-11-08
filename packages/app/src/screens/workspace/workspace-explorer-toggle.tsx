@@ -1,4 +1,4 @@
-import { PanelRight } from "lucide-react-native";
+import { PanelRight } from "@/components/icons/app-icons";
 import { type StyleProp, type ViewStyle } from "react-native";
 import { withUnistyles } from "react-native-unistyles";
 import {

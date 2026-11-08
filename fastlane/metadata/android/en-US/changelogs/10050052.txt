@@ -1,0 +1,6 @@
+This dated stable release keeps the 1.5.5 base version. Users on 1.5.6 betas or an earlier 1.5.5 build need the manual installer; build metadata does not change Semver ordering. Mobile store review and distribution are tracked separately.
+
+Added
+- Delete a workspace and its conversations together, with confirmation and retryable failures; keep project files and Git worktrees.
+
+Full notes: https://paseo.sh/changelog

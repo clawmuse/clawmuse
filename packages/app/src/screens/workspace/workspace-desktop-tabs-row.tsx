@@ -26,7 +26,7 @@ import {
   Minimize,
   Plus,
   X,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import Animated from "react-native-reanimated";
 import { useTranslation } from "react-i18next";
@@ -108,17 +108,18 @@ const PANE_MAXIMIZE_ACTION_RESERVED_WIDTH = smallIconButtonChromeFrameSize(false
 // the wrong width. Keep them together.
 // Tabs and the adjacent New Tab trigger are one control family. Keep their outer box and corner
 // token identical; only their horizontal sizing differs (content-width chip versus square icon).
-const TAB_CHIP_HORIZONTAL_PADDING = 8;
+const TAB_CHIP_HORIZONTAL_PADDING = 12;
 const TAB_CHIP_GAP = 4;
-const TAB_ROW_PADDING_HORIZONTAL = 4;
+const TAB_ROW_PADDING_HORIZONTAL = 8;
 const TAB_ICON_WIDTH = 14;
-const TAB_CONTENT_GAP = 4;
+const TAB_CONTENT_GAP = 6;
 const TAB_DROP_INDICATOR_WIDTH = 4;
 const TAB_MODIFIED_DOT_SIZE = 8;
-const TAB_MIN_WIDTH = 64;
-const TAB_MAX_WIDTH = 160;
+const TAB_MIN_WIDTH = 72;
+const TAB_MAX_WIDTH = 240;
 const TAB_CLOSE_BUTTON_RESERVED_WIDTH = 0;
 const TAB_LABEL_LAYOUT_ALLOWANCE = 4;
+const TAB_PASSIVE_SCRIM_WIDTH = 24;
 const AGENT_TOOLTIP_TITLE_MAX_LENGTH = 80;
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
@@ -244,12 +245,13 @@ function WorkspaceNewTabButton({
     <DropdownMenu>
       <ToolbarButton
         kind="menu"
+        round
         label={tooltipText}
         shortcut={shortcutKeys}
         testID="workspace-new-tab-button"
         style={placement === "inline" ? styles.inlineNewTabButton : undefined}
       >
-        <ThemedPlus size={14} uniProps={extraMutedColorMapping} />
+        <ThemedPlus size={14} uniProps={mutedColorMapping} />
       </ToolbarButton>
       <WorkspaceNewTabMenuContent
         serverId={serverId}
@@ -318,6 +320,7 @@ function WorkspacePaneToolbarActions({
 
   return (
     <ToolbarControls style={styles.paneSplitActions}>
+      {showNewTabButton ? <View style={styles.paneToolbarDivider} /> : null}
       {showNewTabButton ? (
         <WorkspaceNewTabButton
           panePanelKinds={panePanelKinds}
@@ -667,6 +670,7 @@ function TabHandleContent({
   presentation,
   isHighlighted,
   showLabel,
+  showLabelFade,
   backdrop,
   tabLabelSkeletonStyle,
   tabLabelStyle,
@@ -675,6 +679,7 @@ function TabHandleContent({
   presentation: WorkspaceTabPresentation;
   isHighlighted: boolean;
   showLabel: boolean;
+  showLabelFade: boolean;
   backdrop: SurfaceBackdrop;
   tabLabelSkeletonStyle: React.ComponentProps<typeof View>["style"];
   tabLabelStyle: React.ComponentProps<typeof Text>["style"];
@@ -695,9 +700,18 @@ function TabHandleContent({
         <View style={tabLabelSkeletonStyle} />
       ) : null}
       {showLabel && presentation.titleState !== "loading" ? (
-        <Text style={tabLabelStyle} selectable={false} numberOfLines={1} ellipsizeMode="tail">
-          {presentation.label}
-        </Text>
+        <View style={styles.tabLabelClip}>
+          <Text style={tabLabelStyle} selectable={false} numberOfLines={1} ellipsizeMode="clip">
+            {presentation.label}
+          </Text>
+          {showLabelFade ? (
+            <TrailingActionScrim
+              backdrop={backdrop}
+              width={TAB_PASSIVE_SCRIM_WIDTH}
+              solidOffset="95%"
+            />
+          ) : null}
+        </View>
       ) : null}
       {/* The dot is a laid-out sibling of the label, not an overlay, so a truncated label ends
           before it instead of running underneath it. */}
@@ -721,6 +735,7 @@ function TabChip({
   isFocused,
   resolvedTabWidth,
   showLabel,
+  isLabelTruncated,
   showCloseButton,
   rail,
   isCloseHovered,
@@ -742,6 +757,7 @@ function TabChip({
   isFocused: boolean;
   resolvedTabWidth: number;
   showLabel: boolean;
+  isLabelTruncated: boolean;
   showCloseButton: boolean;
   /** The surface the row paints, so chip fills and their knockouts match the host. */
   rail: WorkspaceTabRailSurface;
@@ -871,6 +887,7 @@ function TabChip({
                 presentation={presentation}
                 isHighlighted={isHighlighted}
                 showLabel={showLabel}
+                showLabelFade={isLabelTruncated && !showCloseControl}
                 backdrop={chipBackdrop}
                 tabLabelSkeletonStyle={tabLabelSkeletonStyle}
                 tabLabelStyle={tabLabelStyle}
@@ -1286,6 +1303,14 @@ function ResolvedWorkspaceDesktopTabsRow({
       const layoutItem = layout.items[index] ?? null;
       const resolvedTabWidth = layoutItem?.width ?? 150;
       const showLabel = layoutItem?.showLabel ?? true;
+      const naturalLabelWidth = trackSnapshot?.labelWidths[index] ?? 0;
+      const tabChromeWidth =
+        TAB_ICON_WIDTH +
+        TAB_CONTENT_GAP +
+        TAB_CHIP_HORIZONTAL_PADDING * 2 +
+        TAB_CLOSE_BUTTON_RESERVED_WIDTH;
+      const isLabelTruncated =
+        naturalLabelWidth > 0 && tabChromeWidth + naturalLabelWidth > resolvedTabWidth;
       const showDropIndicatorBefore = activeDragTabId !== null && tabDropPreviewIndex === index;
       const showDropIndicatorAfter =
         activeDragTabId !== null &&
@@ -1313,6 +1338,7 @@ function ResolvedWorkspaceDesktopTabsRow({
           onCloseOtherTabs={onCloseOtherTabs}
           resolvedTabWidth={resolvedTabWidth}
           showLabel={showLabel}
+          isLabelTruncated={isLabelTruncated}
           showCloseButton={shouldShowCloseButton}
           rail={rail}
           setHoveredCloseTabKey={setHoveredCloseTabKey}
@@ -1347,6 +1373,7 @@ function ResolvedWorkspaceDesktopTabsRow({
       setHoveredCloseTabKey,
       tabMenuLabels,
       tabDropPreviewIndex,
+      trackSnapshot?.labelWidths,
       displayedTabs.length,
     ],
   );
@@ -1471,6 +1498,7 @@ function ResolvedDesktopTabChip({
   onCloseOtherTabs,
   resolvedTabWidth,
   showLabel,
+  isLabelTruncated,
   showCloseButton,
   rail,
   setHoveredCloseTabKey,
@@ -1499,6 +1527,7 @@ function ResolvedDesktopTabChip({
   onCloseOtherTabs: (tabId: string) => Promise<void> | void;
   resolvedTabWidth: number;
   showLabel: boolean;
+  isLabelTruncated: boolean;
   showCloseButton: boolean;
   rail: WorkspaceTabRailSurface;
   setHoveredCloseTabKey: Dispatch<SetStateAction<string | null>>;
@@ -1572,6 +1601,7 @@ function ResolvedDesktopTabChip({
         isFocused={isFocused}
         resolvedTabWidth={resolvedTabWidth}
         showLabel={showLabel}
+        isLabelTruncated={isLabelTruncated}
         showCloseButton={showCloseButton}
         rail={rail}
         isCloseHovered={item.isCloseHovered}
@@ -1596,8 +1626,6 @@ const styles = StyleSheet.create((theme) => ({
   tabsContainer: {
     minWidth: 0,
     height: WORKSPACE_SECONDARY_HEADER_HEIGHT,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.surface0,
     flexDirection: "row",
     alignItems: "center",
@@ -1646,13 +1674,19 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: PANE_SPLIT_ACTIONS_HORIZONTAL_PADDING,
     marginRight: PANE_SPLIT_ACTIONS_OUTER_MARGIN,
   },
+  paneToolbarDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: theme.colors.border,
+    marginRight: theme.spacing[1],
+  },
   tab: {
     height: buttonControlHeight.xs,
     paddingHorizontal: TAB_CHIP_HORIZONTAL_PADDING,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.full,
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[1],
+    gap: TAB_CONTENT_GAP,
     userSelect: "none",
   },
   tabFill: (backdrop: SurfaceBackdrop) => ({
@@ -1669,7 +1703,7 @@ const styles = StyleSheet.create((theme) => ({
   tabHandle: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[1],
+    gap: TAB_CONTENT_GAP,
     flex: 1,
     minWidth: 0,
     userSelect: "none",
@@ -1699,6 +1733,13 @@ const styles = StyleSheet.create((theme) => ({
   tabDropIndicatorAfter: {
     right: -TAB_CHIP_GAP / 2 - TAB_DROP_INDICATOR_WIDTH / 2,
   },
+  tabLabelClip: {
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    position: "relative",
+    justifyContent: "center",
+  },
   tabLabel: {
     flexShrink: 1,
     minWidth: 0,
@@ -1706,6 +1747,7 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.normal,
     userSelect: "none",
+    ...(isWeb ? ({ textOverflow: "clip" } as object) : {}),
   },
   tabLabelMeasurements: {
     position: "absolute",
@@ -1737,8 +1779,8 @@ const styles = StyleSheet.create((theme) => ({
     right: 0,
     bottom: 0,
     width: 48,
-    borderTopRightRadius: theme.borderRadius.md,
-    borderBottomRightRadius: theme.borderRadius.md,
+    borderTopRightRadius: theme.borderRadius.full,
+    borderBottomRightRadius: theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 2,
@@ -1752,10 +1794,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   tabCloseButton: {
     position: "absolute",
-    right: 4,
-    width: 18,
-    height: 18,
-    borderRadius: theme.borderRadius.sm,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,

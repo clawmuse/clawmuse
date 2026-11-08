@@ -2,7 +2,13 @@ import React, { useCallback, useMemo } from "react";
 import { View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Copy, Ellipsis, Globe, Import as ImportIcon, Settings } from "lucide-react-native";
+import {
+  Copy,
+  Ellipsis,
+  Globe,
+  Import as ImportIcon,
+  Settings,
+} from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { TerminalProfile } from "@getpaseo/protocol/messages";
 import {
@@ -16,7 +22,6 @@ import {
 import {
   extraMutedIconColorMapping,
   foregroundIconColorMapping,
-  iconButtonChromeGlyphSize,
   iconButtonChromeStyle,
   useIconButtonChromeStyle,
 } from "@/components/ui/icon-button-chrome";
@@ -27,7 +32,7 @@ import {
   resolveTerminalProfiles,
 } from "@getpaseo/protocol/terminal-profiles";
 import { buildSettingsHostSectionRoute } from "@/utils/host-routes";
-import type { Theme } from "@/styles/theme";
+import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { compactChrome } from "@/constants/compact-chrome";
 import {
   useWorkspaceScriptsMenuPages,
@@ -50,7 +55,7 @@ const MENU_SETTINGS_ICON = <ThemedSettings size={16} uniProps={mutedColorMapping
 function WorkspaceHeaderMenuTriggerIcon({ compact = false }: { compact?: boolean }) {
   return (
     <ThemedEllipsis
-      size={compact ? compactChrome.glyphSize : iconButtonChromeGlyphSize("large")}
+      size={compact ? compactChrome.glyphSize : ICON_SIZE.md}
       uniProps={
         compact && compactChrome.nativeGlass
           ? foregroundIconColorMapping

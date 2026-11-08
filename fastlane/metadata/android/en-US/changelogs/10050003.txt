@@ -1,0 +1,3 @@
+Voice fixes require the updated host; late-audio protection also requires the updated client. Official speech and unified tasks depend on the corresponding account services. Device Preview requires existing simulator tools and leaves simulators running when a preview stops.
+
+Full notes: https://paseo.sh/changelog

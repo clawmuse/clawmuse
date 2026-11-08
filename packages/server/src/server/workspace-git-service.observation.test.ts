@@ -1449,7 +1449,7 @@ describe("WorkspaceGitService checkout observation", () => {
   test("ten worktrees share one repository metadata and fetch observer while retaining checkout state", async () => {
     const watcher = createWatcherHarness();
     const fetch = createDeferred<void>();
-    const runGitFetch = vi.fn(async () => {
+    const runGitFetch = vi.fn(async (_cwd: string) => {
       await fetch.promise;
       return { changes: [], error: null };
     });
@@ -1498,7 +1498,12 @@ describe("WorkspaceGitService checkout observation", () => {
       10,
     );
 
-    subscriptions[0]?.unsubscribe();
+    // Observation setup is asynchronous, so the fetch owner need not be the
+    // first registered checkout. Remove the actual owner to exercise handoff.
+    const initialFetchCwd = runGitFetch.mock.calls[0]![0];
+    expect(worktrees).toContain(initialFetchCwd);
+    const initialFetchIndex = worktrees.indexOf(initialFetchCwd);
+    subscriptions[initialFetchIndex]!.unsubscribe();
     fetch.resolve();
     await vi.waitFor(() => {
       expect(service.getMetrics().fetchInFlightCount).toBe(0);
@@ -1507,13 +1512,16 @@ describe("WorkspaceGitService checkout observation", () => {
     await vi.waitFor(() => {
       expect(runGitFetch).toHaveBeenCalledTimes(2);
     });
-    expect(runGitFetch).toHaveBeenLastCalledWith(
-      worktrees[1],
-      expect.anything(),
-      expect.anything(),
+    expect(worktrees.filter((cwd) => cwd !== initialFetchCwd)).toContain(
+      runGitFetch.mock.calls[1]![0],
     );
+    expect(service.getMetrics()).toMatchObject({
+      workspaceTargetCount: 9,
+      repositoryTargetCount: 1,
+      repositoryWorkspaceLinkCount: 9,
+    });
 
-    for (const subscription of subscriptions.slice(1)) {
+    for (const subscription of subscriptions.filter((_, index) => index !== initialFetchIndex)) {
       subscription.unsubscribe();
     }
     service.dispose();

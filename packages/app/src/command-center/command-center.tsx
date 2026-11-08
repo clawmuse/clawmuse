@@ -23,7 +23,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronRight, Folder, X } from "lucide-react-native";
+import { Check, ChevronRight, Folder, X } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { BottomSheetFlatList, type BottomSheetFlatListMethods } from "@gorhom/bottom-sheet";
 import { useAgentDescriptor, resolveAgentLabel } from "@/agent-presentation";

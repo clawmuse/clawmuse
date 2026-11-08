@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { useFocusEffect } from "expo-router/react-navigation";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { Check, Terminal } from "lucide-react-native";
+import { Check, Terminal } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { useCliInstall } from "@/desktop/hooks/use-install-status";
 import { SettingsSection } from "@/components/settings/headings/settings-section";

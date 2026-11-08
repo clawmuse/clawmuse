@@ -871,21 +871,28 @@ describe("mapACPUsage", () => {
 });
 
 describe("ACP context-window usage", () => {
-  async function emitUsageUpdate(update: {
-    used: number;
-    size: number;
-  }): Promise<{ events: unknown[] }> {
+  async function emitUsageUpdate(
+    update: { used: number; size: number },
+    cost?: { amount: number; currency: string },
+  ): Promise<{ events: unknown[]; emit: (u: { used: number; size: number }) => Promise<void> }> {
     const session = createSessionWithConfig({ provider: "dsh" });
     asInternals<ACPSessionInternals>(session).sessionId = "session-1";
     const events: unknown[] = [];
     session.subscribe((event) => {
       if (event.type === "usage_updated") events.push(event);
     });
-    await session.sessionUpdate({
-      sessionId: "session-1",
-      update: { sessionUpdate: "usage_update", used: update.used, size: update.size },
-    });
-    return { events };
+    const emit = (u: { used: number; size: number }, c = cost) =>
+      session.sessionUpdate({
+        sessionId: "session-1",
+        update: {
+          sessionUpdate: "usage_update",
+          used: u.used,
+          size: u.size,
+          ...(c ? { cost: c } : {}),
+        },
+      });
+    await emit(update);
+    return { events, emit: (u) => emit(u, undefined) };
   }
 
   test("forwards usage_update as context-window usage state", async () => {
@@ -907,6 +914,50 @@ describe("ACP context-window usage", () => {
     await expect(
       emitUsageUpdate({ used: 13_759, size: 0 }).then((result) => result.events),
     ).resolves.toEqual([]);
+  });
+
+  test("maps a USD cost to totalCostUsd and carries it forward", async () => {
+    const { events, emit } = await emitUsageUpdate(
+      { used: 13_759, size: 1_000_000 },
+      { amount: 0.42, currency: "USD" },
+    );
+    await emit({ used: 14_000, size: 1_000_000 });
+
+    expect(events).toEqual([
+      {
+        type: "usage_updated",
+        provider: "dsh",
+        usage: {
+          contextWindowMaxTokens: 1_000_000,
+          contextWindowUsedTokens: 13_759,
+          totalCostUsd: 0.42,
+        },
+      },
+      {
+        type: "usage_updated",
+        provider: "dsh",
+        usage: {
+          contextWindowMaxTokens: 1_000_000,
+          contextWindowUsedTokens: 14_000,
+          totalCostUsd: 0.42,
+        },
+      },
+    ]);
+  });
+
+  test("ignores a non-USD cost", async () => {
+    const { events } = await emitUsageUpdate(
+      { used: 13_759, size: 1_000_000 },
+      { amount: 3.2, currency: "CNY" },
+    );
+
+    expect(events).toEqual([
+      {
+        type: "usage_updated",
+        provider: "dsh",
+        usage: { contextWindowMaxTokens: 1_000_000, contextWindowUsedTokens: 13_759 },
+      },
+    ]);
   });
 });
 

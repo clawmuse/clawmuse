@@ -1,0 +1,7 @@
+Workspace title language requires both the client and host to run 1.4.6 or later. Existing workspace titles are preserved.
+
+Fixed
+- Generate new workspace titles in the creating client's selected language, or its detected device language when following the system. Keep technical identifiers unchanged and preserve the chosen title across connected hosts.
+- Make the x64 installer the primary Windows download on the website.
+
+Full notes: https://paseo.sh/changelog

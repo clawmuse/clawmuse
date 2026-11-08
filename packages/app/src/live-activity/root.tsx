@@ -28,6 +28,7 @@ import {
 import { useClawMuseLiveActivityFeed } from "./use-live-activity-feed";
 import { mergePlanUsages } from "./widget-plan-usages";
 import { buildAgentWidgetSnapshot, widgetSnapshotFingerprint } from "./widget-snapshot";
+import { UsageWidgetBridge } from "@/widgets/UsageWidgetBridge";
 
 const NATIVE_RETRY_DELAY_MS = 1_500;
 
@@ -168,7 +169,12 @@ function EnabledLiveActivityRoot({ remoteDriven }: { remoteDriven: boolean }) {
       });
   }, [remoteDriven, retryRevision, summary, t, usages]);
 
-  return <ClawMuseHostUsageCollector />;
+  return (
+    <>
+      <ClawMuseHostUsageCollector />
+      <UsageWidgetBridge />
+    </>
+  );
 }
 
 /**

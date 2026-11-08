@@ -1,7 +1,7 @@
 import { useCallback, useMemo, type ReactElement, type ReactNode } from "react";
 import { Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { ChevronDown } from "lucide-react-native";
+import { ChevronDown } from "@/components/icons/app-icons";
 import {
   buttonIconSize,
   createControlGeometry,

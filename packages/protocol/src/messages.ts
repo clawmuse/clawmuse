@@ -1077,6 +1077,21 @@ export const WorkspaceTitleSetRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const WorkspaceDeleteRequestSchema = z.object({
+  type: z.literal("workspace.delete.request"),
+  workspaceId: z.string(),
+  requestId: z.string(),
+});
+
+export const WorkspaceDeleteResponseSchema = z.object({
+  type: z.literal("workspace.delete.response"),
+  payload: z.object({
+    requestId: z.string(),
+    workspaceId: z.string(),
+    error: z.string().nullable(),
+  }),
+});
+
 export const WorkspacePinSetRequestSchema = z.object({
   type: z.literal("workspace.pin.set.request"),
   workspaceId: z.string(),
@@ -3411,6 +3426,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   ProjectRemoveRequestSchema,
   WorkspaceTitleSetRequestSchema,
   WorkspacePinSetRequestSchema,
+  WorkspaceDeleteRequestSchema,
   WorkspaceLabelListRequestSchema,
   WorkspaceLabelAssignmentSetRequestSchema,
   WorkspaceLabelUpdateRequestSchema,
@@ -3809,6 +3825,7 @@ export const ServerInfoStatusPayloadSchema = z
         // COMPAT(internalWorkspaces): added in v0.9.0; remove gate after 2027-03-17.
         internalWorkspaces: z.boolean().optional(),
         backgroundWorkspaces: z.boolean().optional(),
+        workspaceDeletion: z.boolean().optional(),
         providersSnapshot: z.boolean().optional(),
         promptPredictions: z.boolean().optional(),
         remoteAccess: z.boolean().optional(),
@@ -7356,6 +7373,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ProjectRemoveResponseSchema,
   WorkspaceTitleSetResponseSchema,
   WorkspacePinSetResponseSchema,
+  WorkspaceDeleteResponseSchema,
   WorkspaceRecoveryInspectResponseSchema,
   WorkspaceRecoveryRestoreResponseSchema,
   WaitForFinishResponseMessageSchema,

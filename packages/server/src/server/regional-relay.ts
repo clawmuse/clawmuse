@@ -97,8 +97,7 @@ export async function selectRegionalRelay(
 
 /** Filed public aliases keep mainland ingress usable without moving the origin. */
 export function getHostedRelayPublicEndpoint(endpoint: string): string {
-  return (
-    Object.entries(brand.relayPublicEndpoints).find(([origin]) => origin === endpoint)?.[1] ??
-    endpoint
-  );
+  // Typed as a record so the open-source brand's empty map keeps string values.
+  const aliases: Readonly<Record<string, string>> = brand.relayPublicEndpoints;
+  return Object.entries(aliases).find(([origin]) => origin === endpoint)?.[1] ?? endpoint;
 }

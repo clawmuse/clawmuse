@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { UserRound } from "lucide-react-native";
+import { UserRound } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";

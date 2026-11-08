@@ -1,25 +1,26 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
-import { DevicePreviewPanel } from "./client/panel.js";
+import { PreviewPanel } from "./client/panel.js";
 
 export default function contribute(client: PluginClientContext) {
-  const removePanel = client.addWorkspacePanel({
+  const panel = client.addWorkspacePanel({
     id: "preview",
     title: "设备预览",
     icon: "Smartphone",
-    Component: DevicePreviewPanel,
+    locations: ["workspace", "explorer"],
+    Component: PreviewPanel,
   });
-  const removeCommand = client.addCommandCenterItem({
+  const command = client.addCommandCenterItem({
     id: "open-preview",
     title: "打开设备预览",
     icon: "Smartphone",
+    keywords: ["iOS", "Android", "simulator", "emulator"],
     context: "workspace",
-    keywords: ["device", "simulator", "emulator", "模拟器"],
     onSelect({ openPanel }) {
-      openPanel("preview");
+      openPanel("preview", { location: "explorer" });
     },
   });
   return () => {
-    removeCommand();
-    removePanel();
+    command();
+    panel();
   };
 }
