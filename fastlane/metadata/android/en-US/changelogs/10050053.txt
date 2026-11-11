@@ -1,7 +1,6 @@
-This iOS/TestFlight update requires the updated conversation-translation plugin on the connected host for interactive card translations.
+This dated stable release keeps the 1.5.5 base version. Users on 1.5.6 betas or an earlier 1.5.5 build need the manual installer; build metadata does not change Semver ordering. Mobile store review and distribution are tracked separately.
 
-Fixed
-- Translate interactive questions, option descriptions and plan confirmations while preserving original submitted answers.
-- Keep Markdown structure, prioritize current questions and allow retry with the original text available.
+Added
+- Delete a workspace and its conversations together, with confirmation and retryable failures; keep project files and Git worktrees.
 
 Full notes: https://paseo.sh/changelog

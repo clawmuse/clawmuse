@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.5.8 - 2026-11-09
+
+### Added
+
+- Show a merged 30-day token usage history card (today, 30-day total, daily average, 30-day bar chart, and top models) across all connected computers in the desktop and web Usage modal and Settings Usage section, with Chinese `万` / `亿` token unit hints in Chinese locales across both the app and iOS widgets.
+
+## 1.5.7 - 2026-11-09
+
+### Fixed
+
+- Merge subscription quota accounts and 30-day daily usage history across all connected computers when iOS widgets use the default "Automatic" computer selection, while preserving single-computer filtering when a specific computer is chosen.
+
+## 1.5.6 - 2026-11-09
+
+### Fixed
+
+- Sync host daily token history into iOS usage widgets without requiring open phone sessions, and label missing cost data explicitly instead of showing `$0.00`.
+- Refresh iOS usage widgets when daily token history updates even if subscription quota percentages are unchanged.
+- Allow edited agent launch drafts to retry after workspace startup failures.
+- Keep remote relay connections responsive when host filesystem inspection blocks on slow or protected directories.
+- Stream Antigravity thinking updates during active turns without replaying completed reasoning.
+- Filter unavailable host providers and uninstalled CLI commands out of model and profile pickers, and skip unsupported legacy favorites during profile migration.
+- Resolve dictation and voice STT language dynamically and prevent premature 3-second audio chunk cutoffs on StepFun ASR.
+- Require the configured daemon password on legacy relay admission handshakes.
+
+## 1.5.5+1108 - 2026-11-08
+
+### Added
+
+- Delete a workspace and its conversations together, with confirmation and retryable failures; keep project files and Git worktrees.
+- Preview host simulators through the optional device preview plugin, with bounded streaming frames, touch controls and device leases.
+- Guide desktop setup through agent, project and first-task steps.
+- Add configurable iOS quota and daily usage widgets with per-host account selection, observed output tokens and reported costs.
+
+### Fixed
+
+- Bound translation queue waits, reuse isolated model sessions and translate complete replies together while preserving interactive question translation.
+- Match sidebar project names to host typography and align metadata icons; unify app icons and desktop navigation density.
+- Preserve input and split-pane focus when menus close, without reopening pointer-hover cards.
+- Wait for packaged desktop daemons to finish cold startup before connecting the interface.
+- Preserve question answers after failed delivery and show the host error for retry.
+- Restore microphone capture and mute state after transport reconnects, and preserve shared capture ownership.
+- Retain reported ACP session costs across context usage updates.
+
+This dated stable release keeps the 1.5.5 base version. Users on 1.5.6 betas or an earlier 1.5.5 build need the manual installer; build metadata does not change Semver ordering. Mobile store review and distribution are tracked separately.
+
 ## 1.5.6-beta.2 - 2026-11-06
 
 ### Fixed

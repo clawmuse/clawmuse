@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { useFocusEffect } from "expo-router/react-navigation";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { Blocks, Check, Settings2 } from "lucide-react-native";
+import { Blocks, Check, Settings2 } from "@/components/icons/app-icons";
 import type { AgentSkillOperation, AgentSkillsStatus } from "@getpaseo/protocol/messages";
 import type { TFunction } from "i18next";
 import { Button } from "@/components/ui/button";

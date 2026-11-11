@@ -26,6 +26,18 @@ const DICTATION_SILENCE_PEAK_THRESHOLD = Number.parseInt(
   process.env.PASEO_DICTATION_SILENCE_PEAK_THRESHOLD ?? "300",
   10,
 );
+const CJK_BOUNDARY =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
+
+function joinTranscriptSegments(joined: string, segment: string): string {
+  const trimmedJoined = joined.trim();
+  const trimmedSegment = segment.trim();
+  if (!trimmedJoined) return trimmedSegment;
+  if (!trimmedSegment) return trimmedJoined;
+  const tight =
+    CJK_BOUNDARY.test(trimmedJoined.slice(-1)) || CJK_BOUNDARY.test(trimmedSegment.charAt(0));
+  return tight ? `${trimmedJoined}${trimmedSegment}` : `${trimmedJoined} ${trimmedSegment}`;
+}
 
 function parseNonNegativeNumber(value: string | undefined): number | null {
   if (value === undefined) {
@@ -84,6 +96,7 @@ interface DictationStreamState {
   autoCommitBytes: number;
   bytesSinceCommit: number;
   peakSinceCommit: number;
+  silenceBytesSinceSpeech: number;
   committedSegmentIds: string[];
   transcriptsBySegmentId: Map<string, string>;
   finalTranscriptSegmentIds: Set<string>;
@@ -131,7 +144,7 @@ export class DictationStreamManager {
   private readonly emit: (msg: DictationStreamOutboundMessage) => void;
   private readonly sessionId: string;
   private readonly resolveStt: () => SpeechToTextProvider | null;
-  private readonly language: string;
+  private readonly resolveLanguage: () => string | undefined;
   private readonly finalTimeoutMs: number;
   private readonly autoCommitSeconds: number;
   private readonly onIdle: (() => void) | undefined;
@@ -142,7 +155,7 @@ export class DictationStreamManager {
     emit: (msg: DictationStreamOutboundMessage) => void;
     sessionId: string;
     stt: Resolvable<SpeechToTextProvider | null>;
-    language?: string;
+    language?: Resolvable<string | undefined>;
     finalTimeoutMs?: number;
     autoCommitSeconds?: number;
     onIdle?: () => void;
@@ -152,7 +165,7 @@ export class DictationStreamManager {
     this.emit = params.emit;
     this.sessionId = params.sessionId;
     this.resolveStt = toResolver(params.stt);
-    this.language = params.language ?? "en";
+    this.resolveLanguage = toResolver(params.language);
     this.finalTimeoutMs = params.finalTimeoutMs ?? DEFAULT_DICTATION_FINAL_TIMEOUT_MS;
     this.autoCommitSeconds =
       params.autoCommitSeconds ??
@@ -197,7 +210,7 @@ export class DictationStreamManager {
     try {
       stt = sttProvider.createSession({
         logger: this.logger.child({ dictationId }),
-        language: this.language,
+        language: this.resolveLanguage() ?? "en",
         prompt: transcriptionPrompt,
       });
     } catch (error) {
@@ -255,6 +268,7 @@ export class DictationStreamManager {
       autoCommitBytes,
       bytesSinceCommit: 0,
       peakSinceCommit: 0,
+      silenceBytesSinceSpeech: 0,
       committedSegmentIds: [],
       transcriptsBySegmentId: new Map(),
       finalTranscriptSegmentIds: new Set(),
@@ -302,7 +316,8 @@ export class DictationStreamManager {
         : [...state.committedSegmentIds, segmentId];
       const partialText = orderedIds
         .map((id) => state.transcriptsBySegmentId.get(id) ?? "")
-        .join(" ")
+        .filter(Boolean)
+        .reduce(joinTranscriptSegments, "")
         .trim();
       this.emitDictationPartial(dictationId, partialText);
 
@@ -378,12 +393,18 @@ export class DictationStreamManager {
 
       const resampled = state.resampler ? state.resampler.processChunk(pcm16) : pcm16;
       if (resampled.length > 0) {
+        const chunkPeak = pcm16lePeakAbs(resampled);
         state.stt.appendPcm16(resampled);
         state.debugAudioChunks.push(resampled);
         state.bytesSinceCommit += resampled.length;
-        state.peakSinceCommit = Math.max(state.peakSinceCommit, pcm16lePeakAbs(resampled));
+        state.peakSinceCommit = Math.max(state.peakSinceCommit, chunkPeak);
+        if (chunkPeak < DICTATION_SILENCE_PEAK_THRESHOLD) {
+          state.silenceBytesSinceSpeech += resampled.length;
+        } else {
+          state.silenceBytesSinceSpeech = 0;
+        }
         try {
-          this.maybeAutoCommitDictationSegment(state);
+          this.maybeAutoCommitDictationSegment(state, resampled.length);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           void this.failAndCleanupDictationStream(params.dictationId, message, true);
@@ -620,7 +641,10 @@ export class DictationStreamManager {
     };
   }
 
-  private maybeAutoCommitDictationSegment(state: DictationStreamState): void {
+  private maybeAutoCommitDictationSegment(
+    state: DictationStreamState,
+    lastChunkBytes: number,
+  ): void {
     if (state.finishRequested) {
       return;
     }
@@ -631,6 +655,15 @@ export class DictationStreamManager {
       state.stt.clear();
       state.bytesSinceCommit = 0;
       state.peakSinceCommit = 0;
+      state.silenceBytesSinceSpeech = 0;
+      return;
+    }
+    const maxContinuousBytes = state.autoCommitBytes * 4;
+    if (
+      state.silenceBytesSinceSpeech === 0 &&
+      lastChunkBytes < state.autoCommitBytes &&
+      state.bytesSinceCommit < maxContinuousBytes
+    ) {
       return;
     }
 
@@ -640,6 +673,7 @@ export class DictationStreamManager {
   private requestDictationCommit(state: DictationStreamState): void {
     state.bytesSinceCommit = 0;
     state.peakSinceCommit = 0;
+    state.silenceBytesSinceSpeech = 0;
     state.inFlightCommitCount += 1;
     try {
       state.stt.commit();
@@ -784,7 +818,8 @@ export class DictationStreamManager {
 
     const orderedText = orderedSegmentIds
       .map((segmentId) => state.transcriptsBySegmentId.get(segmentId) ?? "")
-      .join(" ")
+      .filter(Boolean)
+      .reduce(joinTranscriptSegments, "")
       .trim();
 
     void (async () => {

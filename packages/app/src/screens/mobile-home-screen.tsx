@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet } from "react-native-unistyles";
-import { Search, SquarePen } from "lucide-react-native";
+import { Search, SquarePen } from "@/components/icons/app-icons";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
 import { DensityIcon } from "@/components/ui/density-icon";

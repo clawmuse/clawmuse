@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View, Text, type PressableStateCallbackType } from "react-native";
 import { useIsFocused } from "expo-router/react-navigation";
-import { MoreHorizontal, Pencil, Undo2, X } from "lucide-react-native";
+import { MoreHorizontal, Pencil, Undo2, X } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { Theme } from "@/styles/theme";
 import { settingsStyles } from "@/styles/settings";

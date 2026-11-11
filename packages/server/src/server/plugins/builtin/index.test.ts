@@ -41,13 +41,14 @@ test("device preview is optional and its RPC lifecycle works without a host SDK"
       client.invokePluginRpc("device-preview", "device-preview.start", {
         platform: "android",
         deviceId: "a;shutdown",
+        quality: "balanced",
       }),
     ).rejects.toThrow();
     await expect(
       client.invokePluginRpc("device-preview", "device-preview.frame", {
         operationId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       }),
-    ).rejects.toThrow("无效");
+    ).rejects.toThrow("预览操作不存在或已过期");
     await client.disablePlugin("device-preview");
     expect(await client.listPlugins()).toMatchObject([
       { id: "device-preview", enabled: false, status: "disabled" },
@@ -154,7 +155,7 @@ test("official conversation plugins default on, persist opt-outs, and follow the
 
 test("official translation is disabled by default and only applies after explicit model configuration", async () => {
   const daemon = await createTestPaseoDaemon({
-    daemonVersion: "0.13.0",
+    daemonVersion: "1.5.5",
     pluginsEnabled: true,
     builtinPlugins: new BuiltinPluginLoader(
       resolveBuiltinPluginsRoot(),
@@ -164,7 +165,7 @@ test("official translation is disabled by default and only applies after explici
   });
   const client = new DaemonClient({
     url: `ws://127.0.0.1:${daemon.port}/ws`,
-    appVersion: "0.13.0",
+    appVersion: "1.5.5",
   });
   const pluginId = "conversation-translation";
   try {

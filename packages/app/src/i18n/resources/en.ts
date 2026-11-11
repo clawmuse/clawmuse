@@ -5,6 +5,7 @@ import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
+import { openProjectOnboarding } from "./open-project-onboarding";
 export const en = {
   cloudSpace: cloudSpace.en,
   schedules: {
@@ -399,6 +400,12 @@ export const en = {
       daemonUnavailable: "Daemon unavailable",
       daemonClientUnavailable: "Daemon client unavailable",
       daemonClientDisconnected: "Daemon client is disconnected",
+      modelProviderChanged:
+        "This conversation uses {{expected}}, but the current model provider is {{current}}. Switch back to {{expected}} to continue, or start a new conversation with {{current}}.",
+      hostConnectionLost:
+        "The connection to the host was lost. Wait for it to reconnect, then try again.",
+      hostRequestTimeout:
+        "The host did not respond in time. The result is not yet confirmed. Check the connection and conversation status before trying again.",
       noFileFound: "No file found for {{token}}",
       folderOutsideWorkspace: "{{path}} is outside this workspace",
       unexpectedDictationError: "An unexpected error occurred while handling dictation.",
@@ -724,6 +731,7 @@ export const en = {
     },
     question: {
       responseFailed: "Could not send your response. Try again.",
+      responseFailedDetail: "Could not send your response: {{error}}",
       submit: "Submit",
       next: "Next",
       answerPlaceholder: "Type your answer...",
@@ -1674,6 +1682,21 @@ export const en = {
       },
     },
     workspace: {
+      deleteWorkspace: {
+        label: "Permanently delete workspace",
+        message:
+          'Permanently delete "{{name}}" and all its conversations, including archived ones? Running agents and terminals will stop. This cannot be undone. Project and worktree files will be kept.',
+        deleting: "Deleting workspace…",
+        deleted: "Workspace permanently deleted",
+        failed: "Failed to delete workspace: {{error}}",
+      },
+      deleteConversation: {
+        label: "Delete current conversation",
+        message:
+          'Permanently delete "{{title}}" from ClawMuse? This cannot be undone. Other conversations and project files will be kept.',
+        deleting: "Deleting conversation…",
+        failed: "Failed to delete conversation. Please try again.",
+      },
       status: {
         serviceRunning: "Service {{name}} running",
         serviceUnhealthy: "Service {{name}} unhealthy",
@@ -1969,6 +1992,7 @@ export const en = {
     },
   },
   openProject: {
+    onboarding: openProjectOnboarding["en"],
     tiles: {
       addProject: {
         title: "Add a project",

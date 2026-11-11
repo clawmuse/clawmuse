@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { RotateCw } from "lucide-react-native";
+import { RotateCw } from "@/components/icons/app-icons";
 import { withUnistyles } from "react-native-unistyles";
 import { extraMutedIconColorMapping } from "@/components/ui/icon-button-chrome";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";

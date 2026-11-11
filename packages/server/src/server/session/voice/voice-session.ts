@@ -144,7 +144,7 @@ export interface VoiceSessionOptions {
   logger: pino.Logger;
   sessionId: string;
   onIdle?: () => void;
-  sttLanguage?: string;
+  sttLanguage?: Resolvable<string | undefined>;
   tts: Resolvable<TextToSpeechProvider | null>;
   stt: Resolvable<SpeechToTextProvider | null>;
   voice?: {
@@ -159,7 +159,7 @@ export interface VoiceSessionOptions {
   dictation?: {
     finalTimeoutMs?: number;
     stt?: Resolvable<SpeechToTextProvider | null>;
-    sttLanguage?: string;
+    sttLanguage?: Resolvable<string | undefined>;
     getSpeechReadiness?: () => SpeechReadinessSnapshot;
   };
 }
@@ -175,7 +175,7 @@ export class VoiceSession {
   private readonly host: VoiceSessionHost;
   private readonly sessionLogger: pino.Logger;
   private readonly sessionId: string;
-  private readonly sttLanguage: string;
+  private readonly resolveSttLanguage: () => string | undefined;
 
   private abortController: AbortController;
   private closed = false;
@@ -230,7 +230,7 @@ export class VoiceSession {
     this.onIdle = options.onIdle;
     this.sessionLogger = logger;
     this.sessionId = sessionId;
-    this.sttLanguage = sttLanguage ?? "en";
+    this.resolveSttLanguage = toResolver(sttLanguage);
     this.abortController = new AbortController();
 
     this.resolveVoiceTurnDetection = toResolver(voice?.turnDetection ?? null);
@@ -322,6 +322,7 @@ export class VoiceSession {
             apiKey: msg.officialVoiceCredential,
             baseUrl: brand.hubOrigin + "/api/auth/clawmuse/official",
             model: "stepaudio-2.5-asr",
+            language: "zh",
           })
         : undefined,
     );
@@ -405,6 +406,7 @@ export class VoiceSession {
           apiKey: officialVoiceCredential,
           baseUrl: brand.hubOrigin + "/api/auth/clawmuse/official",
           model: "stepaudio-2.5-asr",
+          language: "zh",
         });
         this.officialTts = new OpenAITTS(
           {
@@ -673,7 +675,7 @@ export class VoiceSession {
       logger: this.sessionLogger.child({ component: "voice-turn-controller" }),
       turnDetection,
       stt,
-      sttLanguage: this.sttLanguage,
+      sttLanguage: this.officialStt ? "zh" : (this.resolveSttLanguage() ?? "en"),
       callbacks: {
         onSpeechStarted: async () => {
           // Voice STT providers return final transcripts only. Use the detector's

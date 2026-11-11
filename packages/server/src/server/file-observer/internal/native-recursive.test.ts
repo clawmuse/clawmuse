@@ -56,6 +56,9 @@ test.each(["existing", "new"])(
       if (population === "new") {
         await Promise.all(removed.map((path) => writeFile(path, "before")));
         for (const path of removed) notifications.emit("change", "change", path);
+        // Establish the creates before deleting. A delayed classification after
+        // deletion legitimately reports another delete notification.
+        await expect.poll(() => backend.getDiagnostics().pendingClassificationCount).toBe(0);
       }
       await Promise.all(removed.map((path) => rm(path)));
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });

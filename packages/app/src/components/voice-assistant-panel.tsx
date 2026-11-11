@@ -9,7 +9,8 @@ import { useVoice } from "@/contexts/voice-context";
 import { useSessionStore } from "@/stores/session-store";
 import { useLastWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useAssistantPanel } from "@/voice/assistant-panel-store";
-import { useHostRuntimeIsConnected, getHostRuntimeStore } from "@/runtime/host-runtime";
+import { useHostRuntimeIsConnected, getHostRuntimeStore, useHosts } from "@/runtime/host-runtime";
+import { useClawMuseDeviceLabel } from "@/clawmuse/device-label";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { buildSettingsHostSectionRoute, buildSessionsRoute } from "@/utils/host-routes";
 import { useSettingsHostSelection } from "@/navigation/settings-presentation";
@@ -58,6 +59,7 @@ export function VoiceAssistantPanel() {
 
 function AssistantPanelBody({ onClose, voice }: { onClose(): void; voice: PanelState }) {
   const sessions = useSessionStore((s) => s.sessions);
+  const hosts = useHosts();
   const last = useLastWorkspaceSelection();
   const pathname = usePathname();
   const settingsHost = useSettingsHostSelection();
@@ -68,7 +70,7 @@ function AssistantPanelBody({ onClose, voice }: { onClose(): void; voice: PanelS
   const [busy, setBusy] = useState(false);
   const hostId = voice.isVoiceMode
     ? voice.activeServerId
-    : (selectedHost ?? contextHost ?? Object.keys(sessions)[0] ?? null);
+    : (selectedHost ?? contextHost ?? hosts[0]?.serverId ?? null);
   const selectHost = useCallback((id: string) => {
     setSelectedHost(id);
     setSelectedAgent(null);
@@ -126,9 +128,8 @@ function AssistantPanelBody({ onClose, voice }: { onClose(): void; voice: PanelS
     <AssistantPanelContent
       {...{
         voice,
-        sessions,
+        hosts,
         hostId,
-        session,
         connected,
         assistant,
         agents,
@@ -150,9 +151,8 @@ function AssistantPanelBody({ onClose, voice }: { onClose(): void; voice: PanelS
 type PanelState = ReturnType<typeof useVoice>;
 interface PanelContentProps {
   voice: PanelState;
-  sessions: ReturnType<typeof useSessionStore.getState>["sessions"];
+  hosts: ReturnType<typeof useHosts>;
   hostId: string | null;
-  session: ReturnType<typeof useSessionStore.getState>["sessions"][string] | undefined;
   connected: boolean;
   assistant: import("@getpaseo/protocol/speech-config").SpeechSettings["assistant"];
   agents: import("@/stores/session-store").Agent[];
@@ -170,9 +170,8 @@ interface PanelContentProps {
 
 function AssistantPanelContent({
   voice,
-  sessions,
+  hosts,
   hostId,
-  session,
   connected,
   assistant,
   agents,
@@ -194,9 +193,8 @@ function AssistantPanelContent({
       <AssistantSelection
         {...{
           active,
-          sessions,
+          hosts,
           hostId,
-          session,
           agents,
           anchor,
           busy,
@@ -284,9 +282,8 @@ function AssistantConversation({ voice }: { voice: PanelState }) {
 
 function AssistantSelection({
   active,
-  sessions,
+  hosts,
   hostId,
-  session,
   agents,
   anchor,
   busy,
@@ -294,36 +291,29 @@ function AssistantSelection({
   setSelectedAgent,
 }: Pick<
   PanelContentProps,
-  | "active"
-  | "sessions"
-  | "hostId"
-  | "session"
-  | "agents"
-  | "anchor"
-  | "busy"
-  | "selectHost"
-  | "setSelectedAgent"
+  "active" | "hosts" | "hostId" | "agents" | "anchor" | "busy" | "selectHost" | "setSelectedAgent"
 >) {
   const { t } = useTranslation();
+  const deviceLabel = useClawMuseDeviceLabel();
+  const selectedHost = hosts.find((host) => host.serverId === hostId);
+  const hostLabel = selectedHost ? deviceLabel(selectedHost.serverId, selectedHost.label) : "—";
   return (
     <>
       {!active ? (
         <View style={styles.choices}>
-          {Object.entries(sessions).map(([id, value]) => (
+          {hosts.map((host) => (
             <ChoiceButton
-              key={id}
-              id={id}
-              label={value.serverInfo?.hostname ?? id}
-              selected={id === hostId}
+              key={host.serverId}
+              id={host.serverId}
+              label={deviceLabel(host.serverId, host.label)}
+              selected={host.serverId === hostId}
               onSelect={selectHost}
               disabled={busy}
             />
           ))}
         </View>
       ) : null}
-      <Text style={styles.text}>
-        {t("speechSettings.assistantScope", { host: session?.serverInfo?.hostname ?? "—" })}
-      </Text>
+      <Text style={styles.text}>{t("speechSettings.assistantScope", { host: hostLabel })}</Text>
       {!active && agents.length > 0 ? (
         <View style={styles.choices}>
           <Text style={styles.hint}>{t("speechSettings.assistantProject")}</Text>

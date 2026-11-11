@@ -145,7 +145,7 @@ describe("combined model selector data", () => {
     ).toEqual([]);
   });
 
-  it("surfaces non-ready providers with their state-specific selection", () => {
+  it("surfaces non-ready providers with their state-specific selection while excluding unavailable or missing-binary providers", () => {
     expect(
       buildSelectableProviderSelectorProviders([
         snapshotEntry({ provider: "loading-provider", status: "loading", models: [] }),
@@ -153,6 +153,12 @@ describe("combined model selector data", () => {
           provider: "error-provider",
           status: "error",
           error: "boom",
+          models: [],
+        }),
+        snapshotEntry({
+          provider: "missing-binary-provider",
+          status: "error",
+          error: "agy not found on PATH",
           models: [],
         }),
         snapshotEntry({
@@ -171,11 +177,6 @@ describe("combined model selector data", () => {
         id: "error-provider",
         label: "error-provider",
         modelSelection: { kind: "error", message: "boom" },
-      },
-      {
-        id: "unavailable-provider",
-        label: "unavailable-provider",
-        modelSelection: { kind: "error", message: "Unavailable" },
       },
     ]);
   });
@@ -417,8 +418,8 @@ describe("combined model selector data", () => {
           models: [],
         }),
         snapshotEntry({
-          provider: "unavailable-provider",
-          status: "unavailable",
+          provider: "error-provider",
+          status: "error",
           models: [],
         }),
       ]);
@@ -426,7 +427,7 @@ describe("combined model selector data", () => {
       expect(getAllModelLabels(providers)).toContain("默认");
       expect(providers[1]?.modelSelection).toEqual({
         kind: "error",
-        message: "不可用",
+        message: "未知错误",
       });
       expect(
         resolveSubmissionReadiness({

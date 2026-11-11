@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   areQuestionsAnswered,
   buildQuestionFormAnswers,
+  getQuestionResponseErrorMessage,
   parseQuestionFormQuestions,
   questionShowsTextInput,
   resolveDismissLabel,
@@ -9,6 +10,26 @@ import {
 } from "./question-form-card-core";
 
 describe("question form card core", () => {
+  test("shows the host rejection without RPC routing metadata", () => {
+    const reason =
+      "This chat uses openai, but your current provider is magpie. Switch to openai to continue.";
+    const error = Object.assign(new Error(`${reason} requestType=agent_permission_response`), {
+      userMessage: reason,
+    });
+    expect(getQuestionResponseErrorMessage(error)).toBe(
+      "This conversation uses openai, but the current model provider is magpie. Switch back to openai to continue, or start a new conversation with magpie.",
+    );
+  });
+
+  test("preserves connection errors and falls back for missing failure details", () => {
+    expect(getQuestionResponseErrorMessage(new Error("Connection closed"))).toBe(
+      "Connection closed",
+    );
+    expect(getQuestionResponseErrorMessage(new Error("  "))).toBeNull();
+    expect(getQuestionResponseErrorMessage(null)).toBeNull();
+    expect(getQuestionResponseErrorMessage({ debug: "internal state" })).toBeNull();
+  });
+
   test("treats optional input prompts as skippable empty answers", () => {
     const questions = parseQuestionFormQuestions({
       questions: [

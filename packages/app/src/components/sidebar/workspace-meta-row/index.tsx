@@ -2,7 +2,7 @@ import { Fragment, useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, type GestureResponderEvent } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { ExternalLink, Folder, GitBranch, Globe } from "lucide-react-native";
+import { ExternalLink, Folder, GitBranch, Globe } from "@/components/icons/app-icons";
 import {
   workspaceLabelKey,
   type WorkspaceLabelDefinition,
@@ -15,6 +15,7 @@ import { getForgePresentation, normalizeForge } from "@/git/forge";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { useSidebarMetaPreferences } from "@/components/sidebar/display-preferences/model";
 import type { Theme } from "@/styles/theme";
+import { densityText } from "@/styles/density";
 import { PullRequestStateIcon } from "@/git/pull-request-state-icon";
 import { CheckIndicator } from "./check-indicator";
 import type { CheckSummary, CheckSummaryState } from "./check-summary";
@@ -331,21 +332,24 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 1,
   },
   identityIcon: {
+    width: META_ICON_SIZE,
+    height: META_ICON_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
   identityText: {
+    ...densityText(theme, "secondary"),
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.lg,
-    lineHeight: 22,
     flexShrink: 1,
+    minWidth: 0,
   },
   itemPressed: {
     opacity: 0.82,
   },
   separator: {
+    ...densityText(theme, "secondary"),
     color: theme.colors.foregroundExtraMuted,
-    fontSize: theme.fontSize.lg,
-    lineHeight: 22,
     flexShrink: 0,
   },
   // Tighter than the line's own gap so a run of chips reads as one item — see `LabelsItem`.

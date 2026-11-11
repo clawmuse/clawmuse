@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_DESKTOP_SETTINGS } from "../settings/desktop-settings";
 import { ExternalCliCommandError } from "./cli/external";
+import { DaemonInstanceError } from "@getpaseo/server/daemon-control";
 import {
   createDaemonCommandHandlers,
   keepsTerminalsOnStop,
@@ -194,6 +195,43 @@ describe("daemon-manager commands", () => {
     expect(mocks.startDaemonInstance).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: undefined }),
     );
+  });
+
+  it("preserves a readiness failure instead of returning an incomplete connection", async () => {
+    const commands = setupUpdateDaemon();
+    const failure = new DaemonInstanceError("DAEMON_NOT_READY", "Supervisor is still starting");
+    mocks.startDaemonInstance.mockRejectedValueOnce(failure);
+    await expect(commands.start_desktop_daemon()).rejects.toBe(failure);
+  });
+
+  it("waits for an already starting supervisor before returning its connection", async () => {
+    const commands = setupUpdateDaemon();
+    await mocks.startDaemonInstance({
+      home: mocks.paseoHome,
+      command: "node",
+      args: [],
+      env: {},
+      mode: "managed",
+    });
+    const lockPath = path.join(mocks.paseoHome, "paseo.pid");
+    const ready = JSON.parse(readFileSync(lockPath, "utf8"));
+    const starting = { ...ready, listen: null };
+    writeFileSync(lockPath, JSON.stringify(starting));
+    mocks.runExternalCliJsonCommand.mockResolvedValueOnce({
+      ...starting,
+      localDaemon: "not_ready",
+    });
+    mocks.startDaemonInstance.mockImplementationOnce(async () => {
+      writeFileSync(lockPath, JSON.stringify(ready));
+      return { instance: starting, spawned: false };
+    });
+
+    expect(await commands.start_desktop_daemon()).toMatchObject({
+      status: "running",
+      serverId: "srv_update",
+      listen: ready.listen,
+    });
+    expect(mocks.stopDaemonInstance).not.toHaveBeenCalled();
   });
 
   it("restores the owned daemon before returning an installer failure, and permits a retry", async () => {

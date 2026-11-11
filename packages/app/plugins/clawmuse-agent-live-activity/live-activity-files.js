@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const LOCALIZATION_DIRECTORY_PATTERN = /\.lproj$/;
+const ASSET_CATALOG_PATTERN = /\.xcassets$/;
 
 function requireFile(filePath, label) {
   if (!fs.statSync(filePath, { throwIfNoEntry: false })?.isFile()) {
@@ -28,7 +29,10 @@ function listFiles(directory) {
     .readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
       const entryPath = path.join(directory, entry.name);
-      return entry.isDirectory() ? listFiles(entryPath) : [entryPath];
+      if (entry.isDirectory() && !ASSET_CATALOG_PATTERN.test(entry.name)) {
+        return listFiles(entryPath);
+      }
+      return [entryPath];
     })
     .sort();
 }

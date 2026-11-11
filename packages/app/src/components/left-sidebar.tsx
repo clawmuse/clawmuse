@@ -11,7 +11,7 @@ import {
   UserRound,
   X,
   type LucideIcon,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
@@ -49,7 +49,7 @@ import { SidebarSectionHeader } from "@/components/sidebar/sidebar-section-heade
 import { Shortcut } from "@/components/ui/shortcut";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HEADER_INNER_HEIGHT, useIsCompactFormFactor } from "@/constants/layout";
-import { isNative } from "@/constants/platform";
+import { isNative, isWeb } from "@/constants/platform";
 import { useOpenAddProject } from "@/hooks/use-open-add-project";
 import { useImportSession } from "@/hooks/use-import-session";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
@@ -797,7 +797,9 @@ function DesktopSidebar({
     return {
       width: (resizeWidth.value - sidebarBorderWidth) / scale,
       height: contentHeight.value / scale,
-      transform: [{ scale }],
+      // Layout zoom paints SVGs and text at the final web resolution instead of
+      // resampling the transformed sidebar surface.
+      ...(isWeb ? { zoom: scale } : { transform: [{ scale }] }),
     };
   });
 
@@ -953,8 +955,6 @@ const styles = StyleSheet.create((theme) => ({
     paddingTop: theme.spacing[2],
     gap: 2,
     paddingBottom: theme.spacing[1.5],
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   sidebarHeaderGroupBelowChrome: {
     paddingTop: 0,
@@ -968,8 +968,6 @@ const styles = StyleSheet.create((theme) => ({
   mobileHeaderGroup: {
     paddingTop: theme.spacing[1],
     paddingBottom: theme.spacing[1],
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   desktopSidebarBorder: {
     borderRightWidth: 1,
@@ -1006,16 +1004,14 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
   },
-  footerContainer: {
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
+  footerContainer: {},
   // Buttons sit edge to edge; their own inset spaces the glyphs.
   sidebarFooter: {
     flexDirection: "row",
     flexWrap: "wrap",
-    alignItems: "center",
     rowGap: theme.spacing[1],
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: theme.spacing[2],
     paddingVertical: theme.spacing[1.5],
   },

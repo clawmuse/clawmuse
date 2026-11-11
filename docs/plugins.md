@@ -111,6 +111,12 @@ Plugin runtime translations follow the connected app, so never send a daemon loc
 
 The author contract is in [runtime translations](../public-docs/plugins/reference.md#runtime-translations).
 
+## Device preview
+
+The optional bundled `device-preview` plugin opens a native workspace or Explorer panel for
+simulators on the selected daemon host. Its [setup, runtime provenance and verification](../plugins/device-preview/README.md)
+own the platform requirements, input capabilities and device lease contract.
+
 ## Built-in plugins
 
 Built-in plugins ship from `plugins/<id>/`, with `paseo-plugin.json`, `index.server.ts`,

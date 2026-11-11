@@ -1,6 +1,6 @@
 import { forwardRef, useMemo } from "react";
 import { Text, type View } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import type { LucideIcon } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { ICON_SIZE, type Theme } from "@/styles/theme";

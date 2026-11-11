@@ -1,5 +1,6 @@
 import { watch as watchPath } from "node:fs";
 import { stat } from "node:fs/promises";
+import { isolatedDirectory } from "../utils/isolated-directory.js";
 import { setImmediate as yieldToLoop } from "node:timers/promises";
 import type { ProjectCheckoutLitePayload } from "@getpaseo/protocol/messages";
 import type pino from "pino";
@@ -152,7 +153,14 @@ export class WorkspaceReconciliationService {
   constructor(options: WorkspaceReconciliationServiceOptions) {
     this.directoryInspection =
       options.inspectDirectory ??
-      (async (targetPath) => ((await stat(targetPath)).isDirectory() ? "directory" : "missing"));
+      (async (targetPath) =>
+        (
+          await (process.platform === "darwin"
+            ? isolatedDirectory.stat(targetPath)
+            : stat(targetPath))
+        ).isDirectory()
+          ? "directory"
+          : "missing");
     this.inspectionTimeoutMs = options.inspectionTimeoutMs ?? DEFAULT_INSPECTION_TIMEOUT_MS;
     this.serverId = options.serverId;
     this.projectRegistry = options.projectRegistry;

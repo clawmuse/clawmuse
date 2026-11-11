@@ -1,4 +1,8 @@
 import { createHook } from "node:async_hooks";
+import { Worker } from "node:worker_threads";
+import { once } from "node:events";
+import { lookup } from "node:dns/promises";
+import { IsolatedDirectory, isolatedDirectory } from "./isolated-directory.js";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import {
   mkdtempSync,
@@ -24,6 +28,89 @@ import {
 
 const isWindows = isPlatform("win32");
 const filesystemRootDirectoryName = isWindows ? "Windows" : "usr";
+
+describe("isolated directory inspection", () => {
+  it("preserves directory, symlink, metadata and missing-path semantics", async () => {
+    const root = realpathSync(mkdtempSync(path.join(tmpdir(), "isolated-directory-")));
+    const inspector = new IsolatedDirectory();
+    try {
+      mkdirSync(path.join(root, "directory"));
+      writeFileSync(path.join(root, "file"), "content");
+      const entries = await inspector.readdir(root);
+      expect(entries.find((entry) => entry.name === "directory")?.isDirectory()).toBe(true);
+      expect(entries.find((entry) => entry.name === "file")?.isFile()).toBe(true);
+      const info = await inspector.stat(path.join(root, "file"));
+      expect(info.isFile()).toBe(true);
+      expect(info.mtimeMs).toBe((await fsPromises.stat(path.join(root, "file"))).mtimeMs);
+      expect(await inspector.realpath(root)).toBe(root);
+      await expect(inspector.readdir(path.join(root, "missing"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      if (!isWindows) {
+        symlinkSync(path.join(root, "directory"), path.join(root, "link"));
+        expect(
+          (await inspector.readdir(root)).find((entry) => entry.name === "link")?.isSymbolicLink(),
+        ).toBe(true);
+        expect((await inspector.stat(path.join(root, "link"))).isDirectory()).toBe(true);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(isWindows)(
+    "bounds blocked syscalls, leaves DNS and fs usable, and recovers after access resumes",
+    async () => {
+      const root = realpathSync(mkdtempSync(path.join(tmpdir(), "isolated-directory-blocked-")));
+      const workers: Worker[] = [];
+      const fifos: string[] = [];
+      const inspector = new IsolatedDirectory({
+        timeoutMs: 1_000,
+        createWorker: (source) => {
+          const fifo = path.join(root, `fifo-${workers.length}`);
+          execFileSync("mkfifo", [fifo]);
+          fifos.push(fifo);
+          const worker = new Worker(
+            `require('node:fs').readFileSync(${JSON.stringify(fifo)});\n${source}`,
+            { eval: true, execArgv: [] },
+          );
+          workers.push(worker);
+          return worker;
+        },
+      });
+      try {
+        const requests = Array.from({ length: 8 }, (_, index) =>
+          inspector.stat(path.join(root, `missing-${index}`)),
+        );
+        const results = await Promise.allSettled(requests);
+        expect(
+          results.map((result) =>
+            result.status === "rejected" ? result.reason.code : "unexpected success",
+          ),
+        ).toEqual(Array(8).fill("ETIMEDOUT"));
+        expect(workers).toHaveLength(2);
+        await expect(inspector.stat(path.join(root, "missing-0"))).rejects.toMatchObject({
+          code: "ETIMEDOUT",
+        });
+        expect(workers).toHaveLength(2);
+        expect((await lookup("localhost")).address).toBeTruthy();
+        expect((await fsPromises.stat(root)).isDirectory()).toBe(true);
+        const resumed = workers.map((worker) => once(worker, "message"));
+        for (const fifo of fifos) await fsPromises.writeFile(fifo, "resume");
+        await Promise.all(resumed);
+        expect((await inspector.stat(root)).isDirectory()).toBe(true);
+      } finally {
+        // Unblock before terminate: terminate cannot interrupt a native syscall.
+        for (const fifo of fifos) {
+          const fd = await fsPromises.open(fifo, "r+");
+          await fd.close();
+        }
+        await Promise.all(workers.map((worker) => worker.terminate()));
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+});
 async function searchAbsoluteDirectoryPaths(options: {
   homeDir: string;
   query: string;
@@ -1279,11 +1366,32 @@ describe("filesystem threads held by concurrent searches", () => {
   async function peakPendingFilesystemRequests(run: () => Promise<unknown>): Promise<number> {
     const pending = new Set<number>();
     let peak = 0;
+    let activeIsolated = 0;
+    const trackIsolated = <T extends (...args: never[]) => Promise<unknown>>(fn: T): T =>
+      (async (...args: Parameters<T>) => {
+        activeIsolated += 1;
+        peak = Math.max(peak, pending.size + activeIsolated);
+        try {
+          return await fn(...args);
+        } finally {
+          activeIsolated -= 1;
+        }
+      }) as T;
+    const origReaddir = isolatedDirectory.readdir.bind(isolatedDirectory);
+    const origRealpath = isolatedDirectory.realpath.bind(isolatedDirectory);
+    const origStat = isolatedDirectory.stat.bind(isolatedDirectory);
+    const readdirSpy = vi
+      .spyOn(isolatedDirectory, "readdir")
+      .mockImplementation(trackIsolated(origReaddir));
+    const realpathSpy = vi
+      .spyOn(isolatedDirectory, "realpath")
+      .mockImplementation(trackIsolated(origRealpath));
+    const statSpy = vi.spyOn(isolatedDirectory, "stat").mockImplementation(trackIsolated(origStat));
     const hook = createHook({
       init(asyncId, type) {
         if (type !== "FSREQPROMISE" && type !== "FSREQCALLBACK") return;
         pending.add(asyncId);
-        peak = Math.max(peak, pending.size);
+        peak = Math.max(peak, pending.size + activeIsolated);
       },
       before(asyncId) {
         pending.delete(asyncId);
@@ -1294,6 +1402,9 @@ describe("filesystem threads held by concurrent searches", () => {
       await run();
     } finally {
       hook.disable();
+      readdirSpy.mockRestore();
+      realpathSpy.mockRestore();
+      statSpy.mockRestore();
     }
     return peak;
   }

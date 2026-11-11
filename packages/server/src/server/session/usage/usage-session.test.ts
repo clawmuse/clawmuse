@@ -138,3 +138,54 @@ test("off rejects both protocols before runtime discovery and turning on restore
   expect(calls).toBe(1);
   expect(emitted[2]).toMatchObject({ payload: { error: null } });
 });
+
+test("returns history for host requests only and keeps quota usable when history fails", async () => {
+  const emitted: SessionOutboundMessage[] = [];
+  const refreshes: (boolean | undefined)[] = [];
+  let fail = false;
+  const dailyUsage = {
+    days: ["2026-11-09"],
+    daily: [{ money: [0, 0, 0], paid: 0, tokens: [20, 30, 0], costAvailable: false }],
+  };
+  const session = new UsageSession({
+    isEnabled: () => true,
+    emit: (message) => emitted.push(message),
+    runtime: {
+      listUsageReports: async () => [],
+      listUsageMonitoringSources: () => [],
+      listLegacyUsage: async () => ({ fetchedAt: "now", providers: [] }),
+    },
+    collectDailyUsage: async (force) => {
+      refreshes.push(force);
+      if (fail) throw new Error("history unreadable");
+      return dailyUsage;
+    },
+    logger: pino({ level: "silent" }),
+  });
+  await session.handleListReports({
+    type: "usage.list_reports.request",
+    requestId: "host",
+    forceRefresh: true,
+  });
+  expect(emitted.pop()).toEqual({
+    type: "usage.list_reports.response",
+    payload: { requestId: "host", error: null, dailyUsage },
+  });
+  await session.handleListReports({
+    type: "usage.list_reports.request",
+    requestId: "agent",
+    agentId: "a",
+  });
+  await session.handleListReports({
+    type: "usage.list_reports.request",
+    requestId: "report",
+    reportIds: ["claude"],
+  });
+  expect(refreshes).toEqual([true]);
+  fail = true;
+  await session.handleListReports({ type: "usage.list_reports.request", requestId: "failure" });
+  expect(emitted.pop()).toEqual({
+    type: "usage.list_reports.response",
+    payload: { requestId: "failure", error: null },
+  });
+});

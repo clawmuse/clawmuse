@@ -1,6 +1,20 @@
 import { officialPluginIds, pluginsCopy } from "../clawmuse/plugins-content";
 import { describe, expect, it } from "vitest";
-import { coreRoutes, descriptionFor, href, routeInfo, titleFor } from "../clawmuse/content";
+import {
+  coreRoutes,
+  descriptionFor,
+  href,
+  pageLanguages,
+  routeInfo,
+  titleFor,
+} from "../clawmuse/content";
+import {
+  installerMirrorUrl,
+  platformVersion,
+  primaryPlatformInstaller,
+  release,
+} from "../clawmuse/downloads";
+import { matchPreferredLanguage } from "../clawmuse/site";
 import { articleRoutes } from "../clawmuse/editorial-content";
 import { agentFor, agentRoutes, isAgentPage } from "../clawmuse/agents-content";
 import { getTranslator, resources } from "../clawmuse/i18n/i18n";
@@ -163,5 +177,34 @@ describe("ClawMuse website languages", () => {
     expect(routeInfo("/zh-TW/missing")).toEqual({ language: "zh-TW", page: "/", found: false });
     expect(routeInfo("/zh/missing")).toEqual({ language: "zh-CN", page: "/", found: false });
     expect(routeInfo("/zh-TW-other")).toEqual({ language: "en", page: "/", found: false });
+  });
+
+  it("matches preferred non-English browser locales without overriding English preference", () => {
+    expect(matchPreferredLanguage(["en-US", "zh-CN"], languages)).toBeNull();
+    expect(matchPreferredLanguage(["zh-CN", "en-US"], languages)).toBe("zh-CN");
+    expect(matchPreferredLanguage(["zh-TW", "zh"], languages)).toBe("zh-TW");
+    expect(matchPreferredLanguage(["zh-HK"], pageLanguages("/plugins"))).toBe("zh-CN");
+    expect(matchPreferredLanguage(["ja-JP"], languages)).toBe("ja");
+    expect(matchPreferredLanguage(["ja-JP"], pageLanguages("/agents"))).toBeNull();
+    expect(matchPreferredLanguage(["pt-PT"], languages)).toBe("pt-BR");
+    expect(matchPreferredLanguage(["ar-EG"], languages)).toBe("ar");
+  });
+
+  it("resolves per-platform installer mirror URLs and SHA-256 checksums", () => {
+    const mac = primaryPlatformInstaller("macos");
+    const winX64 = primaryPlatformInstaller("windows", "x64");
+    const winArm = primaryPlatformInstaller("windows", "arm64");
+    expect(mac).toBeDefined();
+    expect(winX64).toBeDefined();
+    expect(winArm).toBeDefined();
+    expect(platformVersion("macos")).toBe("1.5.8");
+    expect(installerMirrorUrl(mac!)).toBe(
+      "https://agent-relay.clawmuse.com/updates/installers/v1.5.8/ClawMuse-1.5.8-arm64.dmg",
+    );
+    expect(installerMirrorUrl(winX64!)).toContain(`/v${release.version}/`);
+    expect(winArm!.arch).toBe("arm64");
+    for (const file of release.files) {
+      expect(file.sha256).toMatch(/^[a-f0-9]{64}$/);
+    }
   });
 });

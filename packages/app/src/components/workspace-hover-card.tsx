@@ -16,7 +16,7 @@ import {
   Folder,
   GitBranch,
   Server,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import { ForgeBrandIcon } from "@/git/forge-icon";
 import type { Theme } from "@/styles/theme";

@@ -36,6 +36,10 @@ When you reopen a conversation, Paseo restores messages and tool results from th
 CLI transcript on that host. If the transcript is missing, the chat shows a warning; the CLI
 can still continue its saved conversation.
 
+Thinking appears during a running task as the CLI saves each completed thinking step. It
+updates in steps rather than word by word; a long thinking step can remain quiet until it
+finishes. This requires the CLI transcript to be readable on the daemon host.
+
 This integration uses your installed CLI and sign-in. It is not endorsed by Google.
 
 Paseo MCP tools and steering are unavailable. Your own `agy` MCP servers still work. Attached

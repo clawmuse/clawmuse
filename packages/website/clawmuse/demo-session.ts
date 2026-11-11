@@ -108,6 +108,16 @@ export function useDemoSession(language: Language, preview = false) {
   const toggleSidebar = useCallback(() => interact({ type: "sidebarToggle" }), [interact]);
   const openFiles = useCallback(() => navigateScene("files"), [navigateScene]);
   const openChat = useCallback(() => navigateScene("chat"), [navigateScene]);
+  const openStatus = useCallback(() => navigateScene("status"), [navigateScene]);
+  const sendSample = useCallback(() => {
+    const translate = getTranslator(language);
+    interact({ type: "draft", text: translate("tour.voicePrompt") });
+    interact({ type: "send", reply: translate("tour.reply") });
+  }, [interact, language]);
+  const startQuickDictation = useCallback(() => {
+    navigateScene("voice");
+    interact({ type: "dictationToggle" });
+  }, [interact, navigateScene]);
   const openDesktop = useCallback(() => dispatch({ type: "selectDevice", device: "desktop" }), []);
   const openModels = useCallback(() => interact({ type: "sheet", sheet: "models" }), [interact]);
   const openTabs = useCallback(() => interact({ type: "sheet", sheet: "tabs" }), [interact]);
@@ -222,6 +232,9 @@ export function useDemoSession(language: Language, preview = false) {
     toggleSidebar,
     openFiles,
     openChat,
+    openStatus,
+    sendSample,
+    startQuickDictation,
     openDesktop,
     openModels,
     openTabs,

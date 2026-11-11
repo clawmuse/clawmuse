@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { BottomSheetScrollView, type BottomSheetScrollViewMethods } from "@gorhom/bottom-sheet";
-import { Wrench, X } from "lucide-react-native";
+import { Wrench, X } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import {

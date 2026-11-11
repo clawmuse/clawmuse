@@ -34,7 +34,9 @@ export interface UserModifiedFields {
 
 export type ProviderModelsByProvider = Map<AgentProvider, AgentModelDefinition[] | null>;
 
-export type AgentFormResolutionState = { status: "pending" } | { status: "completed" };
+export type AgentFormResolutionState =
+  | { status: "pending" }
+  | { status: "completed"; catalogSettled?: boolean };
 
 export interface AgentFormReducerState {
   form: FormState;
@@ -264,11 +266,21 @@ function resolveProvider(input: {
   userModified: boolean;
   initialValues: FormInitialValues | undefined;
   preferences: FormPreferences | null;
+  allowedProviderMap: Map<AgentProvider, AgentProviderDefinition>;
 }): AgentProvider | null {
-  const { currentProvider, userModified, initialValues, preferences } = input;
-  // Discovery readiness does not change the user's saved or explicit choice.
+  const { currentProvider, userModified, initialValues, preferences, allowedProviderMap } = input;
+  // Discovery readiness does not change the user's explicit in-session choice.
   if (userModified) return currentProvider;
-  return initialValues?.provider ?? preferences?.provider ?? currentProvider;
+  if (initialValues?.provider && allowedProviderMap.has(initialValues.provider)) {
+    return initialValues.provider;
+  }
+  if (preferences?.provider && allowedProviderMap.has(preferences.provider)) {
+    return preferences.provider;
+  }
+  if (currentProvider && allowedProviderMap.size > 0 && !allowedProviderMap.has(currentProvider)) {
+    return null;
+  }
+  return currentProvider;
 }
 
 function resolveModeId(input: {
@@ -311,15 +323,16 @@ function resolveModelField(input: {
       findModelByReference(availableModels, "default")?.id || resolveDefaultModelId(availableModels)
     );
   }
+  const defaultModelId = resolveDefaultModelId(availableModels);
   if (initialModel) {
     return !availableModels
       ? initialModel
-      : resolveCanonicalModelId(availableModels, initialModel) || initialModel;
+      : resolveCanonicalModelId(availableModels, initialModel) || defaultModelId;
   }
   if (preferredModel) {
     return !availableModels
       ? preferredModel
-      : resolveCanonicalModelId(availableModels, preferredModel) || preferredModel;
+      : resolveCanonicalModelId(availableModels, preferredModel) || defaultModelId;
   }
   return "";
 }
@@ -373,6 +386,7 @@ export function resolveFormState(
     userModified: userModified.provider,
     initialValues,
     preferences,
+    allowedProviderMap,
   });
 
   const providerDef = result.provider ? allowedProviderMap.get(result.provider) : undefined;
@@ -517,12 +531,29 @@ function pickNextThinkingOptionForTarget(input: {
   });
 }
 
+function hasAnyUserModification(userModified: UserModifiedFields): boolean {
+  return (
+    userModified.provider ||
+    userModified.modeId ||
+    userModified.model ||
+    userModified.thinkingOptionId
+  );
+}
+
 function completeResolution(
   state: AgentFormReducerState,
   action: CompleteResolutionAction,
 ): AgentFormReducerState {
   if (state.resolution.status === "completed") {
-    return state;
+    if (hasAnyUserModification(state.userModified)) {
+      return state;
+    }
+    const providerStillAllowed =
+      state.form.provider !== null &&
+      (action.allowedProviderMap.size === 0 || action.allowedProviderMap.has(state.form.provider));
+    if (state.resolution.catalogSettled && providerStillAllowed) {
+      return state;
+    }
   }
   const resolved = resolveFormStateFromProviderModels(
     action.initialValues,
@@ -532,7 +563,25 @@ function completeResolution(
     state.form,
     action.allowedProviderMap,
   );
-  const nextState = { ...state, resolution: { status: "completed" } as const };
+  const resolvedProviderModels = resolved.provider
+    ? action.providerModelsByProvider.get(resolved.provider)
+    : undefined;
+  const catalogSettled =
+    resolved.provider !== null &&
+    (action.allowedProviderMap.size === 0 || action.allowedProviderMap.has(resolved.provider)) &&
+    resolvedProviderModels !== null;
+  const nextResolution: AgentFormResolutionState = {
+    status: "completed",
+    catalogSettled,
+  };
+  if (
+    state.resolution.status === "completed" &&
+    state.resolution.catalogSettled === catalogSettled &&
+    !hasFormStateChanged(state.form, resolved)
+  ) {
+    return state;
+  }
+  const nextState = { ...state, resolution: nextResolution };
   if (!hasFormStateChanged(state.form, resolved)) return nextState;
   return { ...nextState, form: resolved };
 }
@@ -592,14 +641,21 @@ function receiveInputs(
   const active = action.isVisible && action.isCreateFlow;
   const previous = state.inputs;
   const initial = action.initialValues;
+  const serverChanged = Boolean(previous && previous.serverId !== action.serverId);
   const changed =
     previous?.active !== active ||
-    previous.serverId !== action.serverId ||
-    !sameInitialValues(previous.initialValues, initial);
+    serverChanged ||
+    !sameInitialValues(previous?.initialValues, initial);
   let next = state;
   if (changed) {
+    const baseState = serverChanged
+      ? {
+          ...state,
+          form: { provider: null, modeId: "", model: "", thinkingOptionId: "" },
+        }
+      : state;
     next = {
-      ...resolveAgentForm(state, { type: action.isVisible ? "REQUEST_RESOLUTION" : "RESET" }),
+      ...resolveAgentForm(baseState, { type: action.isVisible ? "REQUEST_RESOLUTION" : "RESET" }),
       inputs: { serverId: action.serverId, initialValues: initial, active },
     };
   }

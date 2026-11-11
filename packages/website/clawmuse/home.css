@@ -20,17 +20,28 @@
 .footer-brand .wordmark {
   display: flex;
   width: fit-content;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
+}
+
+.footer-tagline {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 0 0 16px;
+}
+
+.footer-brand-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
 }
 
 .footer-account {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 14px;
   color: var(--accent);
-  margin-inline-end: 20px;
-  margin-bottom: 10px;
 }
 
 .hero-footnote a {

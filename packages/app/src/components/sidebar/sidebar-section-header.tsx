@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react-native";
+import { ChevronDown, ChevronRight } from "@/components/icons/app-icons";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { DensityIcon } from "@/components/ui/density-icon";
@@ -83,7 +83,7 @@ function CollapsibleTitle({
 
 const styles = StyleSheet.create((theme) => ({
   header: {
-    minHeight: density.rowHeight,
+    minHeight: density.tightRowHeight,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -109,7 +109,8 @@ const styles = StyleSheet.create((theme) => ({
   title: {
     minWidth: 0,
     flexShrink: 1,
-    ...densityText(theme, "content"),
+    ...densityText(theme, "caption"),
+    fontWeight: theme.fontWeight.medium,
     color: theme.colors.foregroundMuted,
   },
   actions: {

@@ -8,7 +8,7 @@ import {
   Server,
   Settings,
   SquarePen,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import {
   memo,
   useCallback,

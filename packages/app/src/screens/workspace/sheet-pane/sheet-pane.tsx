@@ -10,7 +10,7 @@ import {
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { Maximize2 } from "lucide-react-native";
+import { Maximize2 } from "@/components/icons/app-icons";
 import {
   SheetBottomInset,
   SheetDragArea,

@@ -1,114 +1,115 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
-export const MAX_FRAME_BYTES = 512 * 1024 - 1;
+// 320 KiB stays below 512 KiB even after base64 and RPC envelopes.
+// Transport limits: protocol/websocket-message-limit (100 MiB; relay 32 MiB).
+export const MAX_FRAME_BYTES = 320 * 1024;
+export const MAX_FRAME_BASE64 = Math.ceil(MAX_FRAME_BYTES / 3) * 4;
 export const LEASE_MS = 30_000;
-export const platformSchema = z.enum(["ios", "android"]);
-export const deviceIdSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9_.-]{1,200}$/)
-  .refine((value) => value.trim() === value);
+export const qualitySchema = z.enum(["saving", "balanced", "clear"]);
+export type Quality = z.infer<typeof qualitySchema>;
+export const qualityPresets = {
+  saving: { edge: 640, fps: 10, scale: 4, jpeg: 0.5 },
+  balanced: { edge: 960, fps: 20, scale: 3, jpeg: 0.65 },
+  clear: { edge: 1280, fps: 30, scale: 2, jpeg: 0.8 },
+} as const;
+export const platformSchema = z.enum(["android", "ios"]);
+export type Platform = z.infer<typeof platformSchema>;
+export const avdIdSchema = z.string().regex(/^[A-Za-z0-9_.-]{1,200}$/);
 export const udidSchema = z
   .string()
-  .length(36)
   .regex(/^[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}$/);
-const operationIdSchema = z.uuid().length(36);
-const phaseSchema = z.enum(["preparing", "ready", "failed", "stopped"]);
-const capabilitySchema = z.object({ available: z.boolean(), reason: z.string().max(200) }).strict();
-export const deviceSchema = z
-  .object({
-    id: deviceIdSchema,
-    name: z.string().max(200),
-    state: z.enum(["booted", "shutdown", "unavailable"]),
-    reason: z.string().max(200),
-    occupied: z.boolean(),
-  })
-  .strict();
-const pointSchema = z
-  .object({ x: z.number().finite().min(0).max(1), y: z.number().finite().min(0).max(1) })
-  .strict();
-export const actionSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("tap"), point: pointSchema }).strict(),
-  z
-    .object({
-      type: z.literal("swipe"),
-      from: pointSchema,
-      to: pointSchema,
-      durationMs: z.number().int().min(100).max(1500),
-    })
-    .strict(),
-  z.object({ type: z.enum(["back", "home", "recents", "rotate"]) }).strict(),
-  z.object({ type: z.literal("night"), enabled: z.boolean() }).strict(),
-  z.object({ type: z.literal("appearance"), mode: z.enum(["dark", "light"]) }).strict(),
-]);
-const operationInput = z.object({ operationId: operationIdSchema }).strict();
-export const statusSchema = z.object({ phase: phaseSchema, message: z.string().max(200) }).strict();
+export const deviceSchema = z.strictObject({
+  id: z.string().min(1).max(200),
+  name: z.string().min(1).max(200),
+  state: z.enum(["booted", "shutdown", "unavailable"]),
+  reason: z.string().max(200).nullable(),
+  busy: z.boolean(),
+});
+export type Device = z.infer<typeof deviceSchema>;
+const capabilitySchema = z.strictObject({ available: z.boolean(), reason: z.string().max(200) });
 export const capabilitiesRpc = defineRpc({
   name: "device-preview.capabilities",
-  input: z.object({}).strict(),
-  output: z.object({ ios: capabilitySchema, android: capabilitySchema }).strict(),
+  input: z.strictObject({}),
+  output: z.strictObject({ android: capabilitySchema, ios: capabilitySchema }),
 });
 export const listRpc = defineRpc({
   name: "device-preview.list",
-  input: z.object({ platform: platformSchema }).strict(),
-  output: z
-    .object({
-      devices: z.array(deviceSchema).max(1000),
-      excluded: z.array(z.string().max(200)).max(1000),
-    })
-    .strict(),
+  input: z.strictObject({ platform: platformSchema }),
+  output: z.strictObject({
+    devices: z.array(deviceSchema).max(500),
+    notes: z.array(z.string().max(200)).max(10),
+  }),
 });
+const operationIdSchema = z.uuid();
+export const operationSchema = z.strictObject({
+  operationId: operationIdSchema,
+  platform: platformSchema,
+  deviceId: z.string().max(200),
+  quality: qualitySchema,
+  controls: z.array(z.enum(["touch", "back", "home", "recents", "appearance", "rotate"])),
+  phase: z.enum(["preparing", "ready", "failed", "stopped"]),
+  reason: z.string().max(200).nullable(),
+});
+export type OperationStatus = z.infer<typeof operationSchema>;
 export const startRpc = defineRpc({
   name: "device-preview.start",
-  input: z.object({ platform: platformSchema, deviceId: deviceIdSchema }).strict(),
-  output: z.object({ operationId: operationIdSchema, phase: z.literal("preparing") }).strict(),
+  input: z.discriminatedUnion("platform", [
+    z.strictObject({
+      platform: z.literal("android"),
+      deviceId: avdIdSchema,
+      quality: qualitySchema,
+    }),
+    z.strictObject({ platform: z.literal("ios"), deviceId: udidSchema, quality: qualitySchema }),
+  ]),
+  output: operationSchema,
 });
+const operationInput = z.strictObject({ operationId: operationIdSchema });
 export const statusRpc = defineRpc({
   name: "device-preview.status",
   input: operationInput,
-  output: statusSchema,
+  output: operationSchema,
 });
-export const frameSchema = statusSchema
-  .extend({
-    image: z
-      .object({
-        base64: z
-          .string()
-          .min(4)
-          .max(4 * Math.ceil(MAX_FRAME_BYTES / 3))
-          .regex(/^[A-Za-z0-9+/]*={0,2}$/)
-          .refine((value) => {
-            const padding = value.endsWith("==") ? 2 : Number(value.endsWith("="));
-            return value.length % 4 === 0 && (value.length / 4) * 3 - padding <= MAX_FRAME_BYTES;
-          }),
-        width: z.number().int().positive().max(4096),
-        height: z.number().int().positive().max(4096),
-      })
-      .strict()
-      .nullable(),
-  })
-  .strict();
+export const imageSchema = z.strictObject({
+  base64: z.string().max(MAX_FRAME_BASE64),
+  mime: z.enum(["image/jpeg", "image/png"]),
+  width: z.number().int().positive().max(4096),
+  height: z.number().int().positive().max(4096),
+  sequence: z.number().int().positive(),
+  geometry: z.number().int().nonnegative(),
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+});
+export type PreviewImage = z.infer<typeof imageSchema>;
 export const frameRpc = defineRpc({
   name: "device-preview.frame",
-  input: operationInput,
-  output: frameSchema,
+  input: operationInput.extend({ afterSequence: z.number().int().nonnegative().optional() }),
+  output: z.strictObject({
+    status: operationSchema,
+    image: imageSchema.nullable(),
+    unchanged: z.boolean(),
+  }),
 });
+const point = z.number().finite().min(0).max(1);
+export const touchPointSchema = z.strictObject({ x: point, y: point });
+export const actionSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.enum(["back", "home", "recents"]) }),
+  z.strictObject({ type: z.literal("appearance"), dark: z.boolean() }),
+  z.strictObject({ type: z.literal("rotate") }),
+  z.strictObject({
+    type: z.literal("touch"),
+    phase: z.enum(["down", "move", "up"]),
+    points: z.array(touchPointSchema).min(1).max(2),
+    geometry: z.number().int().nonnegative(),
+  }),
+]);
+export type InputAction = z.infer<typeof actionSchema>;
 export const inputRpc = defineRpc({
   name: "device-preview.input",
-  input: operationInput.extend({ action: actionSchema }).strict(),
-  output: z.object({ accepted: z.literal(true) }).strict(),
+  input: operationInput.extend({ action: actionSchema }),
+  output: z.strictObject({ ok: z.literal(true) }),
 });
 export const stopRpc = defineRpc({
   name: "device-preview.stop",
   input: operationInput,
-  output: z.object({ phase: z.literal("stopped") }).strict(),
+  output: operationSchema,
 });
-export type DevicePlatform = z.infer<typeof platformSchema>;
-export type Device = z.infer<typeof deviceSchema>;
-export type Action = z.infer<typeof actionSchema>;
-export type PreviewStatus = z.infer<typeof statusSchema>;
-export type PreviewFrame = z.infer<typeof frameSchema>;
-
-export function pixelPoint(point: z.infer<typeof pointSchema>, width: number, height: number) {
-  return [Math.round(point.x * (width - 1)), Math.round(point.y * (height - 1))].map(String);
-}

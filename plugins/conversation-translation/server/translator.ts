@@ -45,6 +45,7 @@ export function createTranslator(options: TranslatorOptions) {
     target: TranslationRequest["target"],
     settings: Preferences,
     signal = lifetime.signal,
+    sessionKey?: string,
   ): Promise<string> {
     return translateProtected({
       source: text,
@@ -53,6 +54,7 @@ export function createTranslator(options: TranslatorOptions) {
       signal,
       protection: protectLiterals(text),
       kind: "text",
+      sessionKey,
     });
   }
 
@@ -63,6 +65,7 @@ export function createTranslator(options: TranslatorOptions) {
     signal,
     protection,
     kind,
+    sessionKey,
   }: {
     source: string;
     target: TranslationRequest["target"];
@@ -70,6 +73,7 @@ export function createTranslator(options: TranslatorOptions) {
     signal: AbortSignal;
     protection: ReturnType<typeof protectLiterals>;
     kind: "text" | "fields";
+    sessionKey?: string;
   }): Promise<string> {
     if (!settings.model.trim()) throw new TranslationError("请先在会话翻译设置中选择模型");
     signal.throwIfAborted();
@@ -93,6 +97,7 @@ export function createTranslator(options: TranslatorOptions) {
         text: protection.text,
         target,
         signal: AbortSignal.any([signal, lifetime.signal]),
+        sessionKey,
       });
       signal.throwIfAborted();
       lifetime.signal.throwIfAborted();
@@ -124,13 +129,30 @@ export function createTranslator(options: TranslatorOptions) {
       });
       return z.array(z.string()).parse(JSON.parse(translated));
     },
+    async replies(texts: string[], settings: Preferences, agentId: string): Promise<string[]> {
+      if (texts.length === 1)
+        return [await translate(texts[0]!, "Simplified Chinese", settings, undefined, agentId)];
+      // Protected inline-code boundaries survive the model's output and keep each
+      // complete message in its original timeline position. Stable markers retain caching.
+      const boundary = "`PASEO_REPLY_" + key(texts) + "_END`";
+      const result = await translate(
+        texts.join(`\n\n${boundary}\n\n`),
+        "Simplified Chinese",
+        settings,
+        undefined,
+        agentId,
+      );
+      const parts = result.split(boundary);
+      if (parts.length !== texts.length) throw new TranslationError("翻译结果不完整，请重试");
+      return parts.map((part) => part.replace(/^\n+|\n+$/g, ""));
+    },
     close() {
       lifetime.abort();
       cache.clear();
     },
     async input({ agentId, text, settings, signal, clientMessageId }: InputRequest) {
       if (!text.trim() || text.trimStart().startsWith("/")) return text;
-      const translated = await translate(text, "English", settings, signal);
+      const translated = await translate(text, "English", settings, signal, agentId);
       const sent = `${translated}\n\nRespond in English; the client translates your replies for display. Preserve the language of requested artifacts and literal content.`;
       const id = originalKey({ agentId, text: sent, clientMessageId });
       await mkdir(options.directory, { recursive: true, mode: 0o700 });

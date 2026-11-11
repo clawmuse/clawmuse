@@ -7,6 +7,10 @@ const {
 } = require("./native-release-version");
 
 describe("native release version", () => {
+  it("keeps the native marketing version for a dated stable release", () => {
+    expect(getNativeReleaseVersion("1.5.5+1108")).toEqual(getNativeReleaseVersion("1.5.5"));
+    expect(getFdroidVersionCodes("1.5.5+1108")).toEqual(getFdroidVersionCodes("1.5.5"));
+  });
   it("reserves the final iOS build slot for a stable release", () => {
     expect(getNativeReleaseVersion("0.2.6")).toEqual({
       appVersion: "0.2.6",

@@ -298,6 +298,18 @@ untouched. Forging either makes a background resume look like the user read a wo
 agent worked in it just now, which rewrites the sidebar timestamp permanently — persisted
 `updatedAt` is what workspace `statusEnteredAt` is re-derived from on the next daemon start.
 
+## Permanent workspace deletion
+
+**Permanently delete workspace** removes the workspace and all its ClawMuse conversation
+records, including archived conversations. It stops the workspace's agents, terminals and setup.
+The confirmation names the workspace; cancellation leaves it unchanged. The host must advertise
+`workspaceDeletion`. Older hosts require an update.
+
+Deletion retains the project registration, project files and Git worktree, even for a managed
+worktree. It does not erase the provider CLI's independent history or backups. Other workspaces
+sharing the directory retain their records. The workspace record is removed only after cleanup
+succeeds; a failed operation remains retryable, though completed deletions cannot be undone.
+
 ## The subagents track
 
 The track is a pill at the foot of an agent's pane (`packages/app/src/subagents/track.tsx`): a count you can read at a glance, and a panel behind it — a popover on wide screens, a sheet on compact ones — holding the rows. It floats over the transcript rather than sitting in a band above the composer, so the timeline scrolls underneath it; `packages/app/src/panels/agent-tracks.tsx` owns that placement, and the pill frame is shared with the task list in `packages/app/src/composer/tracks.tsx`.

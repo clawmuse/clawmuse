@@ -1587,3 +1587,21 @@ test("plugin provider import launches with runtime MCP servers and returns only 
     await registry.shutdown();
   }
 });
+
+test("plugin provider catalogCacheKey returns undefined instead of throwing when command is not on PATH", async () => {
+  const harness = createProviderHarness();
+  const registration: ProviderRegistration = {
+    ...harness.registration,
+    command: ["missing-paseo-plugin-binary-that-does-not-exist"],
+    getCatalogCacheKey: ({ launch }) => launch?.command,
+  };
+  const registry = new PluginAgentClientRegistry(createTestLogger());
+  registry.replace([registration]);
+  const client = registry.clients()[registration.id]!;
+  try {
+    await expect(client.getCatalogCacheKey!({ cwd: "/project" })).resolves.toBeUndefined();
+    await expect(client.isAvailable()).resolves.toBe(false);
+  } finally {
+    await registry.shutdown();
+  }
+});

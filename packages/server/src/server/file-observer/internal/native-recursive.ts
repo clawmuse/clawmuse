@@ -1,15 +1,16 @@
-import { type Dirent, watch } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { watch } from "node:fs";
+import {
+  isolatedDirectory,
+  type DirectoryEntry as InspectedEntry,
+} from "../../../utils/isolated-directory.js";
 import { dirname, join, resolve } from "node:path";
 import type { BackendDiagnostics, ObservationBackend, ObservationHost } from "./contracts.js";
 import type { ObserverPaths } from "./paths.js";
 import { isMissingPathError, toError } from "./paths.js";
 
 const MAX_TRACKED_ENTRIES = 250_000;
-// fs.stat runs on the libuv threadpool, which is four threads and shared by the
-// whole daemon. One stat per native event pins it and unrelated filesystem work
-// stalls. Beyond the queue bound, fall back to a directory scan, which finds the
-// same paths at a fraction of the cost.
+// Bound native-event classification work before the shared directory isolates.
+// Beyond the queue bound, a directory scan finds the same paths with fewer calls.
 const MAX_CONCURRENT_CLASSIFICATIONS = 32;
 const MAX_QUEUED_CLASSIFICATIONS = 2_048;
 const AUDIT_QUIET_MS = 500;
@@ -275,9 +276,9 @@ class NativeRecursiveBackend implements ObservationBackend {
     while (pending.length > 0 && this.host.isActive()) {
       const directory = pending.pop();
       if (!directory) continue;
-      let children: Dirent[];
+      let children: InspectedEntry[];
       try {
-        children = await readdir(directory, { withFileTypes: true });
+        children = await isolatedDirectory.readdir(directory);
       } catch (error) {
         if (isMissingPathError(error) && !this.host.isActive()) {
           return { directories, entries, files };
@@ -398,9 +399,9 @@ class NativeRecursiveBackend implements ObservationBackend {
 
   private async readDirectory(directory: string): Promise<DirectoryEntry | null> {
     this.host.metrics.nativeShallowScanCount += 1;
-    let children: Dirent[];
+    let children: InspectedEntry[];
     try {
-      children = await readdir(directory, { withFileTypes: true });
+      children = await isolatedDirectory.readdir(directory);
     } catch (error) {
       if (!isMissingPathError(error) || directory === this.host.root) throw error;
       return null;
@@ -708,7 +709,8 @@ class NativeRecursiveBackend implements ObservationBackend {
   private startClassification(path: string, onPresent: (isDirectory: boolean) => void): void {
     this.host.metrics.nativeClassificationCount += 1;
     let classification!: Promise<void>;
-    classification = stat(path)
+    classification = isolatedDirectory
+      .stat(path)
       .then((stats) => {
         this.host.queueEvent("create", path);
         if (this.host.isActive() && !this.host.isIgnored(path)) onPresent(stats.isDirectory());

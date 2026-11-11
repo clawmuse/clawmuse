@@ -15,7 +15,8 @@ import { startDriver, selection, type Driver } from "./process.js";
 import { validateSelection } from "./catalog.js";
 import { PromptFiles } from "./prompt.js";
 import { toolItem } from "./timeline.js";
-import { readHistory } from "./history.js";
+import { readHistory, transcriptPaths } from "./history.js";
+import { LiveThinking } from "./thinking.js";
 import { AntigravityTokenSpeedObserver } from "./token-speed.js";
 import { AntigravityError, diagnostic, type Frame, type Step } from "./wire.js";
 
@@ -30,6 +31,7 @@ type TurnUsageCounters = Required<
 >;
 interface Turn {
   id: string;
+  thinking: LiveThinking | null;
   text: Map<number, string>;
   usageSteps: Set<number>;
   tools: Map<string, Extract<ProviderTimelineItem, { type: "tool_call" }>>;
@@ -121,6 +123,7 @@ export class Session {
     const driver = this.state.driver;
     const turn: Turn = {
       id: randomUUID(),
+      thinking: null,
       text: new Map(),
       usageSteps: new Set(),
       tools: new Map(),
@@ -180,6 +183,7 @@ export class Session {
   async interrupt(): Promise<void> {
     if (this.state.type !== "running") return;
     const { driver, turn } = this.state;
+    turn.thinking?.stop();
     turn.tokenSpeed.stop();
     this.state = { type: "stopping", driver };
     await driver.stop("interrupt");
@@ -197,6 +201,7 @@ export class Session {
   async close(): Promise<void> {
     const state = this.state;
     if (state.type === "running") {
+      state.turn.thinking?.stop();
       state.turn.tokenSpeed.stop();
     }
     this.state = { type: "closed" };
@@ -275,15 +280,25 @@ export class Session {
     }
   }
 
-  private accept(frame: Frame): void {
+  private accept(frame: Frame): void | Promise<void> {
     if (this.state.type !== "running") return;
-    const { turn, driver } = this.state;
+    const { turn } = this.state;
     if (frame.event === "step_update") {
       this.acceptStep(frame.step_update, turn);
       return;
     }
     if (frame.event !== "result") return;
-    const result = frame.result;
+    return this.complete(frame.result, this.state);
+  }
+
+  private async complete(
+    result: Extract<Frame, { event: "result" }>["result"],
+    state: Extract<State, { type: "running" }>,
+  ): Promise<void> {
+    const { turn, driver } = state;
+    await turn.thinking?.flush();
+    turn.thinking?.stop();
+    if (this.state !== state) return;
     const denied = takeNewDenials(result.denied_actions, this.reportedDenials);
     if (denied.length > 0) {
       this.emit({
@@ -326,6 +341,30 @@ export class Session {
 
   private acceptStep(step: Step, turn: Turn): void {
     const id = `${turn.id}:${step.step_index}`;
+    if (step.step_type === "user_input" && !turn.thinking) {
+      turn.thinking = new LiveThinking({
+        paths: transcriptPaths(step.conversation_id, this.options.launch),
+        afterStep: step.step_index,
+        onThinking: (index, text) => {
+          if (this.state.type === "running" && this.state.turn === turn)
+            this.item({ type: "reasoning", id: `${turn.id}:${index}:thinking`, text });
+        },
+        onError: () => {
+          if (this.state.type !== "running" || this.state.turn !== turn) return;
+          this.emit({
+            type: "session.notice",
+            sessionId: this.options.id,
+            notice: {
+              id: `${turn.id}:thinking-unavailable`,
+              severity: "warning",
+              title: "Antigravity thinking is unavailable",
+              description:
+                "Could not read the CLI transcript. Messages and tool activity will continue.",
+            },
+          });
+        },
+      });
+    }
     const refreshDue = turn.tokenSpeed.observeStep(step);
     if (step.step_type === "agent_response") {
       const previous = turn.text.get(step.step_index) || "";
@@ -356,6 +395,7 @@ export class Session {
     if (state.type !== "running" && state.type !== "idle") return;
     this.retire(state.driver);
     if (state.type === "running") {
+      state.turn.thinking?.stop();
       state.turn.tokenSpeed.stop();
       this.finishTools(state.turn, "failed");
       this.emitUsage(state.turn);

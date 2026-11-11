@@ -109,6 +109,7 @@ import type {
   ProviderDiagnosticResponseMessage,
   ProviderUsageListResponseMessage,
   UsageReportEntry,
+  UsageDailyHistory,
   DaemonGetStatusResponse,
   DaemonGetPairingOfferResponse,
   DaemonConfigReloadResponse,
@@ -650,6 +651,7 @@ type ProviderUsageListPayload = ProviderUsageListResponseMessage["payload"];
 interface UsageListReportsPayload {
   requestId: string;
   reports: UsageReportEntry[];
+  dailyUsage?: UsageDailyHistory;
 }
 type DaemonStatusPayload = DaemonGetStatusResponse["payload"];
 type DaemonPairingOfferPayload = DaemonGetPairingOfferResponse["payload"];
@@ -3196,6 +3198,16 @@ export class DaemonClient {
       message: { type: "workspace.script.stop.request", workspaceId, scriptName },
       responseType: "workspace.script.stop.response",
     });
+  }
+
+  async deleteWorkspace(workspaceId: string): Promise<void> {
+    if (this.lastServerInfoMessage?.features?.workspaceDeletion !== true) {
+      throw new Error("Update the host to permanently delete workspaces.");
+    }
+    const result = await this.sendNamespacedCorrelatedSessionRequest<"workspace.delete.response">({
+      message: { type: "workspace.delete.request", workspaceId },
+    });
+    if (result.error) throw new Error(result.error);
   }
 
   async archiveWorkspace(
@@ -6058,7 +6070,11 @@ export class DaemonClient {
             : null,
       });
       if (response.error !== null) throw new Error(response.error);
-      return { requestId, reports };
+      return {
+        requestId,
+        reports,
+        ...(response.dailyUsage !== undefined ? { dailyUsage: response.dailyUsage } : {}),
+      };
     } finally {
       active = false;
       unsubscribe();

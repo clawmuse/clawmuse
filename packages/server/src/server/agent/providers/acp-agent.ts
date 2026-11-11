@@ -1759,6 +1759,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private initialCommandsWaitTimeoutMs: number;
   private readonly extensionCommandsParser?: ACPExtensionCommandsParser;
   private currentTurnUsage: AgentUsage | undefined;
+  private lastCostUsd: number | undefined;
   private activeForegroundTurnId: string | null = null;
   private fallbackAssistantMessageId: string | null = null;
   private closed = false;
@@ -3309,6 +3310,12 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     if (contextWindowMaxTokens === undefined || contextWindowUsedTokens === undefined) {
       return;
     }
+    // usage_updated replaces lastUsage wholesale, so the last USD cost rides along on
+    // every context update; the agent reports it as a cumulative session total.
+    const cost = update.cost;
+    if (cost && cost.currency === "USD" && Number.isFinite(cost.amount)) {
+      this.lastCostUsd = cost.amount;
+    }
     this.pushEvent({
       type: "usage_updated",
       provider: this.provider,
@@ -3316,6 +3323,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
         ...this.currentTurnUsage,
         contextWindowMaxTokens,
         contextWindowUsedTokens,
+        ...(this.lastCostUsd !== undefined ? { totalCostUsd: this.lastCostUsd } : {}),
       },
       turnId: this.activeForegroundTurnId ?? undefined,
     });

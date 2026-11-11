@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/scroll-view";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { AlertTriangle, Check, Pencil, Plus, Search, Settings } from "lucide-react-native";
+import { AlertTriangle, Check, Pencil, Plus, Search, Settings } from "@/components/icons/app-icons";
 import type { AgentProvider } from "@getpaseo/protocol/agent-types";
 import {
   AgentProfileGlyph,
@@ -53,12 +53,16 @@ import {
   resolveRecentModelRows,
 } from "@/components/model-browser-view";
 
+// RN Web dismisses the globally focused input even for a delayed programmatic scroll.
+// A model list behind a modal must not blur that modal's search or restored focus.
+const MODEL_LIST_KEYBOARD_DISMISS_MODE = isWeb ? "none" : "on-drag";
+
 const DESKTOP_VIEW_MIN_HEIGHT = 220;
 const DESKTOP_VIEW_MAX_HEIGHT = 400;
-const DESKTOP_VIEW_BASE_HEIGHT = 88;
-const DESKTOP_TAB_BAR_HEIGHT = 40;
+const DESKTOP_VIEW_BASE_HEIGHT = 48;
+const DESKTOP_TAB_BAR_HEIGHT = 36;
 const DESKTOP_SECTION_HEADING_HEIGHT = 28;
-const DESKTOP_MODEL_ROW_HEIGHT = 40;
+const DESKTOP_MODEL_ROW_HEIGHT = 36;
 
 const ThemedAlertTriangle = withUnistyles(AlertTriangle);
 const ThemedCheck = withUnistyles(Check);
@@ -285,9 +289,22 @@ export function useModelBrowser({
     [providers, selectedProvider],
   );
 
+  const effectiveRecentModels = useMemo(() => {
+    const provider = selectedProvider.trim();
+    const modelId = selectedModel.trim();
+    const existing = recentModels ?? [];
+    if (!provider || !modelId) {
+      return existing;
+    }
+    if (existing.some((item) => item.provider === provider && item.modelId === modelId)) {
+      return existing;
+    }
+    return [{ provider, modelId }, ...existing];
+  }, [recentModels, selectedModel, selectedProvider]);
+
   const recentModelRows = useMemo(
-    () => resolveRecentModelRows({ recentModels, providers }),
-    [providers, recentModels],
+    () => resolveRecentModelRows({ recentModels: effectiveRecentModels, providers }),
+    [effectiveRecentModels, providers],
   );
 
   const activeProvider = useMemo(
@@ -1090,7 +1107,7 @@ function IndependentModelList({
         keyExtractor={getModelRowKey}
         style={styles.virtualizedModelList}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={MODEL_LIST_KEYBOARD_DISMISS_MODE}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.virtualizedModelListContent}
         nestedScrollEnabled
@@ -1114,7 +1131,7 @@ function IndependentProviderList({ children }: { children: React.ReactNode }) {
           styles.virtualizedProviderListContent,
         ]}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={MODEL_LIST_KEYBOARD_DISMISS_MODE}
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled
         testID="compact-provider-list"
@@ -1310,6 +1327,9 @@ function RecentModelsSection({
  */
 function ActiveProviderModels({
   serverId,
+  providers,
+  activeProviderId,
+  onSelectProviderTab,
   provider,
   profiles,
   recentModelRows,
@@ -1327,6 +1347,9 @@ function ActiveProviderModels({
   scrolling,
 }: {
   serverId: string | null;
+  providers: ProviderSelectorProvider[];
+  activeProviderId: string | null;
+  onSelectProviderTab: (providerId: string) => void;
   provider: ProviderSelectorProvider | null;
   profiles: AgentProfilePicker | null;
   recentModelRows: ProviderSelectionModelRow[];
@@ -1344,19 +1367,25 @@ function ActiveProviderModels({
   scrolling: "sheet" | "independent";
 }) {
   const { t } = useTranslation();
-  const listHeader = useMemo(() => {
-    // Profiles stay cross-provider like the recents beside them: applying one
-    // switches provider, so scoping it to the active tab would hide reachable
-    // picks behind a tab press for no gain.
+  const topSections = useMemo(() => {
+    const providerTabs =
+      providers.length > 1 ? (
+        <ProviderTabBar
+          providers={providers}
+          serverId={serverId}
+          activeProviderId={activeProviderId}
+          onSelectProvider={onSelectProviderTab}
+        />
+      ) : null;
     const profilesContent =
-      showProfilesSection && profiles ? (
+      showProfilesSection && profiles && profiles.rows.length > 0 ? (
         <AgentProfilesPickerContent
           rows={profiles.rows}
           onApplyProfile={onApplyProfile}
           onEditProfiles={onEditProfiles}
         />
       ) : null;
-    if (!profilesContent && recentModelRows.length === 0) {
+    if (!providerTabs && !profilesContent && recentModelRows.length === 0) {
       return undefined;
     }
     return (
@@ -1372,17 +1401,21 @@ function ActiveProviderModels({
           onEditProfile={onEditProfile}
           onEditProfiles={onEditProfiles}
         />
+        {providerTabs}
         {profilesContent}
       </View>
     );
   }, [
+    activeProviderId,
     onApplyProfile,
     onCreateProfile,
     onEditProfile,
     onEditProfiles,
     onSelect,
+    onSelectProviderTab,
     profiledLookup,
     profiles,
+    providers,
     recentModelRows,
     selectedModel,
     selectedProvider,
@@ -1396,22 +1429,28 @@ function ActiveProviderModels({
   const selection = provider.modelSelection;
   if (selection.kind === "loading") {
     return (
-      <View style={styles.emptyState}>
-        <View style={styles.rowSpinner}>
-          <ThemedLoadingSpinner size={ICON_SIZE.sm} uniProps={foregroundMutedMapping} />
+      <View>
+        {topSections}
+        <View style={styles.emptyState}>
+          <View style={styles.rowSpinner}>
+            <ThemedLoadingSpinner size={ICON_SIZE.sm} uniProps={foregroundMutedMapping} />
+          </View>
+          <Text style={styles.emptyStateText}>{t("modelSelector.loadingShort")}</Text>
         </View>
-        <Text style={styles.emptyStateText}>{t("modelSelector.loadingShort")}</Text>
       </View>
     );
   }
   if (selection.kind === "error") {
     return (
-      <ProviderErrorEmptyState
-        providerId={provider.id}
-        message={selection.message}
-        onRetryProvider={onRetryProvider}
-        isRetryingProvider={isRetryingProvider}
-      />
+      <View>
+        {topSections}
+        <ProviderErrorEmptyState
+          providerId={provider.id}
+          message={selection.message}
+          onRetryProvider={onRetryProvider}
+          isRetryingProvider={isRetryingProvider}
+        />
+      </View>
     );
   }
   return (
@@ -1421,7 +1460,7 @@ function ActiveProviderModels({
       selectedProvider={selectedProvider}
       selectedModel={selectedModel}
       onSelect={onSelect}
-      header={listHeader}
+      header={topSections}
       scrolling={scrolling}
       profiledLookup={profiledLookup}
       onCreateProfile={onCreateProfile}
@@ -1528,7 +1567,7 @@ function ModelBrowserContent({
           styles.virtualizedProviderListContent,
         ]}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={MODEL_LIST_KEYBOARD_DISMISS_MODE}
         showsVerticalScrollIndicator={false}
         testID="compact-provider-list"
       >
@@ -1539,16 +1578,11 @@ function ModelBrowserContent({
 
   return (
     <View style={styles.browseBody}>
-      {providers.length > 1 ? (
-        <ProviderTabBar
-          providers={providers}
-          serverId={serverId}
-          activeProviderId={activeProviderId}
-          onSelectProvider={onSelectProviderTab}
-        />
-      ) : null}
       <ActiveProviderModels
         serverId={serverId}
+        providers={providers}
+        activeProviderId={activeProviderId}
+        onSelectProviderTab={onSelectProviderTab}
         provider={activeProvider}
         profiles={profiles}
         recentModelRows={recentModelRows}

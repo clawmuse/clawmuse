@@ -58,6 +58,13 @@ describe("clawmuse-agent-live-activity files", () => {
   it("copies tracked extension files and shared attributes idempotently", () => {
     const { root, sourceDirectory, attributesPath } = createSourceDirectory();
     const destinationDirectory = path.join(root, "ios", TARGET_NAME);
+    fs.mkdirSync(path.join(sourceDirectory, "Assets.xcassets", "logo.imageset"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(sourceDirectory, "Assets.xcassets", "logo.imageset", "Contents.json"),
+      "{}",
+    );
 
     const firstFiles = copyLiveActivityFiles({
       sourceDirectory,
@@ -71,6 +78,13 @@ describe("clawmuse-agent-live-activity files", () => {
     });
 
     expect(secondFiles).toEqual(firstFiles);
+    expect(firstFiles).toContain(path.join(destinationDirectory, "Assets.xcassets"));
+    expect(firstFiles.some((file: string) => file.endsWith("Contents.json"))).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(destinationDirectory, "Assets.xcassets", "logo.imageset", "Contents.json"),
+      ),
+    ).toBe(true);
     expect(fs.readFileSync(path.join(destinationDirectory, "Widget.swift"), "utf8")).toBe(
       "struct Widget {}",
     );
@@ -196,6 +210,9 @@ describe("clawmuse-agent-live-activity Xcode project", () => {
       generatedFiles: [
         "AgentLiveActivityAttributes.swift",
         "Info.plist",
+        "Assets.xcassets",
+        "BarlowCondensed-Medium.ttf",
+        "licenses/NOTICE.txt",
         "en.lproj/Localizable.strings",
         "zh-Hans.lproj/Localizable.strings",
       ],
@@ -226,7 +243,7 @@ describe("clawmuse-agent-live-activity Xcode project", () => {
     ).toHaveLength(2);
     expect(
       project.buildPhaseObject("PBXResourcesBuildPhase", "Resources", extensionTargetUuid)?.files,
-    ).toHaveLength(2);
+    ).toHaveLength(5);
     expect(
       fileReferencePaths(project.pbxFileReferenceSection()).filter(
         (value) => value === "ClawMuseAgentLiveActivityWidget.swift",

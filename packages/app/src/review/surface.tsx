@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Plus, Trash2 } from "lucide-react-native";
+import { Pencil, Plus, Trash2 } from "@/components/icons/app-icons";
 import {
   Pressable,
   type PressableStateCallbackType,

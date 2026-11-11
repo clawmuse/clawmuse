@@ -31,8 +31,16 @@ export type {
 } from "./lifecycle.js";
 
 export { spawnProcess, execCommand, terminateProcess } from "./process.js";
-export { PluginTextGenerationRequestSchema } from "./text-generation.js";
-export type { PluginTextGenerationRequest, PluginTextGenerator } from "./text-generation.js";
+export {
+  PluginTextGenerationRequestSchema,
+  PluginTextPreparationRequestSchema,
+} from "./text-generation.js";
+export type {
+  PluginTextGenerationRequest,
+  PluginTextGenerator,
+  PluginTextPreparationRequest,
+  PluginTextPreparer,
+} from "./text-generation.js";
 
 export { defineAgentTool } from "./agent-tools.js";
 export type { AgentToolDefinition, AgentToolResult, AgentToolContext } from "./agent-tools.js";

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { FolderTree } from "lucide-react-native";
+import { FolderTree } from "@/components/icons/app-icons";
 import {
   AdaptiveModalSheet,
   SHEET_HEADER_CLOSE_PADDING_SCALE,

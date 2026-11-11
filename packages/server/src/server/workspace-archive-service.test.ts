@@ -1,3 +1,9 @@
+import { deleteWorkspace } from "./workspace-delete-service.js";
+import { AgentStorage } from "./agent/agent-storage.js";
+import {
+  FileBackedWorkspaceRegistry,
+  createPersistedWorkspaceRecord,
+} from "./workspace-registry.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,7 +17,7 @@ import { getPaseoWorktreeMetadataPath } from "../utils/worktree-metadata.js";
 import { archiveCommand } from "./worktree/commands.js";
 import { createWorktree, listPaseoWorktrees, type WorktreeConfig } from "../utils/worktree.js";
 import type { ManagedAgent } from "./agent/agent-manager.js";
-import type { AgentStorage, StoredAgentRecord } from "./agent/agent-storage.js";
+import type { StoredAgentRecord } from "./agent/agent-storage.js";
 import type { WorkspaceGitService } from "./workspace-git-service.js";
 import {
   archiveByScope,
@@ -1050,5 +1056,162 @@ describe("resolveWorkspaceIdAtPath", () => {
     );
 
     expect(result).toBe("ws-nested");
+  });
+});
+
+describe("permanent workspace deletion", () => {
+  test.each(["directory", "local_checkout", "worktree"] as const)(
+    "deletes active and archived conversations in a %s workspace without touching shared files",
+    async (kind) => {
+      const { tempDir, repoDir: sourceRepo } = createGitRepo();
+      let repoDir = sourceRepo;
+      if (kind === "worktree") {
+        repoDir = (
+          await createPaseoOwnedWorktree(sourceRepo, path.join(tempDir, "home"), "keep-files")
+        ).worktreePath;
+      }
+      const untrackedFile = path.join(repoDir, "uncommitted.txt");
+      writeFileSync(untrackedFile, "keep my work");
+      const logger = createLogger();
+      const registryPath = path.join(tempDir, "workspaces.json");
+      const workspaceRegistry = new FileBackedWorkspaceRegistry(registryPath, logger);
+      const storagePath = path.join(tempDir, "agents");
+      const agentStorage = new AgentStorage(storagePath, logger);
+      await workspaceRegistry.initialize();
+      const timestamp = "2026-11-08T00:00:00.000Z";
+      for (const workspaceId of ["deleted", "sibling"]) {
+        await workspaceRegistry.upsert(
+          createPersistedWorkspaceRecord({
+            workspaceId,
+            projectId: "project",
+            cwd: repoDir,
+            kind,
+            displayName: workspaceId,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          }),
+        );
+      }
+      for (const [id, workspaceId, archivedAt] of [
+        ["active", "deleted", null],
+        ["archived", "deleted", timestamp],
+        ["survivor", "sibling", null],
+      ] as const) {
+        await agentStorage.upsert({
+          id,
+          workspaceId,
+          archivedAt,
+          provider: "codex",
+          cwd: repoDir,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          lastActivityAt: timestamp,
+          title: id,
+          lastStatus: "closed",
+          lastModeId: null,
+          labels: {},
+          config: { provider: "codex", cwd: repoDir },
+          runtimeInfo: { provider: "codex", sessionId: null },
+          persistence: null,
+          lastError: null,
+          requiresAttention: false,
+          attentionReason: null,
+          attentionTimestamp: null,
+          internal: false,
+        });
+      }
+      const filesBefore = execFileSync("git", ["status", "--porcelain"], {
+        cwd: repoDir,
+      }).toString();
+      const closed: string[] = [];
+      const removed: string[] = [];
+      let closeFails = true;
+      const dependencies = {
+        workspaceRegistry,
+        agentStorage,
+        terminalManager: null,
+        stopSetup: async () => {},
+        teardown: async () => {},
+        agentManager: {
+          listAgents: () => [],
+          closeAgent: async (id: string) => {
+            if (closeFails) throw new Error("agent still running");
+            closed.push(id);
+          },
+          flush: async () => {},
+          deleteAgentState: async (id: string) => {
+            removed.push(id);
+          },
+          notifyAgentRemoved: () => {},
+        },
+      };
+      await expect(deleteWorkspace(dependencies, "deleted")).rejects.toThrow("agent still running");
+      expect(await workspaceRegistry.get("deleted")).not.toBeNull();
+      expect(
+        (await agentStorage.listByWorkspace("deleted")).map((agent) => agent.id).sort(),
+      ).toEqual(["active", "archived"]);
+      closeFails = false;
+      await Promise.all([
+        deleteWorkspace(dependencies, "deleted"),
+        deleteWorkspace(dependencies, "deleted"),
+      ]);
+      expect(closed.sort()).toEqual(["active", "archived"]);
+      expect(removed.sort()).toEqual(["active", "archived"]);
+      const reloadedRegistry = new FileBackedWorkspaceRegistry(registryPath, logger);
+      expect(await reloadedRegistry.get("deleted")).toBeNull();
+      expect(await reloadedRegistry.get("sibling")).not.toBeNull();
+      const reloadedAgents = new AgentStorage(storagePath, logger);
+      expect((await reloadedAgents.list()).map((agent) => agent.id)).toEqual(["survivor"]);
+      expect(execFileSync("git", ["status", "--porcelain"], { cwd: repoDir }).toString()).toBe(
+        filesBefore,
+      );
+      expect(existsSync(repoDir)).toBe(true);
+      expect(readFileSync(untrackedFile, "utf8")).toBe("keep my work");
+      await deleteWorkspace(dependencies, "deleted");
+    },
+  );
+
+  test("retains the workspace when setup cannot stop, then permits retry", async () => {
+    const { tempDir, repoDir } = createGitRepo();
+    const logger = createLogger();
+    const workspaceRegistry = new FileBackedWorkspaceRegistry(
+      path.join(tempDir, "workspaces.json"),
+      logger,
+    );
+    await workspaceRegistry.initialize();
+    await workspaceRegistry.upsert(
+      createPersistedWorkspaceRecord({
+        workspaceId: "target",
+        projectId: "project",
+        cwd: repoDir,
+        kind: "directory",
+        displayName: "target",
+        createdAt: "2026-11-08T00:00:00.000Z",
+        updatedAt: "2026-11-08T00:00:00.000Z",
+      }),
+    );
+    const agentStorage = new AgentStorage(path.join(tempDir, "agents"), logger);
+    let stopFails = true;
+    const dependencies = {
+      workspaceRegistry,
+      agentStorage,
+      terminalManager: null,
+      stopSetup: async () => {
+        if (stopFails) throw new Error("setup still running");
+      },
+      teardown: async () => {},
+      agentManager: {
+        listAgents: () => [],
+        closeAgent: async () => {},
+        flush: async () => {},
+        deleteAgentState: async () => {},
+        notifyAgentRemoved: () => {},
+      },
+    };
+    await expect(deleteWorkspace(dependencies, "target")).rejects.toThrow("setup still running");
+    expect(await workspaceRegistry.get("target")).not.toBeNull();
+    stopFails = false;
+    await deleteWorkspace(dependencies, "target");
+    expect(await workspaceRegistry.get("target")).toBeNull();
   });
 });

@@ -1,6 +1,8 @@
 import type { PluginHookAgent } from "@getpaseo/plugin/server";
 import {
   PluginTextGenerationRequestSchema,
+  PluginTextPreparationRequestSchema,
+  type PluginTextPreparationRequest,
   type PluginTextGenerationRequest,
 } from "@getpaseo/plugin/server";
 import { UsageScopeSchema, type UsageScope } from "@getpaseo/plugin/server/usage";
@@ -85,6 +87,7 @@ export type PluginProcessRequest =
 
 export type PluginProcessMessage =
   | { type: "text.generate"; requestId: string; request: PluginTextGenerationRequest }
+  | { type: "text.prepare"; requestId: string; request: PluginTextPreparationRequest }
   | { type: "text.cancel"; requestId: string }
   | { type: "settings.changed"; settingsId: string }
   | { type: "hooks.changed"; hooks: string[] }
@@ -285,6 +288,13 @@ export const PluginProcessMessageSchema: z.ZodType<PluginProcessMessage> = z.dis
         type: z.literal("text.generate"),
         requestId: z.string().min(1),
         request: PluginTextGenerationRequestSchema,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("text.prepare"),
+        requestId: z.string().min(1),
+        request: PluginTextPreparationRequestSchema,
       })
       .strict(),
     z.object({ type: z.literal("text.cancel"), requestId: z.string().min(1) }).strict(),

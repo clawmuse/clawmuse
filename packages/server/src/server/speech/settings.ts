@@ -28,7 +28,7 @@ function readDictationSettings(persisted: PersistedConfig): SpeechSettings["dict
     enabled: dictation?.enabled ?? true,
     provider,
     model: dictation?.stt?.model ?? defaultModels[provider],
-    language: dictation?.stt?.language ?? "en",
+    language: dictation?.stt?.language ?? (provider === "stepfun" ? "zh" : "en"),
   };
 }
 

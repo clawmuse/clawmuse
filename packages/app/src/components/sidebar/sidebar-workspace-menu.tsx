@@ -1,5 +1,19 @@
-import { useMemo, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
+import { useDeleteWorkspace } from "@/workspace/use-delete-workspace";
+import {
+  useCallback,
+  useMemo,
+  type ComponentProps,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/contexts/toast-context";
+import { getHostRuntimeStore } from "@/runtime/host-runtime";
+import { useSessionStore } from "@/stores/session-store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import { confirmDialog } from "@/utils/confirm-dialog";
+import { agentHistoryQueryKey, allAgentHistoryQueryRootKey } from "@/hooks/agent-history-query-key";
 import { type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
@@ -12,7 +26,8 @@ import {
   Pin,
   PinOff,
   Tag,
-} from "lucide-react-native";
+  Trash2,
+} from "@/components/icons/app-icons";
 import { isWeb } from "@/constants/platform";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
@@ -24,6 +39,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -31,6 +47,7 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Shortcut } from "@/components/ui/shortcut";
@@ -46,6 +63,8 @@ import {
   type WorkspaceLabelTarget,
 } from "@/workspace-labels/picker";
 
+const pendingConversationDeletes = new Set<string>();
+
 const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const foregroundMutedColorMapping = (theme: Theme) => ({
   color: theme.colors.foregroundMuted,
@@ -60,6 +79,7 @@ const ThemedCircleCheck = withUnistyles(CircleCheck);
 const ThemedPin = withUnistyles(Pin);
 const ThemedPinOff = withUnistyles(PinOff);
 const ThemedTag = withUnistyles(Tag);
+const ThemedTrash2 = withUnistyles(Trash2);
 
 const copyLeadingIcon = <ThemedCopy size={14} uniProps={foregroundMutedColorMapping} />;
 const renameLeadingIcon = <ThemedPencil size={14} uniProps={foregroundMutedColorMapping} />;
@@ -70,6 +90,9 @@ const markAsUnreadLeadingIcon = <ThemedCircle size={14} uniProps={foregroundMute
 const archiveLeadingIcon = <ThemedArchive size={14} uniProps={foregroundMutedColorMapping} />;
 const pinLeadingIcon = <ThemedPin size={14} uniProps={foregroundMutedColorMapping} />;
 const unpinLeadingIcon = <ThemedPinOff size={14} uniProps={foregroundMutedColorMapping} />;
+const deleteLeadingIcon = (
+  <ThemedTrash2 size={14} uniProps={(theme: Theme) => ({ color: theme.colors.destructive })} />
+);
 
 const triggerIconProps = densityIconProps("sm", foregroundMutedColorMapping);
 const triggerIconHoveredProps = densityIconProps("sm", foregroundColorMapping);
@@ -128,6 +151,10 @@ function WorkspaceMenuItem({
   return <DropdownMenuItem {...props}>{children}</DropdownMenuItem>;
 }
 
+function WorkspaceMenuSeparator({ surface }: { surface: MenuSurface }) {
+  return surface === "context" ? <ContextMenuSeparator /> : <DropdownMenuSeparator />;
+}
+
 function SidebarWorkspaceMenuItems({
   surface,
   workspaceKey,
@@ -148,6 +175,77 @@ function SidebarWorkspaceMenuItems({
   openInFileManagerPath,
 }: SidebarWorkspaceMenuItemsProps & { surface: MenuSurface }): ReactNode {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const workspaceDeletion = useDeleteWorkspace();
+  const workspace = useSessionStore((state) =>
+    serverId && workspaceId ? state.sessions[serverId]?.workspaces.get(workspaceId) : undefined,
+  );
+  const currentAgent = useSessionStore((state) => {
+    const session = serverId ? state.sessions[serverId] : undefined;
+    const agentId = session?.focusedAgentId;
+    const agent = agentId
+      ? (session?.agents.get(agentId) ?? session?.agentDetails.get(agentId))
+      : null;
+    return agent?.workspaceId === workspaceId ? agent : null;
+  });
+  const deletion = useMutation({
+    mutationFn: async (agent: NonNullable<typeof currentAgent>) => {
+      const deleteKey = `${agent.serverId}:${agent.id}`;
+      if (pendingConversationDeletes.has(deleteKey)) return;
+      pendingConversationDeletes.add(deleteKey);
+      try {
+        const client = getHostRuntimeStore().getClient(agent.serverId);
+        if (!client) throw new Error(t("sidebar.workspace.toasts.hostDisconnected"));
+        const confirmed = await confirmDialog({
+          title: t("sidebar.workspace.deleteConversation.label"),
+          message: t("sidebar.workspace.deleteConversation.message", {
+            title: agent.title ?? t("agentList.fallbackTitle"),
+          }),
+          confirmLabel: t("sidebar.workspace.deleteConversation.label"),
+          cancelLabel: t("sidebar.workspace.confirmations.cancel"),
+          destructive: true,
+        });
+        if (!confirmed) return;
+        const dismissProgress = toast.show(t("sidebar.workspace.deleteConversation.deleting"), {
+          durationMs: null,
+        });
+        try {
+          await client.deleteAgent(agent.id);
+          // The existing delete RPC can acknowledge a storage failure; verify before removing local state.
+          if (await client.fetchAgent(agent.id)) {
+            throw new Error(t("sidebar.workspace.deleteConversation.failed"));
+          }
+        } finally {
+          dismissProgress();
+        }
+        getHostRuntimeStore().restoreAgentSnapshot(agent.serverId, agent.id, undefined);
+        const layout = useWorkspaceLayoutStore.getState();
+        for (const tab of layout.getWorkspaceTabs(workspaceKey)) {
+          if (tab.target.kind === "agent" && tab.target.agentId === agent.id) {
+            layout.closeTab(workspaceKey, tab.tabId);
+          }
+        }
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: agentHistoryQueryKey(agent.serverId) }),
+          queryClient.invalidateQueries({ queryKey: allAgentHistoryQueryRootKey() }),
+        ]);
+      } finally {
+        pendingConversationDeletes.delete(deleteKey);
+      }
+    },
+    onError: (error) => {
+      toast.show(error.message, { variant: "error", durationMs: null });
+    },
+  });
+  const deleteCurrentAgent = useCallback(() => {
+    if (currentAgent && !deletion.isPending) deletion.mutate(currentAgent);
+  }, [currentAgent, deletion]);
+  const deleteCurrentWorkspace = useCallback(() => {
+    if (serverId && workspaceId && workspace && !workspaceDeletion.isPending) {
+      workspaceDeletion.mutate({ serverId, workspaceId, workspaceKey, name: workspace.name });
+    }
+  }, [serverId, workspaceId, workspace, workspaceKey, workspaceDeletion]);
   const archiveTrailing = useMemo(
     () => (archiveShortcutKeys ? <Shortcut chord={archiveShortcutKeys} /> : null),
     [archiveShortcutKeys],
@@ -245,6 +343,36 @@ function SidebarWorkspaceMenuItems({
         >
           {archiveLabel ?? t("sidebar.workspace.actions.archive")}
         </WorkspaceMenuItem>
+      ) : null}
+      {currentAgent ? (
+        <>
+          <WorkspaceMenuSeparator surface={surface} />
+          <WorkspaceMenuItem
+            surface={surface}
+            testID={`sidebar-workspace-menu-delete-${workspaceKey}`}
+            leading={deleteLeadingIcon}
+            destructive
+            onSelect={deleteCurrentAgent}
+            status={deletion.isPending ? "pending" : "idle"}
+          >
+            {t("sidebar.workspace.deleteConversation.label")}
+          </WorkspaceMenuItem>
+        </>
+      ) : null}
+      {serverId && workspaceId && workspace ? (
+        <>
+          <WorkspaceMenuSeparator surface={surface} />
+          <WorkspaceMenuItem
+            surface={surface}
+            testID={`sidebar-workspace-menu-delete-workspace-${workspaceKey}`}
+            leading={deleteLeadingIcon}
+            destructive
+            status={workspaceDeletion.isPending ? "pending" : "idle"}
+            onSelect={deleteCurrentWorkspace}
+          >
+            {t("sidebar.workspace.deleteWorkspace.label")}
+          </WorkspaceMenuItem>
+        </>
       ) : null}
     </>
   );

@@ -41,7 +41,9 @@ export async function prepareMacBundleInstallation(input: {
     ]);
     const { stdout: version } = await run("/usr/libexec/PlistBuddy", [
       "-c",
-      "Print :CFBundleShortVersionString",
+      input.version.includes("+")
+        ? "Print :ClawMuseReleaseVersion"
+        : "Print :CFBundleShortVersionString",
       plist,
     ]);
     if (bundleId.trim() !== input.bundleId || version.trim() !== input.version) {

@@ -13,7 +13,7 @@ import {
   PanelLeft,
   Plus,
   Settings,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import { withUnistyles } from "react-native-unistyles";
 import { getIsElectronRuntime, useIsCompactFormFactor } from "@/constants/layout";
 import { useKeyboardShortcutOverrides } from "@/hooks/use-keyboard-shortcut-overrides";

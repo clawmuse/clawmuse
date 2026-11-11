@@ -1,4 +1,14 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { z } from "zod";
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +25,7 @@ import {
 } from "@getpaseo/plugin/server/provider";
 import { signalPlan } from "./internal/signals.js";
 import { AntigravityTokenSpeedObserver } from "./internal/token-speed.js";
+import { LiveThinking } from "./internal/thinking.js";
 import { createAntigravityProvider } from "./provider.js";
 import { createFrameDecoder, type Step } from "./internal/wire.js";
 
@@ -161,6 +172,157 @@ async function harness(env: Record<string, string> = {}) {
     persistence,
   };
 }
+
+it("shows native thinking while the turn is still running without replaying earlier thoughts", async () => {
+  const h = await harness();
+  await h.open();
+  const clientMessageId = await h.prompt("HANG");
+  await h.wait(
+    (event) => event.type === "timeline.item" && event.item.type === "assistant_message",
+  );
+  const { data } = h.persistence();
+  const conversationId = z.object({ conversationId: z.string() }).parse(data).conversationId;
+  const directory = path.join(
+    h.cwd,
+    ".gemini/antigravity-cli/brain",
+    conversationId,
+    ".system_generated/logs",
+  );
+  await mkdir(directory, { recursive: true });
+  const transcript = path.join(directory, "transcript_full.jsonl");
+  await writeFile(
+    transcript,
+    [
+      { step_index: 0, type: "PLANNER_RESPONSE", status: "DONE", thinking: "Previous turn" },
+      {
+        step_index: 1,
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        thinking: "Checking the current step",
+      },
+    ]
+      .map((row) => JSON.stringify(row))
+      .join("\n") + "\n",
+  );
+  const thought = await h.wait(
+    (event) => event.type === "timeline.item" && event.item.type === "reasoning",
+  );
+  expect(thought).toMatchObject({ item: { type: "reasoning", text: "Checking the current step" } });
+  expect(
+    h.events.filter((event) => event.type === "session.turn").map((event) => event.state),
+  ).toEqual(["started"]);
+  expect(
+    h.events.filter((event) => event.type === "timeline.item" && event.item.type === "reasoning"),
+  ).toEqual([thought]);
+  await h.request({ type: "session.interrupt", requestId: "stop-thinking", sessionId: "s" });
+  await h.completed(clientMessageId);
+});
+
+it.each([false, true])(
+  "drains the last thinking step before completion (CLI exits: %s)",
+  async (exits) => {
+    const h = await harness({ AGY_TEST_EXIT_AFTER_RESULT: exits ? "yes" : "no" });
+    await h.open();
+    await h.completed(await h.prompt("FINAL_THINKING"));
+    const thinking = h.events.findIndex(
+      (event) => event.type === "timeline.item" && event.item.type === "reasoning",
+    );
+    const completion = h.events.findIndex(
+      (event) => event.type === "session.turn" && event.state === "completed",
+    );
+    expect(thinking).toBeGreaterThan(-1);
+    expect(thinking).toBeLessThan(completion);
+    expect(h.events[thinking]).toMatchObject({
+      item: { type: "reasoning", text: "Final native thought" },
+    });
+    expect(
+      h.events.filter((event) => event.type === "session.turn").map((event) => event.state),
+    ).toEqual(["started", "completed"]);
+  },
+);
+
+it("tails partial UTF-8/JSONL records, deduplicates replacements, and stops on cancellation", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "antigravity-thinking-"));
+  temporary.push(cwd);
+  const transcript = path.join(cwd, "transcript.jsonl");
+  const observed: Array<{ step: number; text: string }> = [];
+  const onError = vi.fn();
+  const reader = new LiveThinking({
+    paths: [path.join(cwd, "transcript_full.jsonl"), transcript],
+    afterStep: 7,
+    onThinking: (step, text) => observed.push({ step, text }),
+    onError,
+  });
+  try {
+    await reader.flush();
+    expect(observed).toEqual([]);
+    const line =
+      JSON.stringify({
+        step_index: 8,
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        thinking: "检查中",
+      }) + "\n";
+    const bytes = Buffer.from(line);
+    const split = bytes.indexOf(Buffer.from("检")) + 1;
+    await writeFile(transcript, bytes.subarray(0, split));
+    await reader.flush();
+    expect(observed).toEqual([]);
+    await appendFile(transcript, bytes.subarray(split, bytes.length - 1));
+    await reader.flush();
+    expect(observed).toEqual([]);
+    await appendFile(transcript, "\n");
+    await reader.flush();
+    expect(observed).toEqual([{ step: 8, text: "检查中" }]);
+    const next =
+      JSON.stringify({
+        step_index: 9,
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        thinking: "已核对",
+      }) + "\n";
+    await writeFile(path.join(cwd, "replacement"), line + next);
+    await rename(path.join(cwd, "replacement"), transcript);
+    await reader.flush();
+    expect(observed).toEqual([
+      { step: 8, text: "检查中" },
+      { step: 9, text: "已核对" },
+    ]);
+    reader.stop();
+    await appendFile(
+      transcript,
+      JSON.stringify({
+        step_index: 10,
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        thinking: "Must not arrive after cancel",
+      }) + "\n",
+    );
+    await reader.flush();
+    expect(observed).toHaveLength(2);
+    expect(onError).not.toHaveBeenCalled();
+  } finally {
+    reader.stop();
+  }
+});
+
+it("reports an unreadable thinking record once without leaking transcript content", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "antigravity-thinking-"));
+  temporary.push(cwd);
+  const transcript = path.join(cwd, "transcript.jsonl");
+  await writeFile(transcript, "private malformed content\n");
+  const onError = vi.fn();
+  const onThinking = vi.fn();
+  const reader = new LiveThinking({ paths: [transcript], afterStep: 0, onThinking, onError });
+  try {
+    await reader.flush();
+    await reader.flush();
+    expect(onError.mock.calls).toEqual([[]]);
+    expect(onThinking).not.toHaveBeenCalled();
+  } finally {
+    reader.stop();
+  }
+});
 
 it("streams complete text snapshots, prefixes the system prompt only once and preserves launch argv/env", async () => {
   const h = await harness();

@@ -16,6 +16,7 @@ export interface StepSttConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+  language?: string;
 }
 
 export class StepSttError extends Error {
@@ -43,7 +44,7 @@ export class StepSTT implements SpeechToTextProvider {
     let previousSegmentId: string | null = null;
     let chunks: Buffer[] = [];
     let pending = Promise.resolve();
-    const language = params.language ?? "zh";
+    const language = this.config.language ?? params.language ?? "zh";
 
     const reset = () => {
       generation += 1;

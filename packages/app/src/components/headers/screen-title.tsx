@@ -30,8 +30,8 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     ...densityText(theme, "title"),
     fontWeight: {
-      xs: "600",
-      md: "300",
+      xs: theme.fontWeight.semibold,
+      md: theme.fontWeight.medium,
     },
     color: theme.colors.foreground,
   },

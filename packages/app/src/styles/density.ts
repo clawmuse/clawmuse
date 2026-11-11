@@ -33,19 +33,19 @@ export const density = {
   tightRowHeight: byLayout(36, 28),
   /** A square icon-only button that sits in a row or toolbar. */
   iconButton: byLayout(44, 28),
-  /** The sidebar's top icon navigation line: larger than a plain toolbar button on desktop. */
-  navIconButton: byLayout(44, 44),
-  navIconGlyph: byLayout(COMPACT_ICON_SIZE.md, ICON_SIZE.md * 1.5),
+  /** The sidebar's top icon navigation line: compact and balanced on desktop. */
+  navIconButton: byLayout(44, 30),
+  navIconGlyph: byLayout(COMPACT_ICON_SIZE.md, 17),
   /**
    * Sidebar list rows on the phone trade padding for rows on screen. Rows sit flush, so the whole
    * row is still the tap target.
    */
-  listRowHeight: byLayout(36, 36),
-  listRowPaddingVertical: byLayout(SPACING[1], SPACING[2]),
+  listRowHeight: byLayout(36, 30),
+  listRowPaddingVertical: byLayout(SPACING[1], SPACING[1]),
   /** Between a row's title line and its meta line. */
   listRowLineGap: byLayout(SPACING[0.5], SPACING[1]),
   /** Under an expanded group, before the next group's header. */
-  listGroupGap: byLayout(SPACING[1.5], SPACING[3]),
+  listGroupGap: byLayout(SPACING[1.5], SPACING[2]),
   /** The space between two blocks of rich text, such as Markdown paragraphs, code and images. */
   blockGap: byLayout(20, 20),
 };

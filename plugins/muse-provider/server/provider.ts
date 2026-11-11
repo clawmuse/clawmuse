@@ -36,7 +36,8 @@ export function createMuseProvider(usage: Usage): ProviderRegistration {
     icon: "icon.svg",
     command: ["muse"],
     async getCatalogCacheKey(options) {
-      return launchKey(requireLaunch(options.launch));
+      if (!options.launch) return undefined;
+      return launchKey(options.launch);
     },
     async status({ launch }) {
       if (!launch)

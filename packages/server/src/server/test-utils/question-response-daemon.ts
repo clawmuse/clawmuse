@@ -18,7 +18,9 @@ class RetryQuestionSession extends MockLoadTestAgentSession {
     process.send?.({ type: "attempt", requestId, response, sessionId: this.id });
     if (this.attempts === 1) {
       await firstResponse.promise;
-      throw new Error("Synthetic question response failure");
+      throw new Error(
+        "This chat uses openai, but your current provider is magpie. Switch to openai to continue.",
+      );
     }
     return super.respondToPermission(requestId, response);
   }

@@ -1,3 +1,5 @@
+import { createServer, type ServerResponse } from "node:http";
+import { getGitHubStars } from "./github-stars";
 import { describe, expect, it } from "vitest";
 import {
   getLatestAndroidVersionFromReleases,
@@ -91,5 +93,105 @@ describe("selectReleaseChannels", () => {
 
     expect(channels.stable.version).toBe("0.2.4");
     expect(channels.beta?.version).toBe("0.3.0-beta.1");
+  });
+});
+
+async function withGitHubResponse(
+  status: number,
+  body: unknown,
+  run: (request: typeof fetch) => Promise<void>,
+) {
+  const server = createServer((_request, response) => {
+    response.writeHead(status, { "content-type": "application/json" });
+    if (typeof body === "function") body(response);
+    else response.end(JSON.stringify(body));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Missing test server address");
+  try {
+    await run((_input, init) => fetch(`http://127.0.0.1:${address.port}/repo`, init));
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
+  }
+}
+
+describe("GitHub stars in the shared page header", () => {
+  it.each([403, 504])("omits an unavailable count when GitHub returns %i", async (status) => {
+    await withGitHubResponse(status, { message: "Unavailable" }, async (request) => {
+      await expect(
+        getGitHubStars({ cache: null, waitUntil: () => undefined }, request),
+      ).resolves.toBe("");
+    });
+  });
+
+  it.each([
+    [0, "0"],
+    [999, "999"],
+    [1000, "1k"],
+    [1250, "1.3k"],
+  ])("formats a valid count of %i", async (count, formatted) => {
+    await withGitHubResponse(200, { stargazers_count: count }, async (request) => {
+      await expect(
+        getGitHubStars({ cache: null, waitUntil: () => undefined }, request),
+      ).resolves.toBe(formatted);
+    });
+  });
+
+  it.each([
+    null,
+    {},
+    { stargazers_count: -1 },
+    { stargazers_count: 1.5 },
+    { stargazers_count: "12" },
+    { stargazers_count: Number.MAX_SAFE_INTEGER + 1 },
+  ])("omits invalid star data %j", async (body) => {
+    await withGitHubResponse(200, body, async (request) => {
+      await expect(
+        getGitHubStars({ cache: null, waitUntil: () => undefined }, request),
+      ).resolves.toBe("");
+    });
+  });
+
+  it("omits malformed JSON", async () => {
+    await withGitHubResponse(
+      200,
+      (response: ServerResponse) => response.end("not json"),
+      async (request) => {
+        await expect(
+          getGitHubStars({ cache: null, waitUntil: () => undefined }, request),
+        ).resolves.toBe("");
+      },
+    );
+  });
+
+  it("bounds the wait even when the response body never finishes", async () => {
+    await withGitHubResponse(
+      200,
+      (response: ServerResponse) => response.write('{"stargazers_count":'),
+      async (request) => {
+        await expect(
+          getGitHubStars({ cache: null, waitUntil: () => undefined }, request),
+        ).resolves.toBe("");
+      },
+    );
+  });
+
+  it("omits stars when the connection closes without a response", async () => {
+    await withGitHubResponse(
+      200,
+      (response: ServerResponse) => response.destroy(),
+      async (request) => {
+        await expect(
+          getGitHubStars({ cache: null, waitUntil: () => undefined }, request),
+        ).resolves.toBe("");
+      },
+    );
   });
 });

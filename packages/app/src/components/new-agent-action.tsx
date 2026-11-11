@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { SquarePen } from "lucide-react-native";
+import { SquarePen } from "@/components/icons/app-icons";
 import { FloatingActionButton } from "@/components/ui/floating-action-button";
 import { useOpenNewWorkspace } from "@/hooks/use-open-new-workspace";
 

@@ -1,0 +1,14 @@
+{
+  "brand": "ClawMuse",
+  "appBundleId": "com.clawmuse",
+  "appVersion": "1.3.1",
+  "daemonVersion": "1.5.5",
+  "capturedAt": "2026-11-06",
+  "scenario": "Packing progress, unpacked-only filtering, local persistence, tests and uncommitted diff",
+  "scriptedConversation": true,
+  "nativeDimensions": {
+    "iphone": [1320, 2868],
+    "ipad": [2420, 1668]
+  },
+  "note": "Fresh native simulator captures with localized UI and staged Chinese/English conversations. Demo implementation and six Node tests ran locally; this is not an autonomous model execution trace. Some built-in UI labels and iPad OS date remain untranslated. No store upload."
+}

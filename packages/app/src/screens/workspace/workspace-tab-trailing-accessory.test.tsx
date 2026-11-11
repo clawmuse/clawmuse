@@ -27,7 +27,7 @@ const { mockTheme } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("lucide-react-native", () => {
+vi.mock("@/components/icons/app-icons", () => {
   const StubIcon = () => null;
   return {
     ArrowLeftToLine: StubIcon,

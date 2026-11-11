@@ -47,7 +47,7 @@ describe("useWebOverlayRegistration", () => {
     unmount();
   });
 
-  it("restores opener focus when an overlay closes", () => {
+  it("restores opener focus when an overlay closes", async () => {
     const { result, rerender, unmount } = renderHook(
       ({ active }: { active: boolean }) =>
         useWebOverlayRegistration({ active, layer: 20, onKeyDown: () => false }),
@@ -59,13 +59,13 @@ describe("useWebOverlayRegistration", () => {
     input.focus();
     expect(document.activeElement).toBe(input);
 
-    act(() => rerender({ active: false }));
+    await act(async () => rerender({ active: false }));
 
     expect(openerFocus).toHaveBeenCalled();
     unmount();
   });
 
-  it("restores opener focus when an active overlay unmounts after its scope detaches", () => {
+  it("restores opener focus when an active overlay unmounts after its scope detaches", async () => {
     const { result, unmount } = renderHook(() =>
       useWebOverlayRegistration({ active: true, layer: 20, onKeyDown: () => false }),
     );
@@ -78,7 +78,7 @@ describe("useWebOverlayRegistration", () => {
     act(() => result.current(null));
     expect(openerFocus).not.toHaveBeenCalled();
 
-    unmount();
+    await act(async () => unmount());
 
     expect(openerFocus).toHaveBeenCalled();
   });
@@ -87,5 +87,24 @@ describe("useWebOverlayRegistration", () => {
     const event = new KeyboardEvent("keydown", { key: "Process", bubbles: true });
     expect(dispatchTopWebOverlayKeyDown(event)).toBe(false);
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("preserves focus handed to a new field when an overlay closes", async () => {
+    const { result, rerender, unmount } = renderHook(
+      ({ active }: { active: boolean }) =>
+        useWebOverlayRegistration({ active, layer: 20, onKeyDown: () => false }),
+      { initialProps: { active: true } },
+    );
+    act(() => result.current(scope));
+    input.focus();
+    const newField = document.createElement("input");
+    document.body.append(newField);
+
+    act(() => rerender({ active: false }));
+    newField.focus();
+    await act(async () => {});
+
+    expect(document.activeElement).toBe(newField);
+    unmount();
   });
 });

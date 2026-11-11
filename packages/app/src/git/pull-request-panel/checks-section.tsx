@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { Pressable, ScrollView, Text, View, type GestureResponderEvent } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, MessageSquarePlus } from "lucide-react-native";
+import { ChevronDown, ChevronRight, MessageSquarePlus } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { ICON_SIZE } from "@/styles/theme";

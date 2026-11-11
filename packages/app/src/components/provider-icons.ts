@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 import { providerSnapshotIcons } from "@/data/provider-icons";
-import { Bot } from "lucide-react-native";
+import { Bot } from "@/components/icons/app-icons";
 import { createElement, useCallback, type ComponentType } from "react";
 import { SvgXml } from "react-native-svg";
 import { TERMINAL_PROFILE_ICON_NAMES } from "@getpaseo/protocol/provider-icon-names";

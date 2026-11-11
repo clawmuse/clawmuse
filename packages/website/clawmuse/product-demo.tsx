@@ -405,10 +405,39 @@ function DemoConversation({ language, demo }: DemoProps) {
   return (
     <div className="demo-conversation-content" data-demo-target="conversation">
       {demo.messages.length === 0 && (
-        <div className="demo-empty-state" aria-hidden="true">
+        <div className="demo-empty-state">
+          <div className="demo-empty-host">
+            <span className="live-dot" />
+            <span>{demo.host}</span>
+            <small>· {t("demo.online")}</small>
+          </div>
           <Mark />
           <strong>{t("tour.emptyHeading")}</strong>
           <p>{t("tour.chatBody")}</p>
+          <div className="demo-quick-starters" role="group" aria-label={t("tour.quickTryLabel")}>
+            <button type="button" className="demo-quick-card" onClick={demo.sendSample}>
+              <MessageSquare size={15} aria-hidden="true" />
+              <span>{t("tour.quickSendSample")}</span>
+              <ArrowRight size={14} aria-hidden="true" />
+            </button>
+            <button type="button" className="demo-quick-card" onClick={demo.openFiles}>
+              <FileCode2 size={15} aria-hidden="true" />
+              <span>{t("tour.quickInspectDiff")}</span>
+              <b dir="ltr">
+                +48 <em>−12</em>
+              </b>
+            </button>
+            <button type="button" className="demo-quick-card" onClick={demo.startQuickDictation}>
+              <Mic size={15} aria-hidden="true" />
+              <span>{t("tour.quickTryDictation")}</span>
+              <ArrowRight size={14} aria-hidden="true" />
+            </button>
+            <button type="button" className="demo-quick-card" onClick={demo.openStatus}>
+              <LockKeyhole size={15} aria-hidden="true" />
+              <span>{t("tour.quickCheckStatus")}</span>
+              <ArrowRight size={14} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )}
       {demo.messages.map((message) => (

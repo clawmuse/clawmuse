@@ -1,10 +1,17 @@
 import { useAssistantPanel } from "@/voice/assistant-panel-store";
 import { router, usePathname } from "expo-router";
-import { CirclePlus, History, Search, Target, Timer, Headphones } from "lucide-react-native";
 import { memo, useCallback, useMemo, useRef, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import {
+  CirclePlus,
+  Headphones,
+  History,
+  Search,
+  Target,
+  Timer,
+} from "@/components/icons/app-icons";
 import { SidebarNavIconButton } from "@/components/sidebar/sidebar-nav-icon-button";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { PluginSidebarItem } from "@/plugins/sidebar-items";
@@ -66,7 +73,7 @@ export function SidebarNavRows({ style, onBeforeNavigate, trailing }: SidebarNav
           onPress={openAssistant}
           testID="sidebar-voice-assistant"
         />
-        <View style={styles.iconLineSpacer} />
+        {trailing ? <View style={styles.iconLineSpacer} /> : null}
         {trailing}
       </View>
     </View>
@@ -179,6 +186,7 @@ const styles = StyleSheet.create((theme) => ({
   iconLine: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     flexWrap: "wrap",
     paddingHorizontal: theme.spacing[2],
   },

@@ -1,4 +1,4 @@
-import { RotateCw } from "lucide-react-native";
+import { RotateCw } from "@/components/icons/app-icons";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View, type StyleProp, type TextStyle } from "react-native";

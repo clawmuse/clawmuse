@@ -234,6 +234,12 @@ Codex talks to OpenAI's Responses API by default. Custom providers that extend `
 
 Paseo passes those variables through to the Codex app-server process **and** maps them into Codex's thread config under `model_provider` / `model_providers`, because Codex reads provider routing from config rather than from `OPENAI_BASE_URL` alone.
 
+Changing Codex's global `model_provider` can also block replies to questions in an existing
+conversation. Codex rejects the reply when that conversation's provider differs from the current
+provider. Restore the original provider before retrying, or start a new conversation with the new
+provider. Retrying the same answer does not resolve this configuration mismatch. The question
+card retains your answer and explains the mismatch in your interface language.
+
 ### Setup
 
 ```json

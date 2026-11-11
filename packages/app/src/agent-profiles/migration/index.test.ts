@@ -200,4 +200,31 @@ describe("legacy favourite profile migration", () => {
 
     expect(host.patches[0]?.map((profile) => profile.name)).toEqual(["Opus", "Sonnet"]);
   });
+
+  it("skips legacy favourites whose provider or model is not available on the host", async () => {
+    const storage = new MemoryStorage({
+      [PREFERENCES_KEY]: {
+        favoriteModels: [
+          { provider: "claude", modelId: "opus" },
+          { provider: "claude", modelId: "devin/swe-2" },
+          { provider: "antigravity", modelId: "gemini-4-argon-high" },
+        ],
+      },
+    });
+    const host = new FakeProfileHost();
+    const migration = new LegacyFavoriteProfileMigration(storage);
+
+    await migration.migrateHost("host-a", host);
+
+    expect(host.patches).toEqual([
+      [
+        {
+          id: "legacy_favorite:claude:opus",
+          name: "Opus",
+          provider: "claude",
+          model: "opus",
+        },
+      ],
+    ]);
+  });
 });

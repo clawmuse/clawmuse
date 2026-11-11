@@ -618,6 +618,23 @@ async function createMacBundleFixture() {
 }
 
 describe.runIf(process.platform === "darwin")("Mac archive preparation", () => {
+  it("checks the exact date build identity separately from the native marketing version", async () => {
+    const fixture = await createMacArchiveFixture("1.5.5+1108");
+    try {
+      const input = {
+        zipPath: fixture.zip,
+        executable: fixture.executable,
+        bundleId: "sh.paseo.desktop",
+        version: "1.5.5+1108",
+      };
+      expect((await prepareMacBundleInstallation(input)).version).toBe("1.5.5+1108");
+      await expect(
+        prepareMacBundleInstallation({ ...input, version: "1.5.5+1109" }),
+      ).rejects.toThrow("does not match");
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
   it("extracts and checks a real ZIP without a Developer ID identity", async () => {
     const fixture = await createMacArchiveFixture();
     try {
@@ -674,12 +691,12 @@ describe.runIf(process.platform === "darwin")("Mac archive preparation", () => {
   });
 });
 
-async function createMacArchiveFixture() {
+async function createMacArchiveFixture(version = "0.13.0-beta.5") {
   const fixture = await createMacBundleFixture();
   const contents = path.join(fixture.staging, path.basename(fixture.target), "Contents");
   await writeFile(
     path.join(contents, "Info.plist"),
-    `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>sh.paseo.desktop</string><key>CFBundleShortVersionString</key><string>0.13.0-beta.5</string></dict></plist>`,
+    `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>sh.paseo.desktop</string><key>CFBundleShortVersionString</key><string>${version.split("+")[0]}</string><key>ClawMuseReleaseVersion</key><string>${version}</string></dict></plist>`,
   );
   await mkdir(path.join(contents, "MacOS"));
   const binary = path.join(contents, "MacOS", "ClawMuse");

@@ -3,6 +3,7 @@ import { WebSocket } from "ws";
 import type pino from "pino";
 import { buildRelayWebSocketUrl } from "@getpaseo/protocol/daemon-endpoints";
 import type { ExternalSocketMetadata } from "./websocket-server.js";
+import { relayLookup } from "./relay-lookup.js";
 
 export interface RelayTransportOptions {
   logger: pino.Logger;
@@ -50,6 +51,7 @@ const CONTROL_READY_TIMEOUT_MS = 8_000;
 const RELAY_WEBSOCKET_OPTIONS = {
   handshakeTimeout: 10_000,
   perMessageDeflate: false,
+  lookup: relayLookup,
   // Node cancels each non-final address when this expires, even if the next
   // address is unreachable. Allow high-latency routes time to connect.
   autoSelectFamilyAttemptTimeout: 5_000,

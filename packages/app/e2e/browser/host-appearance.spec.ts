@@ -22,6 +22,13 @@ import {
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import { waitForSidebarHydration } from "../support/helpers/workspace-ui";
+import {
+  closeSidebarDisplayPreferences,
+  notOnMobileHome,
+  openMobileAgentSidebar,
+  openSidebarDisplayPage,
+  selectSidebarStatusGrouping,
+} from "../support/helpers/sidebar";
 
 const PRIMARY_HOST_LABEL = "Primary Host";
 const SECONDARY_HOST_LABEL = "Secondary Host";
@@ -83,6 +90,52 @@ const test = base.extend<{ twoHostSidebar: TwoHostSidebar }>({
 });
 
 test.describe.configure({ timeout: 180_000 });
+
+test("project and host metadata share typography and centered icons", async ({
+  page,
+  twoHostSidebar,
+}, testInfo) => {
+  await selectSidebarStatusGrouping(page);
+  await openSidebarDisplayPage(page, "sidebar-display-show");
+  await page.getByTestId("sidebar-row-item-project").click();
+  await closeSidebarDisplayPreferences(page);
+  for (const width of [1100, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    if (width === 390) await openMobileAgentSidebar(page);
+    const row = page
+      .getByTestId(
+        `sidebar-workspace-row-${twoHostSidebar.primaryServerId}:${twoHostSidebar.primaryWorkspaceId}`,
+      )
+      .and(notOnMobileHome(page));
+    const badge = row.getByTestId(`host-badge-${twoHostSidebar.primaryServerId}`);
+    await expect(badge).toBeVisible();
+    const metrics = await badge.evaluate((host) => {
+      const project = host.parentElement!.firstElementChild!;
+      if (project === host) throw new Error("Project metadata is missing");
+      const text = (node: Element) => {
+        const style = getComputedStyle(node.lastElementChild!);
+        return {
+          family: style.fontFamily,
+          size: style.fontSize,
+          weight: style.fontWeight,
+          lineHeight: style.lineHeight,
+        };
+      };
+      const center = (node: Element) => {
+        const box = node.querySelector("svg")!.getBoundingClientRect();
+        return box.y + box.height / 2;
+      };
+      return {
+        project: text(project),
+        host: text(host),
+        iconOffset: center(project) - center(host),
+      };
+    });
+    expect(metrics.project).toEqual(metrics.host);
+    expect(Math.abs(metrics.iconOffset)).toBeLessThanOrEqual(0.5);
+    await page.screenshot({ path: testInfo.outputPath(`metadata-${width}.png`) });
+  }
+});
 
 test("customizes a host badge and preserves its appearance after reload", async ({
   page,

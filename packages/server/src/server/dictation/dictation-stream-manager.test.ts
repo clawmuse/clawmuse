@@ -205,6 +205,22 @@ describe("DictationStreamManager (provider-agnostic provider)", () => {
     expect(sttProvider.lastLanguage).toBe("en");
   });
 
+  it("defaults to Chinese when dictation STT provider is stepfun and language is unset", async () => {
+    const sttProvider = await startWithResolvedDictationLanguage({
+      persisted: {
+        features: {
+          dictation: {
+            stt: {
+              provider: "stepfun",
+            },
+          },
+        },
+      },
+    });
+
+    expect(sttProvider.lastLanguage).toBe("zh");
+  });
+
   it("uses PASEO_DICTATION_LANGUAGE when set", async () => {
     const sttProvider = await startWithResolvedDictationLanguage({
       env: {
@@ -626,4 +642,63 @@ it("closes every dictation stream when one provider cleanup fails", async () => 
   expect(first.closed).toBe(true);
   expect(second.closed).toBe(true);
   expect(manager.hasDemand).toBe(false);
+});
+
+it("waits for a silence pause before auto-committing multi-chunk speech and joins CJK segments without spaces", async () => {
+  const session = new FakeRealtimeSession();
+  const emitted: Array<{ type: string; payload: unknown }> = [];
+  const manager = new DictationStreamManager({
+    logger: pino({ level: "silent" }),
+    emit: (msg) => emitted.push(msg),
+    sessionId: "s-cjk",
+    stt: new FakeSttProvider(session),
+    autoCommitSeconds: 1,
+  });
+
+  await manager.handleStart("d-cjk", "audio/pcm;rate=24000;bits=16");
+
+  // Send two 600ms speech chunks (1.2s total > 1s autoCommitSeconds): should not slice mid-word
+  await manager.handleChunk({
+    dictationId: "d-cjk",
+    seq: 0,
+    audioBase64: buildPcmBase64(2000, 14400),
+    format: "audio/pcm;rate=24000;bits=16",
+  });
+  await manager.handleChunk({
+    dictationId: "d-cjk",
+    seq: 1,
+    audioBase64: buildPcmBase64(2000, 14400),
+    format: "audio/pcm;rate=24000;bits=16",
+  });
+  expect(session.commitCalls).toBe(0);
+
+  // Send a brief silent pause chunk: should now commit cleanly at the pause boundary
+  await manager.handleChunk({
+    dictationId: "d-cjk",
+    seq: 2,
+    audioBase64: buildPcmBase64(0, 2400),
+    format: "audio/pcm;rate=24000;bits=16",
+  });
+  expect(session.commitCalls).toBe(1);
+  session.emitCommitted("seg-1");
+  session.emitTranscript("seg-1", "使用阶跃语音，", true);
+
+  // Next spoken phrase followed by finish
+  await manager.handleChunk({
+    dictationId: "d-cjk",
+    seq: 3,
+    audioBase64: buildPcmBase64(2000, 12000),
+    format: "audio/pcm;rate=24000;bits=16",
+  });
+  await manager.handleFinish("d-cjk", 3);
+  expect(session.commitCalls).toBe(2);
+  session.emitCommitted("seg-2");
+  session.emitTranscript("seg-2", "识别效果更好。", true);
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(emitted).toContainEqual({
+    type: "dictation_stream_final",
+    payload: { dictationId: "d-cjk", text: "使用阶跃语音，识别效果更好。" },
+  });
 });

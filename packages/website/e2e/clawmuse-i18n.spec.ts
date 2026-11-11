@@ -4,6 +4,7 @@ import { test } from "./fixtures";
 import { readFileSync } from "node:fs";
 import appLabels from "../clawmuse/demo-app-labels.json" with { type: "json" };
 import {
+  accountUrl,
   appUrl,
   descriptionFor,
   documentTitleFor,
@@ -1108,3 +1109,84 @@ for (const language of ["en", "zh-CN"] as const) {
     });
   }
 }
+
+test("downloads secondary formats, checksums, product demo, showcase images and language hint", async ({
+  browser,
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/zh/download/");
+
+  const macos = page
+    .locator(".download-card")
+    .filter({ has: page.getByRole("heading", { name: "macOS", exact: true }) });
+  await expect(macos).toContainText("Apple Silicon");
+  await expect(macos.locator(".installer a.button")).toHaveAttribute(
+    "href",
+    "https://agent-relay.clawmuse.com/updates/installers/v1.5.8/ClawMuse-1.5.8-arm64.dmg",
+  );
+
+  const windows = page
+    .locator(".download-card")
+    .filter({ has: page.getByRole("heading", { name: "Windows", exact: true }) });
+  await expect(windows.locator(".arm-download-trigger")).toBeVisible();
+  await expect(windows.locator(".download-card-note")).toBeVisible();
+
+  const linux = page
+    .locator(".download-card")
+    .filter({ has: page.getByRole("heading", { name: "Linux", exact: true }) });
+  await linux.locator(".arm-download-summary").click();
+  await expect(linux.locator(".arm-download-details")).toHaveAttribute("open", "");
+  await expect(linux.locator(".arm-download-item")).toHaveCount(7);
+
+  await page.locator(".checksums-jump").click();
+  await expect(page.locator(".checksums-panel")).toHaveAttribute("open", "");
+  await expect(page.locator(".checksum-row")).toHaveCount(12);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/zh/product/");
+  await expect(page.getByTestId("product-demo")).toBeVisible();
+  await expect(page.locator(".feature-card .micro-label").nth(3)).toHaveText("语音");
+  await expect(page.locator(".feature-card .micro-label").nth(4)).toHaveText("目标执行");
+  await expect(page.locator(".feature-card .micro-label").nth(5)).toHaveText("实时状态");
+
+  const showcase = page.getByTestId("real-device-showcase");
+  await showcase.scrollIntoViewIfNeeded();
+  for (const index of [0, 1]) {
+    const img = showcase.locator("img").nth(index);
+    await expect
+      .poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
+  }
+  await showcase.locator('[data-showcase-scene="chat"]').click();
+  await expect(showcase.locator(".real-device-wide img")).toHaveAttribute(
+    "src",
+    "/screenshots/zh-wide-chat.webp",
+  );
+
+  await expect(
+    page.locator(".footer-brand").getByRole("link", { name: "账号管理" }),
+  ).toHaveAttribute("href", accountUrl);
+  await expect(page.locator(".footer-brand").getByRole("link", { name: "GitHub" })).toHaveAttribute(
+    "href",
+    sourceUrl,
+  );
+
+  const demo = page.getByTestId("product-demo");
+  await demo.getByRole("button", { name: "发送示例指令", exact: true }).click();
+  await expect(demo.locator(".demo-user-message")).toBeVisible();
+
+  const zhContext = await browser.newContext({ locale: "zh-CN" });
+  const zhPage = await zhContext.newPage();
+  await zhPage.goto("/");
+  const banner = zhPage.getByTestId("language-suggestion-banner");
+  await expect(banner).toBeVisible();
+  await expect(banner.locator(".language-banner-link")).toHaveAttribute("href", "/zh/");
+  await banner.locator(".language-banner-dismiss").click();
+  await expect(banner).toHaveCount(0);
+  await zhPage.reload();
+  await expect(zhPage.getByTestId("language-suggestion-banner")).toHaveCount(0);
+  await zhContext.close();
+});

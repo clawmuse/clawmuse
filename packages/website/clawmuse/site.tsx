@@ -7,9 +7,12 @@ import {
   AudioLines,
   Activity,
   Check,
+  Download,
   FileCode2,
+  FolderTree,
   Globe,
   LockKeyhole,
+  MessageSquare,
   Target,
   ArrowUpRight,
   Command,
@@ -26,7 +29,13 @@ import { ClaudeIcon, CodexIcon } from "./demo-provider-icon";
 import { AppMark, Mark, Wordmark } from "./mark";
 import { ProductDemo } from "./product-demo";
 import { AgentShowcase } from "./agents";
-import { release } from "./downloads";
+import {
+  fileVersion,
+  formatSize,
+  installerMirrorUrl,
+  primaryPlatformInstaller,
+  release,
+} from "./downloads";
 
 import {
   accountUrl,
@@ -41,6 +50,54 @@ import {
 } from "./content";
 import { FAQ, PageLink, SectionHeading, type Localized } from "./ui";
 import { InnerPage } from "./pages";
+
+const LANG_HINT_STORAGE_KEY = "clawmuse-lang-hint-dismissed";
+
+const SIMPLE_LOCALE_PREFIXES: Record<string, Language> = {
+  pt: "pt-BR",
+  ar: "ar",
+  es: "es",
+  fr: "fr",
+  ja: "ja",
+  ko: "ko",
+  ru: "ru",
+};
+
+function isTraditionalChineseTag(tag: string): boolean {
+  return tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag.startsWith("zh-hant");
+}
+
+function resolveTagCandidate(tag: string, supported: readonly Language[]): Language | null {
+  if (isTraditionalChineseTag(tag)) {
+    if (supported.includes("zh-TW")) return "zh-TW";
+    return supported.includes("zh-CN") ? "zh-CN" : null;
+  }
+  if (tag === "zh" || tag.startsWith("zh-")) {
+    return supported.includes("zh-CN") ? "zh-CN" : null;
+  }
+  const base = tag.split("-")[0];
+  return SIMPLE_LOCALE_PREFIXES[base] ?? null;
+}
+
+export function matchPreferredLanguage(
+  browserLanguages: readonly string[],
+  supported: readonly Language[],
+): Language | null {
+  for (const raw of browserLanguages) {
+    const tag = raw.trim().toLowerCase();
+    if (!tag) continue;
+    if (tag === "en" || tag.startsWith("en-")) return null;
+    const candidate = resolveTagCandidate(tag, supported);
+    if (candidate && supported.includes(candidate)) return candidate;
+  }
+  return null;
+}
+
+function browserLanguageList(): readonly string[] {
+  if (navigator.languages && navigator.languages.length > 0) return navigator.languages;
+  if (navigator.language) return [navigator.language];
+  return [];
+}
 
 function resolveInternalLink(event: MouseEvent<HTMLDivElement>): URL | null {
   if (
@@ -120,11 +177,73 @@ export function Site({
         {t("site.skipToContent")}
       </a>
       <Header language={language} page={page} />
+      {found && <LanguageSuggestionBanner language={language} page={page} />}
       <main id="main">{body}</main>
       <Footer language={language} />
     </div>
   );
 }
+
+function LanguageSuggestionBanner({ language, page }: { language: Language; page: Page }) {
+  const [suggested, setSuggested] = useState<Language | null>(null);
+  useEffect(() => {
+    if (language !== "en") {
+      setSuggested(null);
+      return;
+    }
+    try {
+      if (localStorage.getItem(LANG_HINT_STORAGE_KEY) === "1") {
+        setSuggested(null);
+        return;
+      }
+    } catch {
+      /* Storage may be disabled. */
+    }
+    setSuggested(matchPreferredLanguage(browserLanguageList(), pageLanguages(page)));
+  }, [language, page]);
+
+  const dismiss = useCallback(() => {
+    setSuggested(null);
+    try {
+      localStorage.setItem(LANG_HINT_STORAGE_KEY, "1");
+    } catch {
+      /* Storage may be disabled. */
+    }
+  }, []);
+
+  if (!suggested) return null;
+  const targetT = getTranslator(suggested);
+  return (
+    <div
+      className="language-banner"
+      data-testid="language-suggestion-banner"
+      lang={suggested}
+      dir={locales[suggested].dir}
+    >
+      <div className="container language-banner-inner">
+        <span className="language-banner-copy">
+          <Globe size={15} aria-hidden="true" />
+          <span>{targetT("site.languageBannerPrompt")}</span>
+        </span>
+        <div className="language-banner-actions">
+          <a className="language-banner-link" href={href(page, suggested)}>
+            {targetT("site.languageBannerSwitch")}
+            <ArrowRight size={14} aria-hidden="true" />
+          </a>
+          <button
+            type="button"
+            className="language-banner-dismiss"
+            onClick={dismiss}
+            aria-label={targetT("site.languageBannerDismiss")}
+          >
+            <X size={15} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Header({ language, page }: SiteProps) {
   const { t } = useSiteTranslation(language);
   const [open, setOpen] = useState(false);
@@ -243,6 +362,7 @@ function Header({ language, page }: SiteProps) {
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <span className="language-picker">
+            <Globe className="language-picker-globe" size={14} aria-hidden="true" />
             <span className="language-picker-sizer" aria-hidden="true">
               {locales[language].label}
             </span>
@@ -279,32 +399,160 @@ function Header({ language, page }: SiteProps) {
     </header>
   );
 }
-// iPhone and iPad visitors go straight to the App Store; the prerendered page keeps /download.
-function useIsIos() {
-  const [isIos, setIsIos] = useState(false);
-  useEffect(() => {
-    const iPadDesktopMode = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-    setIsIos(/iphone|ipad|ipod/i.test(navigator.userAgent) || iPadDesktopMode);
-  }, []);
-  return isIos;
+
+type DetectedClientPlatform =
+  | { kind: "ios" }
+  | { kind: "macos" }
+  | { kind: "windows"; arch: "x64" | "arm64" }
+  | { kind: "android" }
+  | null;
+
+interface NavigatorWithUAData extends Navigator {
+  userAgentData?: {
+    getHighEntropyValues?: (hints: string[]) => Promise<{ architecture?: string }>;
+  };
 }
-function DownloadButton({ language, label }: Localized & { label: string }) {
+
+// Prerendered HTML keeps /download; client hydration upgrades known OS targets to 1-click download.
+function useDetectedPlatform(): DetectedClientPlatform {
+  const [detected, setDetected] = useState<DetectedClientPlatform>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const ua = navigator.userAgent || "";
+    const platform = navigator.platform || "";
+    const iPadDesktopMode = platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    if (/iphone|ipad|ipod/i.test(ua) || iPadDesktopMode) {
+      setDetected({ kind: "ios" });
+      return;
+    }
+    if (/android/i.test(ua)) {
+      setDetected({ kind: "android" });
+      return;
+    }
+    const navData = (navigator as NavigatorWithUAData).userAgentData;
+    async function refineArchitecture(kind: "windows" | "macos") {
+      try {
+        const values = await navData?.getHighEntropyValues?.(["architecture"]);
+        if (cancelled || !values) return;
+        if (kind === "windows" && values.architecture === "arm") {
+          setDetected({ kind: "windows", arch: "arm64" });
+        } else if (kind === "macos" && values.architecture === "x86") {
+          // Intel Macs do not run the arm64 DMG; send them to /download (Web workspace + Linux/other).
+          setDetected(null);
+        }
+      } catch {
+        /* Architecture hint unavailable. */
+      }
+    }
+    if (/win/i.test(platform) || /windows/i.test(ua)) {
+      const initialArch: "x64" | "arm64" = /arm64|aarch64/i.test(ua) ? "arm64" : "x64";
+      setDetected({ kind: "windows", arch: initialArch });
+      void refineArchitecture("windows");
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (/mac/i.test(platform) || /macintosh|mac os x/i.test(ua)) {
+      setDetected({ kind: "macos" });
+      void refineArchitecture("macos");
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, []);
+  return detected;
+}
+
+export function DownloadButton({
+  language,
+  label,
+  showAllPlatforms = false,
+}: Localized & { label: string; showAllPlatforms?: boolean }) {
   const { t } = useSiteTranslation(language);
-  const isIos = useIsIos();
-  if (isIos) {
+  const detected = useDetectedPlatform();
+
+  if (detected?.kind === "ios") {
     return (
-      <a className="button primary" href={release.ios.url}>
-        {t("downloads.downloadOnAppStore")}
-        <ArrowUpRight size={17} />
-      </a>
+      <span className="smart-download-group">
+        <a className="button primary" href={release.ios.url}>
+          {t("downloads.downloadOnAppStore")}
+          <ArrowUpRight size={17} />
+        </a>
+        {showAllPlatforms && (
+          <PageLink page="/download" language={language} className="smart-download-more">
+            {t("downloads.allPlatforms")}
+          </PageLink>
+        )}
+      </span>
     );
   }
+
+  if (detected?.kind === "macos") {
+    const macFile = primaryPlatformInstaller("macos");
+    if (macFile) {
+      return (
+        <span className="smart-download-group">
+          <a className="button primary" href={installerMirrorUrl(macFile)} download>
+            <Download size={17} />
+            {t("downloads.downloadForMac")}
+            <span className="button-meta">v{fileVersion(macFile)}</span>
+          </a>
+          {showAllPlatforms && (
+            <PageLink page="/download" language={language} className="smart-download-more">
+              {t("downloads.allPlatforms")} ({formatSize(macFile.size)} DMG)
+            </PageLink>
+          )}
+        </span>
+      );
+    }
+  }
+
+  if (detected?.kind === "windows") {
+    const winFile = primaryPlatformInstaller("windows", detected.arch);
+    if (winFile) {
+      return (
+        <span className="smart-download-group">
+          <a className="button primary" href={installerMirrorUrl(winFile)} download>
+            <Download size={17} />
+            {t("downloads.downloadForWindows")}
+            <span className="button-meta">{winFile.arch}</span>
+          </a>
+          {showAllPlatforms && (
+            <PageLink page="/download" language={language} className="smart-download-more">
+              {t("downloads.allPlatforms")}
+            </PageLink>
+          )}
+        </span>
+      );
+    }
+  }
+
+  if (detected?.kind === "android") {
+    const apkFile = primaryPlatformInstaller("android");
+    if (apkFile) {
+      return (
+        <span className="smart-download-group">
+          <a className="button primary" href={installerMirrorUrl(apkFile)} download>
+            <Download size={17} />
+            {t("downloads.downloadForAndroid")}
+          </a>
+          {showAllPlatforms && (
+            <PageLink page="/download" language={language} className="smart-download-more">
+              {t("downloads.allPlatforms")}
+            </PageLink>
+          )}
+        </span>
+      );
+    }
+  }
+
   return (
     <PageLink page="/download" language={language} className="button primary">
       {label}
     </PageLink>
   );
 }
+
 function Home({ language }: Localized) {
   const { t } = useSiteTranslation(language);
   const hasAgentCatalog = language === "en" || language === "zh-CN";
@@ -331,6 +579,10 @@ function Home({ language }: Localized) {
             <a href={sourceUrl}>
               GitHub <ArrowUpRight size={13} />
             </a>
+            <span className="hero-footnote-sep" aria-hidden="true">
+              ·
+            </span>
+            <a href={href("/download", language)}>{t("downloads.allPlatforms")}</a>
           </div>
         </div>
       </section>
@@ -360,6 +612,7 @@ function Home({ language }: Localized) {
           </div>
         </div>
       )}
+      <RealDeviceShowcase language={language} />
       <WebWorkspaceSection language={language} />
       <section className="trust-band">
         <div className="container trust-grid">
@@ -410,6 +663,104 @@ function Home({ language }: Localized) {
     </div>
   );
 }
+
+type RealShowcaseScene = "chat" | "diff" | "files";
+
+export function RealDeviceShowcase({ language }: Localized) {
+  const { t } = useSiteTranslation(language);
+  const [scene, setScene] = useState<RealShowcaseScene>("diff");
+  const handleSelectScene = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    const next = event.currentTarget.dataset.showcaseScene;
+    if (next === "diff" || next === "chat" || next === "files") setScene(next);
+  }, []);
+  const assetLocale = language === "zh-CN" || language === "zh-TW" ? "zh" : "en";
+  const items = [
+    {
+      id: "diff" as const,
+      icon: FileCode2,
+      label: t("realShowcase.tabDiff"),
+      caption: t("realShowcase.tabDiffCaption"),
+    },
+    {
+      id: "chat" as const,
+      icon: MessageSquare,
+      label: t("realShowcase.tabChat"),
+      caption: t("realShowcase.tabChatCaption"),
+    },
+    {
+      id: "files" as const,
+      icon: FolderTree,
+      label: t("realShowcase.tabFiles"),
+      caption: t("realShowcase.tabFilesCaption"),
+    },
+  ];
+  const current = items.find((item) => item.id === scene) ?? items[0];
+  const wideSrc = `/screenshots/${assetLocale}-wide-${current.id}.webp`;
+  const phoneSrc = `/screenshots/${assetLocale}-phone-${current.id}.webp`;
+
+  return (
+    <section className="section container real-showcase" data-testid="real-device-showcase">
+      <div className="real-showcase-head">
+        <SectionHeading eyebrow={t("realShowcase.eyebrow")} title={t("realShowcase.title")}>
+          {t("realShowcase.body")}
+        </SectionHeading>
+        <div className="real-showcase-controls">
+          <div className="real-showcase-tabs" role="group" aria-label={t("realShowcase.eyebrow")}>
+            {items.map(({ id, icon: Icon, label }) => (
+              <button
+                key={id}
+                type="button"
+                className="real-showcase-tab"
+                aria-pressed={scene === id}
+                data-showcase-scene={id}
+                onClick={handleSelectScene}
+              >
+                <Icon size={16} aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="real-showcase-caption">{current.caption}</p>
+        </div>
+      </div>
+      <div className="real-showcase-stage" dir="ltr">
+        <figure className="real-device-card real-device-wide">
+          <figcaption className="real-device-bar">
+            <span className="plugin-window-dots" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+            <span>{t("realShowcase.wideLabel")}</span>
+          </figcaption>
+          <img
+            src={wideSrc}
+            alt={`${t("realShowcase.wideLabel")} — ${current.label}`}
+            width={1280}
+            height={853}
+            loading="lazy"
+            decoding="async"
+          />
+        </figure>
+        <figure className="real-device-card real-device-phone">
+          <figcaption className="real-device-bar">
+            <Smartphone size={13} aria-hidden="true" />
+            <span>{t("realShowcase.phoneLabel")}</span>
+          </figcaption>
+          <img
+            src={phoneSrc}
+            alt={`${t("realShowcase.phoneLabel")} — ${current.label}`}
+            width={540}
+            height={1173}
+            loading="lazy"
+            decoding="async"
+          />
+        </figure>
+      </div>
+    </section>
+  );
+}
+
 function webWorkspaceCopy(language: Language) {
   const t = getTranslator(language);
   return {
@@ -547,46 +898,52 @@ export function FeatureGrid({ language }: Localized) {
   const { t } = useSiteTranslation(language);
   const features = [
     {
+      id: "agents",
       icon: <Command />,
       title: t("featureGrid.manyAgentsOneWorkspace"),
       body: t("featureGrid.chooseTheCodingAgentForTheJobAndKeep"),
       tag: t("featureGrid.agentsTag"),
     },
     {
+      id: "context",
       icon: <FolderGit2 />,
       title: t("featureGrid.seeTheWorkAsItHappens"),
       body: t("featureGrid.keepWorkspacesFileChangesAndTerminalsCloseMoveFrom"),
       tag: t("featureGrid.contextTag"),
     },
     {
+      id: "continuity",
       icon: <Smartphone />,
       title: t("featureGrid.stayInvolvedFromYourPhone"),
       body: t("featureGrid.followATaskAddDirectionAndMakeDecisionsWhen"),
       tag: t("featureGrid.continuityTag"),
     },
     {
+      id: "voice",
       icon: <AudioLines />,
       title: t("tour.voice"),
       body: t("tour.voiceBody"),
-      tag: "VOICE",
+      tag: t("featureGrid.voiceTag"),
     },
     {
+      id: "goals",
       icon: <Target />,
-      title: "ClawMuse Goals",
+      title: t("featureGrid.goalsTitle"),
       body: t("featureGrid.goalsBody"),
-      tag: "GOALS",
+      tag: t("featureGrid.goalsTag"),
     },
     {
+      id: "status",
       icon: <Activity />,
       title: t("updates.status"),
       body: t("updates.statusBody"),
-      tag: "STATUS",
+      tag: t("featureGrid.statusTag"),
     },
   ];
   return (
     <div className="feature-grid">
       {features.map((item) => (
-        <article className="feature-card" key={item.tag}>
+        <article className="feature-card" key={item.id}>
           <div className="feature-icon">{item.icon}</div>
           <span className="micro-label">{item.tag}</span>
           <h3>{item.title}</h3>
@@ -628,28 +985,36 @@ export function EndCTA({ language }: Localized) {
       </div>
       <span className="eyebrow">{t("endCTA.fromInspirationToAction")}</span>
       <h2>{t("endCTA.yourNextIdeaCanStartFromHere")}</h2>
-      <DownloadButton language={language} label={t("endCTA.findYourWayIn")} />
+      <DownloadButton language={language} label={t("endCTA.findYourWayIn")} showAllPlatforms />
     </section>
   );
 }
 function Footer({ language }: Localized) {
   const { t } = useSiteTranslation(language);
+  const hasRichCatalog = language === "en" || language === "zh-CN";
   const groups: { title: string; links: Page[] }[] = [
     {
       title: t("footer.product"),
-      links: ["/download", "/changelog"],
+      links: [
+        "/product",
+        ...(hasRichCatalog ? (["/plugins", "/agents"] as const) : []),
+        "/download",
+        "/pricing",
+        "/changelog",
+      ],
     },
     {
       title: t("footer.resources"),
       links: [
         "/docs",
-        ...(language === "en" || language === "zh-CN" ? ["/learn" as const] : []),
+        "/docs/linux",
+        ...(hasRichCatalog ? (["/learn", "/blog"] as const) : []),
         "/support",
       ],
     },
     {
       title: t("footer.clawmuse"),
-      links: ["/about", "/privacy", "/terms", "/account-deletion"],
+      links: ["/about", "/security", "/brand", "/privacy", "/terms", "/account-deletion"],
     },
   ];
   return (
@@ -660,9 +1025,21 @@ function Footer({ language }: Localized) {
             <AppMark />
             <Wordmark />
           </a>
-          <a className="footer-account" href={release.ios.url}>
-            App Store <ArrowUpRight size={13} />
-          </a>
+          <p className="footer-tagline">{t("footer.giveInspirationTheAbilityToAct")}</p>
+          <div className="footer-brand-links">
+            <a className="footer-account" href={appUrl}>
+              {t("header.openWorkspace")} <ArrowUpRight size={13} />
+            </a>
+            <a className="footer-account" href={accountUrl}>
+              {t("header.manageAccount")} <ArrowUpRight size={13} />
+            </a>
+            <a className="footer-account" href={release.ios.url}>
+              App Store <ArrowUpRight size={13} />
+            </a>
+            <a className="footer-account" href={sourceUrl}>
+              GitHub <ArrowUpRight size={13} />
+            </a>
+          </div>
         </div>
         {groups.map((group) => (
           <div className="footer-group" key={group.title}>
@@ -677,6 +1054,7 @@ function Footer({ language }: Localized) {
       </div>
       <div className="footer-bottom">
         <span>© {new Date().getUTCFullYear()} ClawMuse</span>
+        <span>{t("plans.promise")}</span>
       </div>
       <div className="footer-watermark" aria-hidden="true">
         <span>CLAWMUSE&gt;_</span>

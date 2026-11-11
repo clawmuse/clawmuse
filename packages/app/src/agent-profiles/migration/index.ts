@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ProviderSnapshotEntry } from "@getpaseo/protocol/agent-types";
 import type { AgentProfile } from "@getpaseo/protocol/messages";
 import { FormPreferencesSchema } from "@/create-agent-preferences/preferences";
+import { findModelByReference } from "@/provider-selection/model-catalog";
 import { readValidatedJson, readValidatedString } from "@/storage/validated-storage";
 
 const PREFERENCES_KEY = "@paseo:create-agent-preferences";
@@ -95,6 +96,24 @@ function uniqueProfileName(input: {
   return name;
 }
 
+function isFavoriteSupportedByHost(
+  favorite: LegacyFavorite,
+  entries: readonly ProviderSnapshotEntry[],
+): boolean {
+  const provider = entries.find((entry) => entry.provider === favorite.provider);
+  if (!provider || !provider.enabled || provider.status !== "ready") {
+    return false;
+  }
+  const modelId = favorite.modelId.trim();
+  if (!modelId) {
+    return true;
+  }
+  if ((provider.models?.length ?? 0) === 0) {
+    return false;
+  }
+  return findModelByReference(provider.models ?? null, modelId) !== null;
+}
+
 function buildMigratedProfiles(input: {
   favorites: readonly LegacyFavorite[];
   existing: readonly AgentProfile[];
@@ -109,6 +128,9 @@ function buildMigratedProfiles(input: {
   const usedNames = new Set(input.existing.map((profile) => profile.name));
 
   return deduplicateFavorites(input.favorites).flatMap((favorite) => {
+    if (!isFavoriteSupportedByHost(favorite, input.entries)) {
+      return [];
+    }
     const id = migratedProfileId(favorite);
     if (existingSelections.has(favoriteKey(favorite)) || existingIds.has(id)) {
       return [];

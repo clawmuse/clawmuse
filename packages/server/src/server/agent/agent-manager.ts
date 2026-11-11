@@ -1,6 +1,5 @@
 import type { AttachedAgentTool, PluginAgentToolsRuntime } from "../plugins/agent-tools.js";
-import { generateProviderText } from "./text-generation.js";
-import type { PluginTextGenerator } from "@getpaseo/plugin/server";
+import { generateProviderText, type HostTextGenerator } from "./text-generation.js";
 import type { AgentToolResult } from "@getpaseo/plugin/server";
 import type { RuntimeCleanupCandidate } from "./idle-runtime-cleanup/index.js";
 import { ensureAgentLoaded } from "./agent-loading.js";
@@ -1242,7 +1241,7 @@ export class AgentManager {
     );
   }
 
-  readonly generateText: PluginTextGenerator = (request, options) => {
+  readonly generateText: HostTextGenerator = (request, options) => {
     const definition = this.providerDefinitions.get(request.provider);
     if (definition?.enabled === false)
       throw new Error(`Provider '${request.provider}' is disabled`);
@@ -1250,6 +1249,8 @@ export class AgentManager {
       client: this.requireClient(request.provider),
       request,
       signal: options?.signal,
+      sessionPool: options?.sessionPool,
+      prepareOnly: options?.prepareOnly,
     });
   };
 

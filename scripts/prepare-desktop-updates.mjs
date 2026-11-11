@@ -19,7 +19,8 @@ import { isMainModule } from "./is-main-module.mjs";
 import { MACOS_MINIMUM_DARWIN_VERSION } from "./merge-mac-manifest.mjs";
 
 const manifestPattern = /^(latest|beta)(?:-mac|-linux(?:-(?:arm64|arm))?)?\.yml$/;
-const versionPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-beta\.(?:0|[1-9]\d*))?$/;
+const versionPattern =
+  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-beta\.(?:0|[1-9]\d*))?(?:\+[0-9]{4})?$/;
 const filenamePattern = /^ClawMuse[A-Za-z0-9._+-]*\.(?:exe|zip|dmg|AppImage|deb|rpm)$/;
 
 async function sha512(file) {

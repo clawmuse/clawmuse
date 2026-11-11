@@ -5,7 +5,7 @@ import type { PluginCleanup } from "../contracts.js";
 import type { ProviderRegistration } from "./provider.js";
 import type { UsageSourceRegistration } from "./usage.js";
 import type { PluginLifecycleRegistration } from "./lifecycle.js";
-import type { PluginTextGenerator } from "./text-generation.js";
+import type { PluginTextGenerator, PluginTextPreparer } from "./text-generation.js";
 
 export interface PluginHandlerContext {
   paseo: PaseoApi;
@@ -30,6 +30,7 @@ export interface PluginSettings<Schema extends ZodType> {
 
 export interface PluginServerContext extends PluginLifecycleRegistration {
   generateText: PluginTextGenerator;
+  prepareTextGeneration: PluginTextPreparer;
   registerSettings<Schema extends ZodType>(
     definition: import("../settings.js").SettingsDefinition<Schema>,
   ): PluginSettings<Schema>;

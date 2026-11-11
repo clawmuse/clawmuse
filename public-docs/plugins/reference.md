@@ -412,12 +412,18 @@ process, credential, and other machine-local work under `server/`. A plugin with
 
 ### Host model generation
 
-Use `server.generateText({ provider, model, prompt, systemPrompt? }, { signal? })` for an
+Use `server.generateText({ provider, model, prompt, systemPrompt?, sessionKey?, thinkingOptionId? }, { signal? })` for an
 isolated text task using a configured host provider. Provider IDs and model IDs are the same
 ones used by the chat model picker, including custom profiles and ACP providers.
 
 The host creates a temporary working directory, requests a non-persistent provider session,
-and closes it after the task. It does not create a workspace or public agent, run message hooks,
+and closes it after the task by default. Set `sessionKey: "translation"` for related sequential tasks.
+Use distinct keys for independent conversations; changing keys releases the previous session.
+The session belongs to one loaded plugin and is released on plugin shutdown, failure, idle expiry,
+or bounded context rotation. Changing the provider, model, system prompt, or thinking option
+starts a fresh session. Reused sessions retain prior turns: include instructions to process only
+the current input. `thinkingOptionId` must be supported by the selected model.
+The host does not create a workspace or public agent, run message hooks,
 or inject host tools. Permission requests fail the task. Generation has a 22-second deadline;
 plugin shutdown cancels pending tasks. Provider-native persistence and tool behavior remain
 provider-owned; the temporary directory is not an OS sandbox. The selected model is never
@@ -2270,6 +2276,19 @@ export default function contribute(server: PluginServerContext) {
 Inputs and outputs are validated on both sides. RPC names start with a lowercase letter and contain lowercase letters, numbers, dots, hyphens, or underscores. `useRpc()` returns a typed async function. Use TanStack Query for request state, caching, and mutations.
 
 Backend handlers receive the same `PaseoApi` as `{ paseo }`. Their connection belongs to the subprocess and closes when the plugin stops. It does not subscribe to timelines or catalog events until plugin code subscribes. Follow the [SDK event contract](/docs/sdk/events) for cleanup and timeline replacements. Backend code can use Node APIs and dependencies installed in the plugin directory.
+
+## Prepare isolated model calls
+
+`server.generateText(request, { signal })` uses the selected host provider in a temporary
+session without a public agent or plugin tools. Include `sessionKey` to reuse that plugin's
+session. A changed provider, model, system prompt, thinking option, or key starts a new session.
+
+`server.prepareTextGeneration(request, { signal })` accepts the same launch fields without
+`prompt`, and requires `sessionKey`. It starts the provider process without generating text or
+spending model tokens. Call it while other work is in progress, then use the same launch fields
+for `generateText`. Preparation is not a reservation: idle eviction, context rotation, another
+key, or plugin shutdown can release the process. Keep preparation within the caller's waiting
+budget; do not reset a generation deadline to compensate for startup.
 
 ## Debug backend output
 

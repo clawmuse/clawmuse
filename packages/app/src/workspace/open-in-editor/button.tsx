@@ -3,7 +3,7 @@ import { type ReactElement, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
 import { useMutation } from "@tanstack/react-query";
-import { Check, ChevronDown } from "lucide-react-native";
+import { Check, ChevronDown } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { EditorTargetIcon } from "@/components/icons/editor-target-icon";
 import {
@@ -265,7 +265,7 @@ export function WorkspaceOpenInEditorButton({
               accessibilityRole="button"
               accessibilityLabel={t("workspace.git.openInEditor.chooseEditor")}
             >
-              <ThemedChevronDown size={16} uniProps={extraMutedIconColorMapping} />
+              <ThemedChevronDown size={14} uniProps={extraMutedIconColorMapping} />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
@@ -332,17 +332,20 @@ const styles = StyleSheet.create((theme) => ({
     opacity: 0.6,
   },
   splitButtonText: {
-    fontSize: theme.fontSize.base,
-    lineHeight: theme.fontSize.base * 1.5,
+    fontSize: {
+      xs: theme.fontSize.base,
+      md: theme.fontSize.sm,
+    },
+    lineHeight: theme.fontSize.base * 1.4,
     color: theme.colors.foreground,
-    fontWeight: theme.fontWeight.normal,
+    fontWeight: theme.fontWeight.medium,
   },
   splitButtonContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: theme.spacing[2],
-    minHeight: theme.fontSize.base * 1.5,
+    gap: theme.spacing[1.5],
+    minHeight: theme.fontSize.base * 1.4,
   },
   splitButtonSpinnerOnly: {
     transform: [{ scale: 0.8 }],
@@ -350,7 +353,7 @@ const styles = StyleSheet.create((theme) => ({
   splitButtonCaret: {
     width: {
       xs: buttonControlHeight.xs,
-      md: HEADER_CONTROL_HEIGHT,
+      md: 22,
     },
     alignItems: "center",
     justifyContent: "center",

@@ -193,6 +193,16 @@ describe("hello admission", () => {
       expect(await resolveSessionAdmission({ ...input, credential: undefined })).toEqual({
         rejection: "password_required",
       });
+      expect(
+        await resolveSessionAdmission({
+          ...input,
+          credential: undefined,
+          isRelay: true,
+          supportsHelloRejection: false,
+        }),
+      ).toEqual({
+        rejection: "password_required",
+      });
     } finally {
       await deleteLocalCredential(home);
       await rm(home, { recursive: true, force: true });

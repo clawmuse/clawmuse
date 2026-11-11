@@ -2,6 +2,7 @@ import type { ListUsageReportsOptions } from "../../plugins/usage-sources/index.
 import type pino from "pino";
 import type {
   ProviderUsage,
+  UsageDailyHistory,
   UsageReportEntry,
   UsageMonitoringSource,
 } from "@getpaseo/protocol/messages";
@@ -14,6 +15,7 @@ export interface UsageSessionOptions {
     listUsageMonitoringSources(): UsageMonitoringSource[];
     listLegacyUsage(): Promise<{ fetchedAt: string; providers: ProviderUsage[] }>;
   };
+  collectDailyUsage?: (forceRefresh?: boolean) => Promise<UsageDailyHistory>;
   isEnabled: () => boolean;
   logger: pino.Logger;
 }
@@ -41,19 +43,35 @@ export class UsageSession {
     try {
       if (!this.options.isEnabled()) throw new Error("Usage is off on this host.");
       if (!this.options.runtime) throw new Error("Plugin runtime is unavailable");
-      await this.options.runtime.listUsageReports({
-        forceRefresh: msg.forceRefresh,
-        reportIds: msg.reportIds,
-        agentId: msg.agentId,
-        onReport: (report) =>
-          this.options.emit({
-            type: "usage.list_reports.update",
-            payload: { requestId: msg.requestId, report },
-          }),
-      });
+      const shouldIncludeDaily =
+        this.options.collectDailyUsage !== undefined &&
+        msg.agentId === undefined &&
+        msg.reportIds === undefined;
+      const [, dailyUsage] = await Promise.all([
+        this.options.runtime.listUsageReports({
+          forceRefresh: msg.forceRefresh,
+          reportIds: msg.reportIds,
+          agentId: msg.agentId,
+          onReport: (report) =>
+            this.options.emit({
+              type: "usage.list_reports.update",
+              payload: { requestId: msg.requestId, report },
+            }),
+        }),
+        shouldIncludeDaily
+          ? this.options.collectDailyUsage!(msg.forceRefresh).catch((error: unknown) => {
+              this.options.logger.warn({ error }, "Daily usage history collection failed");
+              return undefined;
+            })
+          : Promise.resolve(undefined),
+      ]);
       this.options.emit({
         type: "usage.list_reports.response",
-        payload: { requestId: msg.requestId, error: null },
+        payload: {
+          requestId: msg.requestId,
+          error: null,
+          ...(dailyUsage !== undefined ? { dailyUsage } : {}),
+        },
       });
     } catch (error) {
       this.options.emit({

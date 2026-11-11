@@ -1,4 +1,5 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+import { createTranslationQueue } from "../client/queue.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,13 +9,84 @@ import type { TranslationRequest } from "./generation.js";
 import { createModelTranslator } from "./generation.js";
 import { preferences, configuredPreferencesSchema } from "../shared/contracts.js";
 import { enqueueTranslation } from "../client/queue.js";
-import { paragraphs } from "../shared/paragraphs.js";
+import { createReplyQueue } from "../client/replies.js";
 
 const directories: string[] = [];
 const settings = { provider: "claude", model: "translation-test" } as const;
 afterEach(async () => {
+  vi.useRealTimers();
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
+});
+
+test("history backlog expires before spending minutes starting more model sessions", async () => {
+  vi.useFakeTimers();
+  const queue = createTranslationQueue();
+  const starts: number[] = [];
+  const results = Array.from({ length: 40 }, (_, index) =>
+    queue
+      .enqueue({
+        signal: new AbortController().signal,
+        onStart() {
+          starts.push(index);
+        },
+        run: () => new Promise<string>((resolve) => setTimeout(() => resolve("译文"), 5_000)),
+      })
+      .catch((error: Error) => error.message),
+  );
+  await vi.advanceTimersByTimeAsync(15_001);
+  expect(await results[39]).toBe("等待翻译超时，请点击重试翻译");
+  expect(starts).toEqual([0, 1, 2]);
+  expect(await results[0]).toBe("译文");
+  queue.close();
+});
+
+test("canceling an active row frees its UI but preserves the host slot until the RPC settles", async () => {
+  const queue = createTranslationQueue();
+  const active = new AbortController();
+  let finish: (text: string) => void = () => {
+    throw new Error("RPC has not started");
+  };
+  const starts: string[] = [];
+  const first = queue
+    .enqueue({
+      signal: active.signal,
+      onStart() {
+        starts.push("first");
+      },
+      run: () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    })
+    .catch((error: Error) => error.message);
+  const second = queue.enqueue({
+    signal: new AbortController().signal,
+    onStart() {
+      starts.push("second");
+    },
+    run: async () => "新的译文",
+  });
+  await Promise.resolve();
+  active.abort();
+  expect(await first).toBe("翻译已取消");
+  expect(starts).toEqual(["first"]);
+  finish("旧的译文");
+  expect(await second).toBe("新的译文");
+  expect(starts).toEqual(["first", "second"]);
+  queue.close();
+});
+
+test("plugin teardown cancels queued work without starting another RPC", async () => {
+  const queue = createTranslationQueue();
+  const run = vi.fn(async () => "译文");
+  const result = queue.enqueue({ signal: new AbortController().signal, onStart() {}, run });
+  queue.close();
+  await expect(result).rejects.toThrow("翻译已取消");
+  expect(run).not.toHaveBeenCalled();
+  await expect(
+    queue.enqueue({ signal: new AbortController().signal, onStart() {}, run }),
+  ).rejects.toThrow("翻译已取消");
 });
 
 async function createTestTranslator(translate: (request: TranslationRequest) => Promise<string>) {
@@ -155,16 +227,6 @@ test("identical simultaneous requests share work; changing model invalidates the
   expect(calls).toBe(2);
 });
 
-test("streaming waits for complete paragraphs and never splits fenced code", () => {
-  expect(paragraphs("First.\n\nGrowing", "streaming")).toEqual([
-    { start: 0, text: "First.\n\n", complete: true },
-    { start: 8, text: "Growing", complete: false },
-  ]);
-  const code = "```ts\nlet x = 1;\n\nlet y = 2;\n```";
-  expect(paragraphs(code, "streaming")).toEqual([{ start: 0, text: code, complete: false }]);
-  expect(paragraphs(code, "complete")).toEqual([{ start: 0, text: code, complete: true }]);
-});
-
 test("fresh hosts have no selected CLI or model", () => {
   const empty = preferences.schema.parse({});
   expect(empty).toEqual({ provider: "", model: "" });
@@ -193,16 +255,18 @@ test.each(["grok", "claude", "codex", "my-custom-provider"])(
     const translate = createModelTranslator(async (request, options) => {
       expect(request.provider).toBe(provider);
       expect(request.model).toBe("vendor/model-v1");
-      expect(request.prompt).toContain('"Hello PASEO_LITERAL_0_END"');
-      expect(request.systemPrompt).toContain("Simplified Chinese");
+      expect(request.sessionKey).toBe("agent-translation");
+      expect(request.prompt).toContain("Source text:\nHello PASEO_LITERAL_0_END");
+      expect(request.prompt).toContain("Target language: Simplified Chinese");
       expect(options?.signal).toBe(signal);
-      return '```json\n{"translation":"你好 PASEO_LITERAL_0_END"}\n```';
+      return "你好 PASEO_LITERAL_0_END";
     });
     await expect(
       translate({
         provider,
         model: "vendor/model-v1",
         text: "Hello PASEO_LITERAL_0_END",
+        sessionKey: "agent-translation",
         target: "Simplified Chinese",
         signal,
       }),
@@ -210,7 +274,7 @@ test.each(["grok", "claude", "codex", "my-custom-provider"])(
   },
 );
 
-test("translation rejects malformed model output and hides provider diagnostics", async () => {
+test("translation rejects empty model output and hides provider diagnostics", async () => {
   const request: TranslationRequest = {
     provider: "grok",
     model: "test",
@@ -218,7 +282,7 @@ test("translation rejects malformed model output and hides provider diagnostics"
     target: "Simplified Chinese",
     signal: new AbortController().signal,
   };
-  const malformed = createModelTranslator(async () => '{"translation":null}');
+  const malformed = createModelTranslator(async () => "  ");
   await expect(malformed(request)).rejects.toThrow("翻译失败");
   const failure = createModelTranslator(async () => {
     throw new Error("secret credential and private source text");
@@ -342,4 +406,180 @@ test("batched translation rejects missing or reordered fields and invented liter
     ),
   ).toThrow("顺序");
   expect(() => fields.restore(fields.text + " PASEO_LITERAL_FIELD_999_0_END")).toThrow("标记");
+});
+
+test("Grok translation uses low effort while retaining the selected model and conversation key", async () => {
+  const translate = createModelTranslator(async (request) => {
+    expect(request).toMatchObject({
+      provider: "grok",
+      model: "grok-4.7",
+      thinkingOptionId: "low",
+      sessionKey: "agent-1",
+    });
+    return "你好";
+  });
+  await expect(
+    translate({
+      provider: "grok",
+      model: "grok-4.7",
+      target: "Simplified Chinese",
+      text: "Hello",
+      signal: new AbortController().signal,
+      sessionKey: "agent-1",
+    }),
+  ).resolves.toBe("你好");
+});
+
+test("complete replies share one request without splitting paragraphs or mixing conversations", async () => {
+  vi.useFakeTimers();
+  const queue = createReplyQueue();
+  const translate = vi.fn(async ({ texts }: { texts: string[] }) => ({
+    texts: texts.map((text) => `译文：${text}`),
+  }));
+  const signal = new AbortController().signal;
+  const first = queue.enqueue({
+    agentId: "one",
+    text: "First paragraph.\n\nSecond paragraph.",
+    signal,
+    onStart() {},
+    translate,
+  });
+  const second = queue.enqueue({
+    agentId: "one",
+    text: "Another complete message.",
+    signal,
+    onStart() {},
+    translate,
+  });
+  const other = queue.enqueue({
+    agentId: "two",
+    text: "Other conversation.",
+    signal,
+    onStart() {},
+    translate,
+  });
+  expect(translate).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(25);
+  await expect(first).resolves.toEqual({ text: "译文：First paragraph.\n\nSecond paragraph." });
+  await expect(second).resolves.toEqual({ text: "译文：Another complete message." });
+  await expect(other).resolves.toEqual({ text: "译文：Other conversation." });
+  expect(translate.mock.calls.map(([request]) => request)).toEqual([
+    {
+      agentId: "one",
+      texts: ["First paragraph.\n\nSecond paragraph.", "Another complete message."],
+    },
+    { agentId: "two", texts: ["Other conversation."] },
+  ]);
+  queue.close();
+});
+
+test("canceling one pending reply does not cancel the other replies in its batch", async () => {
+  vi.useFakeTimers();
+  const queue = createReplyQueue();
+  const translate = vi.fn(async ({ texts }: { texts: string[] }) => ({ texts }));
+  const controller = new AbortController();
+  const canceled = queue.enqueue({
+    agentId: "one",
+    text: "Canceled.",
+    signal: controller.signal,
+    onStart() {},
+    translate,
+  });
+  const rejected = expect(canceled).rejects.toThrow("翻译已取消");
+  const result = queue.enqueue({
+    agentId: "one",
+    text: "Keep this reply.",
+    signal: new AbortController().signal,
+    onStart() {},
+    translate,
+  });
+  controller.abort();
+  await vi.advanceTimersByTimeAsync(25);
+  await rejected;
+  await expect(result).resolves.toEqual({ text: "Keep this reply." });
+  expect(translate).toHaveBeenCalledWith({ agentId: "one", texts: ["Keep this reply."] });
+  queue.close();
+});
+
+test("batched translation keeps message boundaries and protected code with one model call", async () => {
+  const calls: TranslationRequest[] = [];
+  const translator = createTranslator({
+    directory: "/unused",
+    translate: async (request) => {
+      calls.push(request);
+      return request.text.replace("First", "第一条").replace("Second", "第二条");
+    },
+  });
+  const texts = ["First\n\n`npm run lint`", "Second\n\nhttps://example.com"];
+  try {
+    await expect(translator.replies(texts, settings, "agent-1")).resolves.toEqual([
+      "第一条\n\n`npm run lint`",
+      "第二条\n\nhttps://example.com",
+    ]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.sessionKey).toBe("agent-1");
+    await translator.replies(texts, settings, "agent-1");
+    expect(calls).toHaveLength(1);
+  } finally {
+    translator.close();
+  }
+});
+
+test("translation direction changes reuse launch instructions and only translate the current input", async () => {
+  const requests: Parameters<Parameters<typeof createModelTranslator>[0]>[0][] = [];
+  const translate = createModelTranslator(async (request) => {
+    requests.push(request);
+    return requests.length === 1 ? "Hello" : "你好";
+  });
+  const common = {
+    provider: "grok",
+    model: "grok-4.7",
+    sessionKey: "agent-1",
+    signal: new AbortController().signal,
+  };
+  await translate({ ...common, text: "你好", target: "English" });
+  await translate({ ...common, text: "Hello", target: "Simplified Chinese" });
+  expect(requests[0]!.systemPrompt).toBe(requests[1]!.systemPrompt);
+  expect(requests[0]!.sessionKey).toBe(requests[1]!.sessionKey);
+  expect(requests[0]!.prompt).toContain("Target language: English");
+  expect(requests[1]!.prompt).toContain("Target language: Simplified Chinese");
+  expect(requests[1]!.prompt).not.toContain("你好");
+});
+
+test("process preparation uses the 15-second queue budget and generation still times out after 8 seconds", async () => {
+  vi.useFakeTimers();
+  const queue = createTranslationQueue();
+  const onStart = vi.fn();
+  const result = queue.enqueue({
+    signal: new AbortController().signal,
+    onStart,
+    prepare: () => new Promise((resolve) => setTimeout(resolve, 2000)),
+    run: () => new Promise(() => {}),
+  });
+  const rejected = expect(result).rejects.toThrow("翻译超时");
+  await vi.advanceTimersByTimeAsync(1999);
+  expect(onStart).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(onStart).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(8000);
+  await rejected;
+  queue.close();
+});
+
+test("preparation cannot extend the queue deadline or send a late translation", async () => {
+  vi.useFakeTimers();
+  const queue = createTranslationQueue();
+  const run = vi.fn(async () => "late");
+  const result = queue.enqueue({
+    signal: new AbortController().signal,
+    onStart() {},
+    prepare: () => new Promise((resolve) => setTimeout(resolve, 16000)),
+    run,
+  });
+  const rejected = expect(result).rejects.toThrow("等待翻译超时");
+  await vi.advanceTimersByTimeAsync(15000);
+  await rejected;
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(run).not.toHaveBeenCalled();
+  queue.close();
 });

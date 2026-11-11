@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 export type LucideIcon = ComponentType<{
   size?: number;
@@ -7,6 +7,23 @@ export type LucideIcon = ComponentType<{
 }>;
 
 const StubIcon: LucideIcon = () => null;
+
+/** `@/components/icons/app-icons` builds every icon through this; each gets its own stub. */
+export function createLucideIcon(_name: string, _node: unknown): LucideIcon {
+  return () => null;
+}
+
+export function useLucideContext(): {
+  size?: number;
+  strokeWidth?: number;
+  absoluteStrokeWidth?: boolean;
+} {
+  return {};
+}
+
+export function LucideProvider({ children }: { children?: ReactNode }) {
+  return children;
+}
 
 export const Activity = StubIcon;
 export const AlertTriangle = StubIcon;

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { X } from "lucide-react-native";
+import { X } from "@/components/icons/app-icons";
 import type { MutableDaemonConfig } from "@getpaseo/protocol/messages";
 import { CombinedModelSelector } from "@/components/combined-model-selector";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";

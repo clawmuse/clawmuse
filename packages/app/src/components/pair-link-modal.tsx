@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { Link } from "lucide-react-native";
+import { Link } from "@/components/icons/app-icons";
 import type { HostProfile } from "@/types/host-connection";
 import { useHosts, useHostMutations, type PasswordRequiredPairing } from "@/runtime/host-runtime";
 import { parseRelayConnectionUri } from "@/utils/daemon-endpoints";

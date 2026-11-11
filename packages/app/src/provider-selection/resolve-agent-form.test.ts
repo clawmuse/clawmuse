@@ -506,7 +506,7 @@ describe("resolveFormState", () => {
     expect(resolved.thinkingOptionId).toBe("low");
   });
 
-  it("preserves the remembered provider when it is absent from the available catalogue", () => {
+  it("clears an invalid provider instead of falling back to the first allowed provider", () => {
     const resolved = resolveFormState(
       undefined,
       { provider: "codex" },
@@ -517,7 +517,7 @@ describe("resolveFormState", () => {
       claudeProviderMap,
     );
 
-    expect(resolved.provider).toBe("codex");
+    expect(resolved.provider).toBeNull();
   });
 
   it("preserves a user-selected provider and model while that provider is loading during refresh", () => {
@@ -647,7 +647,7 @@ describe("resolveFormState", () => {
     expect(resolved.modeId).toBe("auto");
   });
 
-  it("preserves saved intent even when a provider is disabled", () => {
+  it("ignores disabled ready providers when resolving selectable defaults", () => {
     const entries: ProviderSnapshotEntry[] = [
       {
         provider: "codex",
@@ -685,8 +685,8 @@ describe("resolveFormState", () => {
       selectableProviderMap,
     );
 
-    expect(resolved.provider).toBe("claude");
-    expect(resolved.modeId).toBe("");
+    expect(resolved.provider).toBe("codex");
+    expect(resolved.modeId).toBe("auto");
   });
 
   it("excludes disabled providers from the selectable provider map without removing them from snapshot definitions", () => {
@@ -793,7 +793,7 @@ describe("resolveFormState", () => {
   });
 });
 
-it("keeps the explicit model when a refreshed catalogue no longer lists it", () => {
+it("falls back to the provider default model when the remembered model is absent from the host catalogue", () => {
   const resolved = resolveFormState(
     undefined,
     { provider: "codex", providerPreferences: { codex: { model: "gpt-6-astra" } } },
@@ -802,9 +802,8 @@ it("keeps the explicit model when a refreshed catalogue no longer lists it", () 
     makeState().form,
     codexProviderMap,
   );
-  expect(resolved.model).toBe("gpt-6-astra");
-  // Label/persistence lookup must not reinterpret the submitted ID as another model.
-  expect(resolveEffectiveModel(CODEX_MODELS, resolved.model)).toBeNull();
+  expect(resolved.model).toBe("gpt-5.3-codex");
+  expect(resolveEffectiveModel(CODEX_MODELS, "gpt-6-astra")).toBeNull();
 });
 
 describe("resolveAgentForm", () => {
@@ -1251,7 +1250,7 @@ it("owns input readiness, reopening and user edits in the reducer", () => {
     hasSnapshot: false,
     initialValues: undefined,
     preferences: { provider: "codex", providerPreferences: { codex: { model: "astra" } } },
-    allowedProviderMap: new Map(),
+    allowedProviderMap: codexProviderMap,
     providerModelsByProvider: new Map(),
   };
   let state = resolveAgentForm(makeState(), inputs);
@@ -1270,4 +1269,76 @@ it("owns input readiness, reopening and user edits in the reducer", () => {
   expect(state.resolution.status).toBe("pending");
   state = resolveAgentForm(state, { ...inputs, isPreferencesLoading: false, hasSnapshot: true });
   expect(state.form).toMatchObject({ provider: "codex", model: "astra" });
+});
+
+it("clears cross-host provider and model when switching to a host without them", () => {
+  const claudeModels: AgentModelDefinition[] = [
+    { provider: "claude", id: "claude-sonnet-4-6", label: "Sonnet 4.6", isDefault: true },
+  ];
+  const preferences = {
+    provider: "codex",
+    providerPreferences: {
+      codex: { model: "gpt-5.3-codex" },
+      claude: { model: "devin/swe-2" },
+    },
+  };
+  let state = resolveAgentForm(makeState(), {
+    type: "INPUTS_CHANGED",
+    serverId: "host-a",
+    isVisible: true,
+    isCreateFlow: true,
+    isPreferencesLoading: false,
+    hasSnapshot: true,
+    initialValues: undefined,
+    preferences,
+    allowedProviderMap: bothProviderMap,
+    providerModelsByProvider: makeProviderModelsByProvider([
+      ["codex", CODEX_MODELS],
+      ["claude", [...claudeModels, { provider: "claude", id: "devin/swe-2", label: "SWE-2" }]],
+    ]),
+  });
+  expect(state.form).toMatchObject({ provider: "codex", model: "gpt-5.3-codex" });
+
+  // Switch to host-b where codex is not available (only claude is ready).
+  state = resolveAgentForm(state, {
+    type: "INPUTS_CHANGED",
+    serverId: "host-b",
+    isVisible: true,
+    isCreateFlow: true,
+    isPreferencesLoading: false,
+    hasSnapshot: true,
+    initialValues: undefined,
+    preferences,
+    allowedProviderMap: claudeProviderMap,
+    providerModelsByProvider: makeProviderModelsByProvider([["claude", claudeModels]]),
+  });
+  expect(state.form).toMatchObject({ provider: null, model: "", modeId: "" });
+
+  // If claude is the preferred provider and its model was loading when host-b opened,
+  // it falls back to host-b's default model once host-b's claude catalog arrives.
+  state = resolveAgentForm(state, {
+    type: "INPUTS_CHANGED",
+    serverId: "host-c",
+    isVisible: true,
+    isCreateFlow: true,
+    isPreferencesLoading: false,
+    hasSnapshot: true,
+    initialValues: undefined,
+    preferences: { ...preferences, provider: "claude" },
+    allowedProviderMap: claudeProviderMap,
+    providerModelsByProvider: makeProviderModelsByProvider([["claude", null]]),
+  });
+  state = resolveAgentForm(state, {
+    type: "INPUTS_CHANGED",
+    serverId: "host-c",
+    isVisible: true,
+    isCreateFlow: true,
+    isPreferencesLoading: false,
+    hasSnapshot: true,
+    initialValues: undefined,
+    preferences: { ...preferences, provider: "claude" },
+    allowedProviderMap: claudeProviderMap,
+    providerModelsByProvider: makeProviderModelsByProvider([["claude", claudeModels]]),
+  });
+  expect(state.form).toMatchObject({ provider: "claude", model: "claude-sonnet-4-6" });
 });

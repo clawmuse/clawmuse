@@ -1,0 +1,4 @@
+Fixed
+- Merge subscription quota accounts and 30-day daily usage history across all connected computers when iOS widgets use the default "Automatic" computer selection, while preserving single-computer filtering when a specific computer is chosen.
+
+Full notes: https://paseo.sh/changelog

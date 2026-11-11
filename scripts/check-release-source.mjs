@@ -19,7 +19,7 @@ export function checkReleaseSource({ tag, cwd = process.cwd(), allowBehindMain =
   const tags = git("tag", "--list").split("\n");
   for (const existing of tags) {
     if (
-      !/^(?:(?:desktop(?:-(?:windows|linux|macos))?|android|ios)-)?v\d+\.\d+\.\d+(?:-beta\.\d+)?$/.test(
+      !/^(?:(?:desktop(?:-(?:windows|linux|macos))?|android|ios)-)?v\d+\.\d+\.\d+(?:-beta\.\d+)?(?:\+[0-9]{4})?$/.test(
         existing,
       )
     )

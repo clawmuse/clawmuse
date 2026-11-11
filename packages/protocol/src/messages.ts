@@ -1077,6 +1077,21 @@ export const WorkspaceTitleSetRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const WorkspaceDeleteRequestSchema = z.object({
+  type: z.literal("workspace.delete.request"),
+  workspaceId: z.string(),
+  requestId: z.string(),
+});
+
+export const WorkspaceDeleteResponseSchema = z.object({
+  type: z.literal("workspace.delete.response"),
+  payload: z.object({
+    requestId: z.string(),
+    workspaceId: z.string(),
+    error: z.string().nullable(),
+  }),
+});
+
 export const WorkspacePinSetRequestSchema = z.object({
   type: z.literal("workspace.pin.set.request"),
   workspaceId: z.string(),
@@ -3411,6 +3426,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   ProjectRemoveRequestSchema,
   WorkspaceTitleSetRequestSchema,
   WorkspacePinSetRequestSchema,
+  WorkspaceDeleteRequestSchema,
   WorkspaceLabelListRequestSchema,
   WorkspaceLabelAssignmentSetRequestSchema,
   WorkspaceLabelUpdateRequestSchema,
@@ -3809,6 +3825,7 @@ export const ServerInfoStatusPayloadSchema = z
         // COMPAT(internalWorkspaces): added in v0.9.0; remove gate after 2027-03-17.
         internalWorkspaces: z.boolean().optional(),
         backgroundWorkspaces: z.boolean().optional(),
+        workspaceDeletion: z.boolean().optional(),
         providersSnapshot: z.boolean().optional(),
         promptPredictions: z.boolean().optional(),
         remoteAccess: z.boolean().optional(),
@@ -6685,9 +6702,30 @@ export const UsageListReportsUpdateMessageSchema = z.object({
   type: z.literal("usage.list_reports.update"),
   payload: z.object({ requestId: z.string(), report: UsageReportEntrySchema }),
 });
+export const UsageDailyModelEntrySchema = z.object({
+  name: z.string(),
+  harness: z.enum(["claude-code", "codex", "pi"]),
+});
+export const UsageDailyPointSchema = z.object({
+  money: z.array(z.number()),
+  paid: z.number(),
+  costAvailable: z.boolean().optional(),
+  tokens: z.array(z.number()),
+  models: z.array(z.number()).optional(),
+  modelTokens: z.array(z.number()).optional(),
+});
+export const UsageDailyHistorySchema = z.object({
+  days: z.array(z.string()),
+  daily: z.array(UsageDailyPointSchema),
+  models: z.array(UsageDailyModelEntrySchema).optional(),
+});
 export const UsageListReportsResponseMessageSchema = z.object({
   type: z.literal("usage.list_reports.response"),
-  payload: z.object({ requestId: z.string(), error: z.string().nullable() }),
+  payload: z.object({
+    requestId: z.string(),
+    error: z.string().nullable(),
+    dailyUsage: UsageDailyHistorySchema.optional(),
+  }),
 });
 
 export const UsageMonitoringSourceSchema = z.object({
@@ -7356,6 +7394,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ProjectRemoveResponseSchema,
   WorkspaceTitleSetResponseSchema,
   WorkspacePinSetResponseSchema,
+  WorkspaceDeleteResponseSchema,
   WorkspaceRecoveryInspectResponseSchema,
   WorkspaceRecoveryRestoreResponseSchema,
   WaitForFinishResponseMessageSchema,
@@ -7611,6 +7650,9 @@ export type ProviderDiagnosticResponseMessage = z.infer<
 export type ProviderUsageTone = z.infer<typeof ProviderUsageToneSchema>;
 export type UsageProblem = z.infer<typeof UsageProblemSchema>;
 export type UsageReport = z.infer<typeof UsageReportSchema>;
+export type UsageDailyHistory = z.infer<typeof UsageDailyHistorySchema>;
+export type UsageDailyModelEntry = z.infer<typeof UsageDailyModelEntrySchema>;
+export type UsageDailyPoint = z.infer<typeof UsageDailyPointSchema>;
 export type UsageReportEntry = z.infer<typeof UsageReportEntrySchema>;
 export type UsageListReportsResponseMessage = z.infer<typeof UsageListReportsResponseMessageSchema>;
 export type ProviderUsageStatus = z.infer<typeof ProviderUsageStatusSchema>;

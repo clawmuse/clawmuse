@@ -237,6 +237,7 @@ function detachWebOverlayListeners(): void {
 }
 
 function addWebOverlay(entry: WebOverlayEntry): (options?: RemoveWebOverlayOptions) => void {
+  const registeredScope = entry.getScope();
   webOverlayEntries.push(entry);
   attachWebOverlayListeners();
 
@@ -263,7 +264,24 @@ function addWebOverlay(entry: WebOverlayEntry): (options?: RemoveWebOverlayOptio
       entry.restoreFocus &&
       document.contains(entry.restoreFocus)
     ) {
-      entry.restoreFocus.focus();
+      const target = entry.restoreFocus;
+      const revealedOverlay = getTopWebOverlay();
+      // Effect cleanup runs before React restores selection for this commit.
+      // Restore afterward, unless another overlay has since taken ownership.
+      queueMicrotask(() => {
+        if (getTopWebOverlay() !== revealedOverlay || !document.contains(target)) return;
+        if (revealedOverlay?.manageFocus && !revealedOverlay.getScope()?.contains(target)) return;
+        const activeElement = document.activeElement;
+        // A menu action can focus a new pane or inline editor during this commit.
+        // Keep that explicit handoff instead of sending focus back to the opener.
+        if (
+          activeElement &&
+          activeElement !== document.body &&
+          !registeredScope?.contains(activeElement)
+        )
+          return;
+        target.focus();
+      });
     }
   };
 }

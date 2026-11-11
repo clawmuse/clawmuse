@@ -99,7 +99,7 @@ function ChoiceField<T extends string>({
   );
 }
 
-function SpeechForm({
+export function SpeechForm({
   snapshot,
   persist,
 }: {

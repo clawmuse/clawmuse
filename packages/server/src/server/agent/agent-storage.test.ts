@@ -575,4 +575,18 @@ describe("AgentStorage", () => {
     const after = await afterReload.list();
     expect(after.some((r) => r.id === agentId)).toBe(false);
   });
+  test("remove reports a filesystem failure and keeps the record available for retry", async () => {
+    const agentId = "failed-delete";
+    await storage.applySnapshot(createManagedAgent({ id: agentId, cwd: "/tmp/delete-failure" }));
+    const recordPath = path.join(storagePath, "tmp-delete-failure", `${agentId}.json`);
+    const original = await fs.readFile(recordPath);
+    await fs.unlink(recordPath);
+    await fs.mkdir(recordPath);
+    await expect(storage.remove(agentId)).rejects.toThrow();
+    expect(await storage.get(agentId)).not.toBeNull();
+    await fs.rmdir(recordPath);
+    await fs.writeFile(recordPath, original);
+    await storage.remove(agentId);
+    expect(await new AgentStorage(storagePath, logger).get(agentId)).toBeNull();
+  });
 });

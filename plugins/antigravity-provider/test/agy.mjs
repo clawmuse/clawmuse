@@ -1,4 +1,5 @@
-import { readFileSync, appendFileSync } from "node:fs";
+import path from "node:path";
+import { readFileSync, appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 const args = process.argv.slice(2);
@@ -77,6 +78,24 @@ lines.on("line", (line) => {
     });
     return;
   }
+  if (text.includes("FINAL_THINKING")) {
+    const directory = path.join(
+      process.env.HOME,
+      ".gemini/antigravity-cli/brain",
+      conversationId,
+      ".system_generated/logs",
+    );
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      path.join(directory, "transcript_full.jsonl"),
+      JSON.stringify({
+        step_index: 1,
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        thinking: "Final native thought",
+      }) + "\n",
+    );
+  }
   let name = "text-turn";
   if (text.includes("Attached image: ")) name = "image-file-external";
   if (text.includes("TOOLS")) name = "tools-default";
@@ -102,6 +121,7 @@ lines.on("line", (line) => {
     if (resultCount === ordinal) emit(frame);
     if (frame.event === "result") resultCount += 1;
   }
+  if (process.env.AGY_TEST_EXIT_AFTER_RESULT === "yes") process.exit(0);
 });
 process.on("SIGINT", () => {
   record({ signal: "SIGINT" });

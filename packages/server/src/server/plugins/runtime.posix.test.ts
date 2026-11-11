@@ -2068,6 +2068,61 @@ export default function contribute(server) {
 });
 
 describe("host text generation", () => {
+  it("passes session reuse through IPC and releases the resident when the plugin stops", async () => {
+    const directory = await createPlugin(
+      "text-reuse",
+      `
+      import { defineRpc } from "@getpaseo/plugin";
+      import { z } from "zod";
+      const rpc = defineRpc({ name: "translate", input: z.object({}), output: z.string() });
+      export default function(server) {
+        server.handle(defineRpc({name: "prepare", input: z.object({}), output: z.object({})}), async () => {
+          await server.prepareTextGeneration({provider: "grok", model: "grok-4.7", sessionKey: "agent-1", thinkingOptionId: "low"});
+          return {};
+        });
+        server.handle(rpc, () => server.generateText({ provider: "grok", model: "grok-4.7", prompt: "Hello", sessionKey: "agent-1", thinkingOptionId: "low" }));
+        return () => {};
+      }
+    `,
+    );
+    const { generateProviderText } = await import("../agent/text-generation.js");
+    let launched = 0;
+    let closed = 0;
+    const client = {
+      async createSession(config: { thinkingOptionId?: string }) {
+        expect(config.thinkingOptionId).toBe("low");
+        launched++;
+        return {
+          run: async () => ({ sessionId: "temporary", finalText: "你好", timeline: [] }),
+          subscribe: () => () => {},
+          close: async () => {
+            closed++;
+          },
+        };
+      },
+    };
+    const tracked = createTrackedSessionHost();
+    const runtime = createTestRuntime({
+      sessionHost: {
+        ...tracked.host,
+        generatePluginText: (request, options) =>
+          generateProviderText({ client, request, ...options }),
+      },
+    });
+    try {
+      await runtime.startPlugin("text-reuse", directory);
+      await expect(runtime.invoke("text-reuse", "prepare", {})).resolves.toEqual({});
+      expect(launched).toBe(1);
+      await expect(runtime.invoke("text-reuse", "translate", {})).resolves.toBe("你好");
+      await expect(runtime.invoke("text-reuse", "translate", {})).resolves.toBe("你好");
+      expect(launched).toBe(1);
+      expect(closed).toBe(0);
+    } finally {
+      await runtime.stopAll();
+    }
+    expect(closed).toBe(1);
+  });
+
   it("routes a plugin request to the configured host model and redacts provider failures", async () => {
     const directory = await createPlugin(
       "text-generation",

@@ -1,6 +1,32 @@
 import type { createCreationScenario } from "../support/helpers/creation";
 import { expect } from "../support/fixtures";
 import { test } from "../support/creation-fixtures";
+import { chooseModel } from "../support/helpers/model-memory";
+
+test("editing the prompt after failed workspace agent startup retries in the same workspace", async ({
+  creation,
+  startup,
+  page,
+  e2eWorkerClient,
+}) => {
+  await creation.openWorkspaceForm("local");
+  await creation.submitPrompt("Original workspace prompt.", "Create");
+  await creation.expectAgentStillStarting();
+  await startup.fail();
+  await creation.expectStartupFailure();
+  await creation.expectOneCreatedWorkspace();
+  await chooseModel(page, "mock", "Ten second stream");
+  await creation.submitPrompt("Corrected prompt after the failed startup.");
+  await creation.expectAgentCount(1);
+  await creation.expectPromptVisible("Corrected prompt after the failed startup.");
+  await creation.expectOneCreatedWorkspace();
+  const [agentId] = await creation.agentIds();
+  const created = (await e2eWorkerClient.fetchAgents()).entries.find(
+    ({ agent }) => agent.id === agentId,
+  );
+  expect(created?.agent.model).toBe("ten-second-stream");
+  await expect(page.getByText("workspace_request_key_conflict", { exact: true })).toHaveCount(0);
+});
 
 for (const isolation of ["local", "worktree"] as const) {
   test(`repeated Create clicks before a render create only one ${isolation} workspace`, async ({

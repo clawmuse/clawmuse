@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
-import { Copy } from "lucide-react-native";
+import { Copy } from "@/components/icons/app-icons";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
   PaneContentToolbar,

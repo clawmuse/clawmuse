@@ -84,9 +84,11 @@ export function useDictation(options: UseDictationOptions): UseDictationResult {
   if (!senderRef.current) {
     senderRef.current = new DictationStreamSender({
       getOfficialCredential: async () => {
-        const settings = await officialClientRef.current?.getDaemonConfig();
+        const [settings, account] = await Promise.all([
+          officialClientRef.current?.getDaemonConfig(),
+          accountRequest("/get-session"),
+        ]);
         if (settings?.config.speech?.dictation.service === "custom") return undefined;
-        const account = await accountRequest("/get-session");
         if (account.status !== 200 || !(account.data as { session?: unknown } | null)?.session)
           return undefined;
         if (settings?.config.speech?.dictation.enabled === false)

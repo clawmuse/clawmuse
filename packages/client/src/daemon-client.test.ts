@@ -7838,7 +7838,13 @@ test.each([
   expect(supportsUsageReports(features)).toBe(expected);
 });
 
-test("uses modern usage RPC when both capabilities are advertised", async () => {
+test.each([
+  undefined,
+  {
+    days: ["2026-11-09"],
+    daily: [{ money: [0, 0, 0], paid: 0, tokens: [50, 100, 0], costAvailable: false }],
+  },
+])("uses modern usage RPC and preserves optional daily history: %j", async (dailyUsage) => {
   const mock = createMockTransport();
   const client = new DaemonClient({
     url: "ws://test",
@@ -7868,6 +7874,7 @@ test("uses modern usage RPC when both capabilities are advertised", async () => 
   });
   const payload = {
     requestId: "modern-usage",
+    ...(dailyUsage !== undefined ? { dailyUsage } : {}),
     reports: [
       {
         id: "claude:work",
@@ -7897,7 +7904,7 @@ test("uses modern usage RPC when both capabilities are advertised", async () => 
   mock.triggerMessage(
     wrapSessionMessage({
       type: "usage.list_reports.response",
-      payload: { requestId: payload.requestId, error: null },
+      payload: { requestId: payload.requestId, error: null, dailyUsage },
     }),
   );
   mock.triggerMessage(
@@ -8871,5 +8878,51 @@ describe("weak-network recovery", () => {
 
     await expect(sending).rejects.toBeInstanceOf(AgentMessageOutcomeUnknownError);
     await expect(sending).rejects.toMatchObject({ agentId: "agent-1", messageId: "msg-1" });
+  });
+});
+
+describe("permanent workspace deletion", () => {
+  test("requires the host capability before sending a delete request", async () => {
+    const mock = createMockTransport();
+    const client = new DaemonClient({
+      url: "ws://test",
+      clientId: "workspace-delete-test",
+      logger: createMockLogger(),
+      reconnect: { enabled: false },
+      transportFactory: () => mock.transport,
+    });
+    clients.push(client);
+    const connecting = client.connect();
+    mock.triggerOpen();
+    await connecting;
+    await expect(client.deleteWorkspace("workspace")).rejects.toThrow("Update the host");
+    expect(mock.sent).toEqual([]);
+  });
+
+  test.each([null, "Could not stop terminal"])("reports the host result: %s", async (error) => {
+    const mock = createMockTransport();
+    const client = new DaemonClient({
+      url: "ws://test",
+      clientId: "workspace-delete-test",
+      logger: createMockLogger(),
+      reconnect: { enabled: false },
+      transportFactory: () => mock.transport,
+    });
+    clients.push(client);
+    const connecting = client.connect();
+    mock.triggerOpen({ features: { workspaceDeletion: true } });
+    await connecting;
+    const deleting = client.deleteWorkspace("workspace");
+    const frame = parseSentFrame(mock.sent[0]);
+    expect(frame).toMatchObject({ type: "workspace.delete.request", workspaceId: "workspace" });
+    const request = z.object({ requestId: z.string() }).parse(frame);
+    mock.triggerMessage(
+      wrapSessionMessage({
+        type: "workspace.delete.response",
+        payload: { requestId: request.requestId, workspaceId: "workspace", error },
+      }),
+    );
+    if (error) await expect(deleting).rejects.toThrow(error);
+    else await expect(deleting).resolves.toBeUndefined();
   });
 });

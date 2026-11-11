@@ -1,7 +1,8 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { enqueueTranslation } from "./client/queue.js";
 import { fieldsRpc } from "./shared/contracts.js";
-import { TranslationRow } from "./client/row.js";
+import { TranslationRow, translationQueue } from "./client/row.js";
+
 import { TranslationSettings } from "./client/settings.js";
 import { settingsRpc } from "@getpaseo/plugin";
 import { preferences, configuredPreferencesSchema, rowSchema } from "./shared/contracts.js";
@@ -115,6 +116,7 @@ export default function contribute(client: PluginClientContext) {
   update();
   return async () => {
     disposed = true;
+    translationQueue.close();
     unsubscribe();
     removeContentTranslator?.();
     for (const remove of removeTransforms) remove();

@@ -1,4 +1,4 @@
-import { GitPullRequest } from "lucide-react-native";
+import { GitPullRequest } from "@/components/icons/app-icons";
 import { withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { formatPrTabLabel } from "@/git/pull-request-panel/tab-label";

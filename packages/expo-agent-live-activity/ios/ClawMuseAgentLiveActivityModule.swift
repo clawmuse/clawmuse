@@ -110,6 +110,47 @@ public final class ClawMuseAgentLiveActivityModule: Module {
       }
     }
 
+    Function("writeUsageWidgetSnapshot") { (json: String) -> Bool in
+      guard let url = self.usageWidgetSnapshotURL() else { return false }
+      do {
+        try Data(json.utf8).write(to: url, options: .atomic)
+      } catch {
+        return false
+      }
+      if #available(iOS 14.0, *) {
+        WidgetCenter.shared.reloadAllTimelines()
+      }
+      return true
+    }
+
+    Function("readUsageWidgetSnapshot") { () -> String? in
+      guard let url = self.usageWidgetSnapshotURL(),
+        let data = try? Data(contentsOf: url)
+      else { return nil }
+      return String(data: data, encoding: .utf8)
+    }
+
+    Function("readPinnedUsageWidgetDeviceIds") { () -> [String] in
+      guard let defaults = UserDefaults(suiteName: AgentWidgetSharing.appGroup),
+        let pins = defaults.dictionary(forKey: AgentWidgetSharing.usageWidgetPinsKey)
+          as? [String: Double]
+      else { return [] }
+      let now = Date().timeIntervalSince1970
+      return
+        pins
+        .filter { now - $0.value < AgentWidgetSharing.usageWidgetPinMaxAge }
+        .map(\.key)
+        .sorted()
+    }
+
+    Function("clearUsageWidgetSnapshot") { () -> Void in
+      guard let url = self.usageWidgetSnapshotURL() else { return }
+      try? FileManager.default.removeItem(at: url)
+      if #available(iOS 14.0, *) {
+        WidgetCenter.shared.reloadAllTimelines()
+      }
+    }
+
     OnCreate {
       self.startActivityObserversIfAvailable()
     }
@@ -134,6 +175,15 @@ public final class ClawMuseAgentLiveActivityModule: Module {
     static let appGroup = "group.com.clawmuse"
     static let snapshotKey = "clawmuse.widget.snapshot"
     static let credentialsKey = "clawmuse.widget.credentials"
+    static let usageWidgetFileName = "usage-widget-snapshot.json"
+    static let usageWidgetPinsKey = "usageWidgetPins"
+    static let usageWidgetPinMaxAge: TimeInterval = 2 * 24 * 3600
+  }
+
+  private func usageWidgetSnapshotURL() -> URL? {
+    FileManager.default
+      .containerURL(forSecurityApplicationGroupIdentifier: AgentWidgetSharing.appGroup)?
+      .appendingPathComponent(AgentWidgetSharing.usageWidgetFileName)
   }
 
   @available(iOS 16.2, *)

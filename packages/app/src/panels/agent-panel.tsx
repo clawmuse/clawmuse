@@ -8,7 +8,7 @@ import { useHasAgentTokenSpeed } from "@/components/token-speed-indicator";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { TFunction } from "i18next";
-import { Archive, SquarePen, X } from "lucide-react-native";
+import { Archive, SquarePen, X } from "@/components/icons/app-icons";
 import React, {
   type ComponentProps,
   memo,

@@ -20,6 +20,15 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ClawMuseAppGroupId</key>
+	<string>group.com.clawmuse</string>
+	<key>ClawMuseURLScheme</key>
+	<string>clawmuse</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>BarlowCondensed-Medium.ttf</string>
+		<string>BarlowCondensed-SemiBold.ttf</string>
+	</array>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>

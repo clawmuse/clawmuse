@@ -3,7 +3,7 @@ import { View, Text } from "react-native";
 import { useIsFocused } from "expo-router/react-navigation";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ChevronLeft, Import } from "lucide-react-native";
+import { ChevronLeft, Import } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { MenuHeader } from "@/components/headers/menu-header";

@@ -1,6 +1,6 @@
 import { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Summary } from "lucide-react-native";
+import { Summary } from "@/components/icons/app-icons";
 import { ExpandableBadge } from "@/components/message";
 import { useOverviewSummaryLabel } from "@/tool-calls/detail-level/overview/label";
 import type { CollapsedTurn } from "./model";

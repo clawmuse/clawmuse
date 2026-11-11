@@ -85,9 +85,13 @@ export function useVoiceOptional(): VoiceContextValue | null {
         const client = getHostRuntimeStore().getClient(serverId);
         if (!client) throw new Error("Host is disconnected");
 
+        const serverInfo = client.getLastServerInfoMessage();
+        const assistantEnabled =
+          serverInfo?.features?.voiceAssistant === true &&
+          serverInfo.features.voiceAssistantEnabled === true;
         const settings = await loadAppSettingsFromStorage();
         const input =
-          settings.voiceInputSource === "apple"
+          !assistantEnabled && settings.voiceInputSource === "apple"
             ? { source: "apple" as const, locale: settings.appleSpeechLocale }
             : undefined;
         await runtime.startVoice(serverId, agentId, input);

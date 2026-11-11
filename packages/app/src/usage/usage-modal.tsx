@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
+import { StyleSheet } from "react-native-unistyles";
 import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { ALL_HOSTS_OPTION_ID } from "@/components/hosts/host-picker-constants";
@@ -9,6 +10,7 @@ import { UsageMonitoringSettings } from "./monitoring";
 import { Button } from "@/components/ui/button";
 import { UsageControls } from "./controls";
 import { useUsageDisplay, type UsageDisplay } from "./display";
+import { UsageHistoryCard } from "./history-card";
 import { useUsageHostSelection } from "./hosts";
 import type { UsageHost } from "./model";
 import { useHostsUsage } from "./queries";
@@ -61,6 +63,8 @@ function HostUsageModal({
   );
   const { views, refresh, refreshHost } = useHostsUsage(selectedHosts);
   const reports = views.flatMap(({ view }) => (view.kind === "ready" ? view.reports : []));
+  const histories = useMemo(() => views.map(({ dailyUsage }) => dailyUsage), [views]);
+  const hasAnyReadyHost = views.some(({ view }) => view.kind === "ready");
   const { display } = useUsageDisplay(reports);
   const hostSelection = useMemo(
     () => ({ hosts, serverId, onSelect: onSelectHost }),
@@ -92,14 +96,22 @@ function HostUsageModal({
       {/* Keyed by host so a refresh in flight on one host never shows on another's cards. Only the
           body: keying the frame remounts the sheet, and on phones and native the unmounting sheet
           reports onDismiss, which closes the modal as soon as another host is picked. */}
-      <View key={serverId}>
-        {monitoring
-          ? selectedHosts.map((host) => (
-              <SettingsSection key={host.serverId} title={host.label}>
-                <UsageMonitoringSettings serverId={host.serverId} />
-              </SettingsSection>
-            ))
-          : views.map(({ host, view }) => (
+      <View key={serverId} style={styles.content}>
+        {monitoring ? (
+          selectedHosts.map((host) => (
+            <SettingsSection key={host.serverId} title={host.label}>
+              <UsageMonitoringSettings serverId={host.serverId} />
+            </SettingsSection>
+          ))
+        ) : (
+          <>
+            {hasAnyReadyHost ? (
+              <UsageHistoryCard
+                histories={histories}
+                scope={serverId === ALL_HOSTS_OPTION_ID ? "all" : "local"}
+              />
+            ) : null}
+            {views.map(({ host, view }) => (
               <HostUsageBody
                 key={host.serverId}
                 host={host}
@@ -109,6 +121,8 @@ function HostUsageModal({
                 showHostLabel={showHostLabels}
               />
             ))}
+          </>
+        )}
       </View>
     </UsageModalFrame>
   );
@@ -158,3 +172,9 @@ function UsageModalFrame({
     </AdaptiveModalSheet>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  content: {
+    gap: theme.spacing[4],
+  },
+}));

@@ -317,10 +317,10 @@ test.describe("New workspace entry points", () => {
         .getByRole("button", { name: "Bottom sheet backdrop" })
         .first()
         .click({ position: { x: 5, y: 5 } });
-      await expectSidebarIconCentered(page, seeded.workspaceId, 49);
+      await expectSidebarIconCentered(page, seeded.workspaceId, 47);
       await seeded.client.setWorkspacePinned(seeded.workspaceId, false);
       await selectSidebarStatusGrouping(page);
-      await expectSidebarIconCentered(page, seeded.workspaceId, 49);
+      await expectSidebarIconCentered(page, seeded.workspaceId, 47);
       await listAction.click({ trial: true });
       await page.screenshot({ path: "test-results/mobile-agent-actions-list.png" });
       await listAction.click();

@@ -3,19 +3,30 @@ import { AccountData } from "./account-data";
 import { AgentDetail, AgentDirectory } from "./agents";
 import { isAgentPage } from "./agents-content";
 import { useSiteTranslation } from "./i18n/i18n";
-import { useMemo } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+  type SyntheticEvent,
+} from "react";
 import {
   release,
+  fileVersion,
   formatSize,
   installerMirrorUrl,
   githubReleaseUrl,
+  platformVersion,
   type DownloadFile,
 } from "./downloads";
 import {
   ArrowRight,
   ArrowUpRight,
   Check,
+  ChevronDown,
   CircleHelp,
+  Copy,
   Download,
   Fingerprint,
   Globe,
@@ -26,6 +37,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { Mark, Wordmark } from "./mark";
+import { ProductDemo } from "./product-demo";
 import { EditorialArticle, Learn, Blog, OwnershipSection } from "./editorial";
 import { isArticlePage } from "./editorial-content";
 import changelog from "./changelog.json";
@@ -41,7 +53,14 @@ import {
   useScrollSpy,
   type Localized,
 } from "./ui";
-import { ConnectionDiagram, EndCTA, FeatureGrid, WebWorkspaceSection } from "./site";
+import {
+  ConnectionDiagram,
+  DownloadButton,
+  EndCTA,
+  FeatureGrid,
+  RealDeviceShowcase,
+  WebWorkspaceSection,
+} from "./site";
 
 type Props = Localized & { page: Page };
 export function InnerPage({ page, language }: Props) {
@@ -95,6 +114,23 @@ function Product({ language }: Localized) {
       >
         {t("product.theCodingToolsYouKnowTheEnvironmentYouOwn")}
       </PageIntro>
+      <div className="container product-intro-actions">
+        <DownloadButton language={language} label={t("home.getStarted")} />
+        <a className="button ghost" href="#product-demo">
+          {t("product.tryInteractiveDemo")}
+          <ArrowRight size={17} />
+        </a>
+      </div>
+      <section
+        id="product-demo"
+        className="container experience home-product-showcase product-demo-section"
+        aria-labelledby="product-demo-heading"
+      >
+        <h2 id="product-demo-heading" className="sr-only">
+          {t("tour.interactive")}
+        </h2>
+        <ProductDemo language={language} />
+      </section>
       <section className="section container">
         <SectionHeading
           eyebrow={t("home.02StayInTheFlow")}
@@ -102,6 +138,7 @@ function Product({ language }: Localized) {
         />
         <FeatureGrid language={language} />
       </section>
+      <RealDeviceShowcase language={language} />
       <WebWorkspaceSection language={language} />
       <OwnershipSection language={language} />
       <EndCTA language={language} />
@@ -110,6 +147,13 @@ function Product({ language }: Localized) {
 }
 function Downloads({ language }: Localized) {
   const { t } = useSiteTranslation(language);
+  const [checksumsOpen, setChecksumsOpen] = useState(false);
+  const openChecksums = useCallback(() => setChecksumsOpen(true), []);
+  const macVersion = platformVersion("macos");
+  const hasSplitDesktopVersion = macVersion !== release.version;
+  useEffect(() => {
+    if (window.location.hash === "#checksums") setChecksumsOpen(true);
+  }, []);
   const platforms = [
     {
       id: "windows",
@@ -141,7 +185,18 @@ function Downloads({ language }: Localized) {
       <PageIntro title={t("downloads.chooseYourMachineMakeYourFirstConnection")} />
       {release.files.length > 0 && (
         <div className="container release-summary">
-          <span className="pill">ClawMuse {release.version}</span>
+          {hasSplitDesktopVersion ? (
+            <>
+              <span className="pill">macOS v{macVersion}</span>
+              <span className="pill">Windows · Linux · Android v{release.version}</span>
+            </>
+          ) : (
+            <span className="pill">ClawMuse v{release.version}</span>
+          )}
+          <a className="text-link checksums-jump" href="#checksums" onClick={openChecksums}>
+            <ShieldCheck size={15} />
+            {t("downloads.checksumsTitle")}
+          </a>
         </div>
       )}
       <section className="container download-grid" aria-label={t("downloads.platformInstallers")}>
@@ -153,7 +208,10 @@ function Downloads({ language }: Localized) {
               <div className="download-card-head">
                 <Icon size={32} />
               </div>
-              <h2>{name}</h2>
+              <div className="download-card-title">
+                <h2>{name}</h2>
+                <span className="pill download-version-pill">v{platformVersion(id)}</span>
+              </div>
               {description && <p>{description}</p>}
               {files.length > 0 ? (
                 <div className="installer-list">
@@ -161,11 +219,19 @@ function Downloads({ language }: Localized) {
                     <Installer file={file} key={file.filename} />
                   ))}
                   {triggerFile && (
-                    <SecondaryDownloads id={id} files={secondaryFiles} triggerFile={triggerFile} />
+                    <SecondaryDownloads
+                      id={id}
+                      files={secondaryFiles}
+                      triggerFile={triggerFile}
+                      moreLabel={t("downloads.moreFormats")}
+                    />
                   )}
                 </div>
               ) : (
                 <p className="availability">{t("downloads.installerInPreparation")}</p>
+              )}
+              {id === "windows" && (
+                <p className="download-card-note">{t("downloads.windowsUnsignedInstaller")}</p>
               )}
             </article>
           );
@@ -174,7 +240,10 @@ function Downloads({ language }: Localized) {
           <div className="download-card-head">
             <Smartphone size={32} />
           </div>
-          <h2>iOS</h2>
+          <div className="download-card-title">
+            <h2>iOS</h2>
+            <span className="pill download-version-pill">App Store</span>
+          </div>
           <p>{t("downloads.iosAvailableOnAppStore")}</p>
           <a className="button primary" href={release.ios.url}>
             {t("downloads.downloadOnAppStore")}
@@ -183,6 +252,9 @@ function Downloads({ language }: Localized) {
         </article>
         <WebDownloadCard language={language} />
       </section>
+      {release.files.length > 0 && (
+        <ChecksumsSection language={language} open={checksumsOpen} onToggle={setChecksumsOpen} />
+      )}
       <section className="container download-footer">
         <PageLink page="/docs" language={language}>
           {t("home.readTheGettingStartedGuide")}
@@ -200,6 +272,76 @@ function Downloads({ language }: Localized) {
   );
 }
 
+function ChecksumsSection({
+  language,
+  open,
+  onToggle,
+}: Localized & { open: boolean; onToggle: (next: boolean) => void }) {
+  const { t } = useSiteTranslation(language);
+  const [copiedFile, setCopiedFile] = useState<string | null>(null);
+  const handleToggle = useCallback(
+    (event: SyntheticEvent<HTMLDetailsElement>) => onToggle(event.currentTarget.open),
+    [onToggle],
+  );
+  const copyHash = useCallback(async (event: MouseEvent<HTMLButtonElement>) => {
+    const { filename, sha256 } = event.currentTarget.dataset;
+    if (!filename || !sha256) return;
+    try {
+      await navigator.clipboard.writeText(`${sha256}  ${filename}`);
+      setCopiedFile(filename);
+    } catch {
+      setCopiedFile(null);
+    }
+  }, []);
+  useEffect(() => {
+    if (!copiedFile) return;
+    const timer = window.setTimeout(() => setCopiedFile(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copiedFile]);
+
+  return (
+    <section id="checksums" className="container checksums-section">
+      <details className="checksums-panel" open={open} onToggle={handleToggle}>
+        <summary className="checksums-summary">
+          <span className="checksums-summary-title">
+            <ShieldCheck size={17} aria-hidden="true" />
+            <strong>{t("downloads.checksumsTitle")}</strong>
+            <small>{t("downloads.checksumsDescription")}</small>
+          </span>
+          <ChevronDown size={17} aria-hidden="true" />
+        </summary>
+        <div className="checksums-list" dir="ltr">
+          {release.files.map((file) => {
+            const isCopied = copiedFile === file.filename;
+            return (
+              <div className="checksum-row" key={file.filename}>
+                <div className="checksum-file">
+                  <code>{file.filename}</code>
+                  <span className="pill">v{fileVersion(file)}</span>
+                </div>
+                <div className="checksum-hash">
+                  <code>{file.sha256}</code>
+                  <button
+                    type="button"
+                    className="checksum-copy"
+                    data-filename={file.filename}
+                    data-sha256={file.sha256}
+                    onClick={copyHash}
+                    aria-label={`${t("codeBlock.copy")} ${file.filename}`}
+                    title={isCopied ? t("codeBlock.copiedToClipboard") : t("codeBlock.copy")}
+                  >
+                    {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </details>
+    </section>
+  );
+}
+
 function WebDownloadCard({ language }: Localized) {
   const { t } = useSiteTranslation(language);
   return (
@@ -207,7 +349,10 @@ function WebDownloadCard({ language }: Localized) {
       <div className="download-card-head">
         <Globe size={32} />
       </div>
-      <h2>{t("webWorkspace.downloadTitle")}</h2>
+      <div className="download-card-title">
+        <h2>{t("webWorkspace.downloadTitle")}</h2>
+        <span className="pill download-version-pill">app.clawmuse.com</span>
+      </div>
       <p>{t("webWorkspace.downloadBody")}</p>
       <a className="button primary" href={appUrl}>
         {t("header.openWorkspace")}
@@ -238,37 +383,47 @@ function SecondaryDownloads({
   id,
   files,
   triggerFile,
+  moreLabel,
 }: {
   id: string;
   files: DownloadFile[];
   triggerFile: DownloadFile;
+  moreLabel: string;
 }) {
+  if (id === "linux") {
+    return (
+      <details className="arm-download arm-download-details">
+        <summary className="arm-download-summary">
+          <span className="arm-download-summary-copy">
+            <span>{moreLabel}</span>
+            <small>ARM64 · RPM · AppImage · TAR.GZ</small>
+          </span>
+          <ChevronDown size={15} aria-hidden="true" />
+        </summary>
+        <div className="arm-download-links">
+          {files.map((file) => (
+            <a
+              className="arm-download-item"
+              href={installerMirrorUrl(file)}
+              download
+              key={file.filename}
+            >
+              <span>
+                {file.format} · {file.arch}
+              </span>
+              <span>{formatSize(file.size)}</span>
+            </a>
+          ))}
+        </div>
+      </details>
+    );
+  }
   return (
     <div className="arm-download">
-      <a className="arm-download-trigger" href={installerMirrorUrl(triggerFile)} download>
-        {id === "linux" ? "ARM64 / RPM / AppImage / TAR.GZ" : "ARM64"}
+      <a className="button arm-download-trigger" href={installerMirrorUrl(triggerFile)} download>
+        <Download size={16} />
+        {triggerFile.format} · {triggerFile.arch} <span>{formatSize(triggerFile.size)}</span>
       </a>
-      <div className="arm-download-panel">
-        {id === "linux" ? (
-          <div className="arm-download-links">
-            {files.map((file) => (
-              <a
-                className="arm-download-item"
-                href={installerMirrorUrl(file)}
-                download
-                key={file.filename}
-              >
-                <span>
-                  {file.format} · {file.arch}
-                </span>
-                <span>{formatSize(file.size)}</span>
-              </a>
-            ))}
-          </div>
-        ) : (
-          files.map((file) => <Installer file={file} key={file.filename} />)
-        )}
-      </div>
     </div>
   );
 }

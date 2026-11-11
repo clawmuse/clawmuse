@@ -1,3 +1,4 @@
+import type { UsageDailyHistory } from "@getpaseo/protocol/messages";
 import { useTranslation } from "react-i18next";
 import { supportsUsageReports } from "@getpaseo/client/internal/daemon-client";
 import { useCallback, useMemo } from "react";
@@ -46,6 +47,10 @@ function usageReportsQueryKey(serverId: string) {
   return [...hostUsageQueryKey(serverId), "reports"] as const;
 }
 
+function usageDailyHistoryQueryKey(serverId: string) {
+  return [...hostUsageQueryKey(serverId), "dailyHistory"] as const;
+}
+
 function agentUsageQueryKey(serverId: string, agentId: string) {
   return [...hostUsageQueryKey(serverId), "agent", agentId] as const;
 }
@@ -84,7 +89,7 @@ async function streamReports(input: {
     requestId,
     signal,
   } = input;
-  const { reports } = await requireClient(serverId).listUsageReports(
+  const { reports, dailyUsage } = await requireClient(serverId).listUsageReports(
     { agentId, forceRefresh, requestId },
     (report) => {
       if (signal?.aborted) return;
@@ -93,6 +98,12 @@ async function streamReports(input: {
       );
     },
   );
+  if (agentId === undefined && !signal?.aborted) {
+    queryClient.setQueryData<UsageDailyHistory | null>(
+      usageDailyHistoryQueryKey(serverId),
+      dailyUsage ?? null,
+    );
+  }
   return settleReports(queryClient.getQueryData<UsageReportEntry[]>(queryKey), reports);
 }
 
@@ -147,7 +158,11 @@ function toQueryState(query: {
 }
 
 /** Usage reports for one host, as shown on its settings page. */
-export function useHostUsage(serverId: string): { view: UsageView; refresh: () => void } {
+export function useHostUsage(serverId: string): {
+  view: UsageView;
+  dailyUsage?: UsageDailyHistory;
+  refresh: () => void;
+} {
   const setting = useUsageSetting(serverId);
   const queryClient = useQueryClient();
   const isConnected = useHostRuntimeIsConnected(serverId);
@@ -157,6 +172,13 @@ export function useHostUsage(serverId: string): { view: UsageView; refresh: () =
     queryFn: ({ signal }) => listReports(queryClient, serverId, false, signal),
     enabled: isConnected && isSupported && setting.enabled,
     dataShape: "list",
+    staleTimeMs: REPORTS_STALE_TIME_MS,
+  });
+  const historyQuery = useFetchQuery<UsageDailyHistory | null>({
+    queryKey: usageDailyHistoryQueryKey(serverId),
+    queryFn: skipToken,
+    enabled: false,
+    dataShape: "value",
     staleTimeMs: REPORTS_STALE_TIME_MS,
   });
   const refresh = useCallback(() => {
@@ -174,7 +196,7 @@ export function useHostUsage(serverId: string): { view: UsageView; refresh: () =
     },
     t,
   );
-  return { view, refresh };
+  return { view, dailyUsage: historyQuery.data ?? undefined, refresh };
 }
 
 /** Queries retain their host keys so switching filters cannot move data or refreshes to another host. */
@@ -188,6 +210,16 @@ export function useHostsUsage(hosts: UsageHost[]) {
       queryFn: ({ signal }) => listReports(queryClient, host.serverId, false, signal),
       enabled: host.isConnected && host.supportsUsage && settings[index] === true,
       dataShape: "list",
+      staleTimeMs: REPORTS_STALE_TIME_MS,
+    })),
+  );
+  // Subscribe to history independently: a history refresh can leave quota reports unchanged.
+  const histories = useFetchQueries<UsageDailyHistory | null>(
+    hosts.map((host) => ({
+      queryKey: usageDailyHistoryQueryKey(host.serverId),
+      queryFn: skipToken,
+      enabled: false,
+      dataShape: "value",
       staleTimeMs: REPORTS_STALE_TIME_MS,
     })),
   );
@@ -205,6 +237,7 @@ export function useHostsUsage(hosts: UsageHost[]) {
   }, [hosts, refreshHost, settings]);
   const views = hosts.map((host, index) => ({
     host,
+    dailyUsage: histories[index].data ?? undefined,
     view: resolveUsageView(
       {
         hostLabel: host.label,

@@ -187,7 +187,13 @@ class ProviderRuntime {
   async catalogCacheKey(options: FetchCatalogOptions): Promise<string | undefined> {
     const callback = this.registration.getCatalogCacheKey;
     if (!callback) return undefined;
-    return callback({ ...options, launch: await this.resolveLaunch() });
+    let launch: ProviderLaunch | undefined;
+    try {
+      launch = await this.resolveLaunch();
+    } catch {
+      return undefined;
+    }
+    return callback({ ...options, launch });
   }
 
   get negotiatedCapabilities(): readonly string[] {

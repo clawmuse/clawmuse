@@ -50,7 +50,7 @@ import {
   Scissors,
   TriangleAlertIcon,
   XCircle,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import type { ComponentType, ReactNode } from "react";
 import * as React from "react";
 import {

@@ -13,7 +13,7 @@ import MaskedView from "@react-native-masked-view/masked-view";
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from "react-native-svg";
 import * as Clipboard from "expo-clipboard";
 import { useTranslation } from "react-i18next";
-import { Copy, RotateCw } from "lucide-react-native";
+import { Copy, RotateCw } from "@/components/icons/app-icons";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { ClawMuseLogo } from "@/components/icons/clawmuse-logo";
 import { Button } from "@/components/ui/button";

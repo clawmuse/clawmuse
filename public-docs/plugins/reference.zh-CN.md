@@ -1955,6 +1955,12 @@ export default function contribute(server: PluginServerContext) {
 
 后端处理函数以 `{ paseo }` 的形式收到同样的 `PaseoApi`。它们的连接属于子进程，并在插件停止时关闭。在插件代码订阅之前，它不会订阅时间线或目录事件。清理和时间线替换请遵循 [SDK 事件契约](/docs/sdk/events)。后端代码可以使用 Node API 以及安装在插件目录中的依赖。
 
+## 预热隔离的模型调用 {#prepare-isolated-model-calls}
+
+`server.generateText(request, { signal })` 使用所选主机 Provider，在临时会话中生成文本，不创建公开 Agent，也不提供插件工具。传入 `sessionKey` 可复用该插件的会话。更换 Provider、模型、系统提示词、思考选项或 key 时，会创建新会话。
+
+`server.prepareTextGeneration(request, { signal })` 接受相同的启动字段，但不接收 `prompt`，且必须提供 `sessionKey`。它启动 Provider 进程，不生成文本，也不消耗模型 token。可在其他工作进行时预热，再使用相同启动字段调用 `generateText`。预热不会预留进程：空闲回收、上下文轮换、切换 key 或插件关闭都可能释放进程。预热时间应计入调用方的等待预算，不要为补偿启动耗时而重置生成截止时间。
+
 ## 调试后端输出 {#debug-backend-output}
 
 后端贡献可以用普通的 Node 日志写入 stdout 和 stderr：

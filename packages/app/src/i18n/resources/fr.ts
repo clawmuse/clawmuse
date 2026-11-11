@@ -4,6 +4,7 @@ import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
+import { openProjectOnboarding } from "./open-project-onboarding";
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -150,6 +151,12 @@ export const fr: TranslationResources = {
       daemonUnavailable: "Daemon indisponible",
       daemonClientUnavailable: "Client du daemon indisponible",
       daemonClientDisconnected: "Le client du daemon est déconnecté",
+      modelProviderChanged:
+        "Cette conversation utilise {{expected}}, mais le fournisseur de modèles actuel est {{current}}. Revenez à {{expected}} pour continuer ou démarrez une nouvelle conversation avec {{current}}.",
+      hostConnectionLost:
+        "La connexion à l’hôte a été interrompue. Attendez son rétablissement, puis réessayez.",
+      hostRequestTimeout:
+        "L’hôte n’a pas répondu à temps. Le résultat n’est pas encore confirmé. Vérifiez la connexion et l’état de la conversation avant de réessayer.",
       noFileFound: "Aucun fichier trouvé pour {{token}}",
       folderOutsideWorkspace: "{{path}} se trouve en dehors de cet espace de travail",
       unexpectedDictationError: "Une erreur inattendue s’est produite pendant la dictée.",
@@ -479,6 +486,7 @@ export const fr: TranslationResources = {
     },
     question: {
       responseFailed: "Impossible d’envoyer votre réponse. Réessayez.",
+      responseFailedDetail: "Impossible d’envoyer votre réponse : {{error}}",
       submit: "Envoyer",
       next: "Suivant",
       answerPlaceholder: "Saisissez votre réponse…",
@@ -1443,6 +1451,21 @@ export const fr: TranslationResources = {
       },
     },
     workspace: {
+      deleteWorkspace: {
+        label: "Supprimer définitivement l’espace",
+        message:
+          "Supprimer définitivement « {{name}} » et toutes ses conversations, y compris celles archivées ? Les agents et terminaux en cours seront arrêtés. Cette action est irréversible. Les fichiers du projet et de l’arbre de travail seront conservés.",
+        deleting: "Suppression de l’espace…",
+        deleted: "Espace supprimé définitivement",
+        failed: "Échec de la suppression de l’espace : {{error}}",
+      },
+      deleteConversation: {
+        label: "Supprimer la conversation actuelle",
+        message:
+          "Supprimer définitivement « {{title}} » de ClawMuse ? Cette action est irréversible. Les autres conversations et les fichiers du projet seront conservés.",
+        deleting: "Suppression de la conversation…",
+        failed: "Impossible de supprimer la conversation. Réessayez.",
+      },
       status: {
         serviceRunning: "Service {{name}} en cours d’exécution",
         serviceUnhealthy: "Service {{name}} en échec",
@@ -1735,6 +1758,7 @@ export const fr: TranslationResources = {
     },
   },
   openProject: {
+    onboarding: openProjectOnboarding["fr"],
     tiles: {
       addProject: {
         title: "Ajouter un projet",

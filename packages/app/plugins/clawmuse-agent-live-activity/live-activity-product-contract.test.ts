@@ -112,6 +112,13 @@ describe("ClawMuse Live Activity product contract", () => {
     expect(readTarget("ClawMuseAgentQuotaWidget.swift")).toContain(
       'StaticConfiguration(kind: "ClawMuseAgentQuotaWidget"',
     );
+    expect(readTarget("CindyUsageWidgets.swift")).toContain(
+      'AppIntentConfiguration(kind: "CindyQuotaWidget"',
+    );
+    expect(readTarget("CindyUsageWidgets.swift")).toContain(
+      'AppIntentConfiguration(kind: "CindyDailyUsageWidget"',
+    );
+    expect(readTarget("CindyUsageWidgets.swift")).toContain(".accessoryInline");
   });
 
   it("exposes all three useful alert counts and both localizations", () => {

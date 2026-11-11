@@ -19,7 +19,7 @@ import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { useHostFeature } from "@/runtime/host-features";
 import { useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { SpeechProviderSheet } from "./speech-provider-sheet";
-import { VoiceAssistantSettings } from "../speech-section";
+import { SpeechForm, VoiceAssistantSettings } from "../speech-section";
 import { useLocalSpeechModels } from "./use-local-speech-models";
 import {
   getSpeechSite,
@@ -133,6 +133,9 @@ export function HostVoicePage({ serverId }: { serverId: string }) {
           snapshot={config.speech.assistant}
           persist={saveAssistant}
         />
+      ) : null}
+      {config.speech ? (
+        <SpeechForm key={`speech-${serverId}`} snapshot={config.speech} persist={saveAssistant} />
       ) : null}
       <SettingsSection title={t("settings.voice.dictation.title")} testID="voice-dictation">
         <SettingsCard>
@@ -253,6 +256,9 @@ function summaryLabel(t: TFunction, summary: SpeechSiteSummary): string {
         summary.missingKey ? t("settings.voice.openai.missingKey") : summary.model
       }`;
     case "unknown":
+      if (summary.provider === "stepfun") {
+        return `${t("speechSettings.providers.stepfun")} · stepaudio-2.5-asr`;
+      }
       return t("settings.voice.unknownProvider", { provider: summary.provider });
   }
 }

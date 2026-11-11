@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
-import { Globe, SquareTerminal } from "lucide-react-native";
+import { Globe, SquareTerminal } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import type { WorkspaceDescriptor } from "@/stores/session-store";

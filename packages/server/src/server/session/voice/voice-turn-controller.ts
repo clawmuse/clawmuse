@@ -179,6 +179,10 @@ export function createVoiceTurnController(params: {
   function assembleFinalTranscript(turn: FinalizingVoiceTurn): VoiceFinalTranscript {
     const orderedFinalSegmentIds = getOrderedFinalSegmentIds(turn);
     const transcript = orderedFinalSegmentIds
+      // A noisy segment remains rejected even when the same turn contains valid speech.
+      .filter(
+        (segmentId) => turn.transcriptMetaBySegmentId.get(segmentId)?.isLowConfidence !== true,
+      )
       .map((segmentId) => turn.transcriptsBySegmentId.get(segmentId)?.trim() ?? "")
       .filter((segment) => segment.length > 0)
       .reduce(joinTranscriptSegments, "")

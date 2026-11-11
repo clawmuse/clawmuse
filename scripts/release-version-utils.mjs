@@ -1,7 +1,7 @@
 const versionPattern =
-  /^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<prerelease>[0-9A-Za-z.-]+))?$/;
+  /^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<prerelease>[0-9A-Za-z.-]+))?(?:\+[0-9]{4})?$/;
 const sourceTagPattern =
-  /^(?:(?:desktop(?:-(?:windows|linux|macos))?|android|ios)-)?v(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/;
+  /^(?:(?:desktop(?:-(?:windows|linux|macos))?|android|ios)-)?v(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9]{4})?)$/;
 
 function assertInteger(value, label) {
   if (!Number.isInteger(value) || value < 0) {

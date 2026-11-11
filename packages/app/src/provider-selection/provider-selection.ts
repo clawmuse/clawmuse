@@ -143,12 +143,23 @@ export function buildProviderSelectorProviders(input: {
   }));
 }
 
+function isMissingProviderBinaryError(entry: ProviderSnapshotEntry): boolean {
+  return (
+    entry.status === "error" &&
+    typeof entry.error === "string" &&
+    /\bnot found on PATH\b/i.test(entry.error)
+  );
+}
+
 export function buildSelectableProviderSelectorProviders(
   entries: ProviderSnapshotEntry[] | undefined,
   isConnected = true,
 ): ProviderSelectorProvider[] {
   return (entries ?? [])
-    .filter((entry) => entry.enabled)
+    .filter(
+      (entry) =>
+        entry.enabled && entry.status !== "unavailable" && !isMissingProviderBinaryError(entry),
+    )
     .map((entry) => {
       const label = entry.label ?? entry.provider;
       return {
@@ -203,7 +214,7 @@ export function resolveSelectedModelLabel(input: {
   const model = provider.modelSelection.rows.find((entry) => entry.modelId === input.selectedModel);
   const selectedModel = input.selectedModel.trim();
   if (!model && selectedModel) {
-    return selectedModel;
+    return input.isLoading ? i18n.t("providerSelection.loading") : selectedModel;
   }
   const defaultModel = provider.modelSelection.rows.find((row) => row.isDefault);
   return (

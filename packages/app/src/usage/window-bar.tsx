@@ -1,4 +1,4 @@
-import { Pin } from "lucide-react-native";
+import { Pin } from "@/components/icons/app-icons";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View } from "react-native";

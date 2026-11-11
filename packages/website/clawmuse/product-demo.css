@@ -678,15 +678,32 @@
   text-align: center;
   gap: 10px;
   min-height: 220px;
-  padding: 36px 24px;
+  padding: 20px 12px 16px;
   color: var(--demo-muted);
 }
-.demo-empty-state svg {
+.demo-empty-state > svg {
   width: 28px;
   height: auto;
   color: var(--demo-positive);
   opacity: 0.9;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+}
+.demo-empty-host {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--demo-line);
+  background: var(--demo-surface);
+  color: var(--demo-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.demo-empty-host small {
+  color: var(--demo-positive);
+  font-size: 12px;
 }
 .demo-empty-state strong {
   color: var(--demo-ink);
@@ -697,7 +714,65 @@
   color: var(--demo-muted);
   font-size: 14px;
   line-height: 1.6;
-  max-width: 260px;
+  max-width: 290px;
+}
+.demo-quick-starters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  width: 100%;
+  max-width: 368px;
+  margin-top: 12px;
+}
+.wide-device .demo-quick-starters {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 520px;
+}
+.demo-quick-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--demo-line);
+  background: var(--demo-surface);
+  color: var(--demo-ink);
+  font-size: 13.5px;
+  text-align: start;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+.demo-quick-card:hover {
+  background: var(--demo-raised);
+  border-color: var(--demo-positive);
+}
+.demo-quick-card > svg:first-child {
+  color: var(--demo-positive);
+  flex-shrink: 0;
+}
+.demo-quick-card > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.demo-quick-card > svg:last-child {
+  color: var(--demo-muted);
+  flex-shrink: 0;
+}
+.demo-quick-card > b {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--demo-positive);
+  white-space: nowrap;
+}
+.demo-quick-card > b em {
+  font-style: normal;
+  color: var(--demo-negative);
 }
 .demo-pending {
   color: var(--demo-muted);

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type ReactElement } from "react";
 import { View } from "react-native";
-import { Copy, Eye, Play, RotateCw, Square, SquareTerminal } from "lucide-react-native";
+import { Copy, Eye, Play, RotateCw, Square, SquareTerminal } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import {

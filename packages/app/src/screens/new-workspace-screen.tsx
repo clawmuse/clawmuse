@@ -461,6 +461,7 @@ async function createWorkspaceChatAgent(input: CreateChatAgentInput): Promise<Su
   });
   const images = await encodeImages(wirePayload.images);
   let navigated = false;
+  let latestCreation: CreationSnapshot | null = null;
   let outcome: SubmitOutcome = "background";
   const initialAgent: NonNullable<CreateWorkspaceRequestOptions["agent"]> = {
     config: {
@@ -476,14 +477,15 @@ async function createWorkspaceChatAgent(input: CreateChatAgentInput): Promise<Su
     images: images?.length ? images : undefined,
     attachments: wirePayload.attachments?.length ? wirePayload.attachments : undefined,
   };
-  const execute = async (requestedAgent = initialAgent): Promise<AgentSnapshotPayload> => {
+  const execute = async (): Promise<AgentSnapshotPayload> => {
     const { agent } = await ensureWorkspace({
       cwd,
       prompt: text,
       attachments: workspaceNamingAttachments,
       withInitialAgent: true,
-      agent: requestedAgent,
+      agent: initialAgent,
       onEvent: (snapshot) => {
+        latestCreation = snapshot;
         if (!snapshot.workspace || navigated) return;
         navigated = true;
         if (!input.isStillOnCreateScreen()) return;
@@ -521,17 +523,35 @@ async function createWorkspaceChatAgent(input: CreateChatAgentInput): Promise<Su
     if (!agent) throw new Error("Workspace creation returned no agent");
     return agent;
   };
+  let retryCurrentCreation = execute;
+  function retry(request: CreateAgentRequestOptions): Promise<AgentSnapshotPayload> {
+    const snapshot = latestCreation;
+    const canReplaceFailedAgent =
+      snapshot?.phase === "failed" &&
+      snapshot.failedStage === "agent" &&
+      snapshot.outcomeUnknown === false &&
+      !snapshot.agent;
+    if (canReplaceFailedAgent && snapshot.workspaceId) {
+      // The workspace already exists. Edited settings/prompt are a new agent
+      // intent, never a mutation of the original workspace receipt.
+      const options: CreateAgentRequestOptions = {
+        ...request,
+        idempotencyKey: generateDraftId(),
+        workspaceId: snapshot.workspaceId,
+        onEvent: (next) => {
+          latestCreation = next;
+        },
+      };
+      latestCreation = null;
+      retryCurrentCreation = () => input.resolveClient().createAgent(options);
+    }
+    // Uncertain outcomes must replay the identical request to recover its
+    // receipt, even if the draft was edited in the meantime.
+    return retryCurrentCreation();
+  }
   const agentCreation = {
     result: Promise.resolve().then(() => execute()),
-    retry: (request: CreateAgentRequestOptions) =>
-      execute({
-        ...initialAgent,
-        config: { ...request.config!, cwd },
-        initialPrompt: request.initialPrompt ?? "",
-        clientMessageId: initialAgent.clientMessageId,
-        images: request.images,
-        attachments: request.attachments,
-      }),
+    retry,
   };
   await agentCreation.result;
   if (outcome === "background") clearConsumedDraft();
@@ -1702,15 +1722,9 @@ function NewWorkspaceLayout({
 }) {
   // In the header on compact layouts, under the composer otherwise.
   const importSessionButton = <ImportSessionButton compact={isCompact} onPress={onImportSession} />;
-  // Compact has no title: the fields name themselves. The free space above pushes them down onto
-  // the composer, where the thumb is.
-  const setupFields = isCompact ? (
+  const setupFields = (
     <>
-      <View style={styles.compactSetupSpace} pointerEvents="none" />
-      {formStack}
-    </>
-  ) : (
-    <>
+      {isCompact ? <View style={styles.compactSetupSpace} pointerEvents="none" /> : null}
       <View style={styles.composerTitleContainer} pointerEvents="none">
         <Text style={styles.composerTitle}>{title}</Text>
       </View>
@@ -1750,13 +1764,14 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
   },
   composerTitleContainer: {
-    marginBottom: theme.spacing[8],
-    paddingLeft: theme.spacing[6],
+    marginBottom: { xs: theme.spacing[4], md: theme.spacing[8] },
+    paddingLeft: { xs: theme.spacing[4], md: theme.spacing[6] },
     paddingRight: theme.spacing[4],
   },
   composerTitle: {
     ...densityText(theme, "title"),
-    fontSize: { xs: densityText(theme, "title").fontSize.xs, md: theme.fontSize["2xl"] },
+    fontSize: { xs: theme.fontSize["4xl"], md: theme.fontSize["2xl"] },
+    lineHeight: { xs: 34, md: Math.round(theme.fontSize["2xl"] * 1.4) },
     fontWeight: { xs: theme.fontWeight.semibold, md: theme.fontWeight.normal },
     color: theme.colors.foreground,
   },

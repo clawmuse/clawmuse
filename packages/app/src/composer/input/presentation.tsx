@@ -1,6 +1,6 @@
 import { useCallback, useMemo, type ReactNode, type Ref } from "react";
 import { View, type ViewProps } from "react-native";
-import { Maximize2, Minimize2 } from "lucide-react-native";
+import { Maximize2, Minimize2 } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { ComposerFullscreenBody, ComposerFullscreenFooter } from "@/composer/dock";

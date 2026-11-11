@@ -1,5 +1,8 @@
 # Store screenshots
 
+For ClawMuse-branded App Store panels, use [the ClawMuse renderer](clawmuse/README.md).
+The legacy Paseo campaign below uses a separate demo capture set.
+
 Five panels for the App Store and Google Play, in phone and tablet sets, made from native captures of the real app. Both sets tell the same story with the same copy; only the capture, the device frame and the callouts change.
 
 | #   | Headline                                | Capture                                                                | Phone callout                                | Tablet callout                        |

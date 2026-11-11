@@ -15,23 +15,12 @@ export async function resolveSessionAdmission(input: {
   isRelay?: boolean;
   supportsHelloRejection?: boolean;
 }): Promise<AdmissionResolution> {
-  const {
-    credential,
-    passwordHash,
-    localCredential,
-    isRelay = false,
-    supportsHelloRejection = false,
-  } = input;
+  const { credential, passwordHash, localCredential } = input;
   if (credential?.kind === "controller") return { rejection: "incorrect_password" };
   if (!passwordHash) {
     return { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } };
   }
   if (!credential) {
-    // COMPAT(relayPasswordOptional): added in v0.9.1; remove after 2027-03-09
-    // once the supported mobile floor advertises hello_rejection.
-    if (isRelay && !supportsHelloRejection) {
-      return { admission: { principalId: "owner", permissions: OWNER_PERMISSIONS } };
-    }
     return { rejection: "password_required" };
   }
   if (credential.kind === "localCredential") {

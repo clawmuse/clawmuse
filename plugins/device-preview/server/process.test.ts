@@ -1,63 +1,57 @@
-import { expect, test, vi } from "vitest";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { command, launch } from "./process.js";
+import { verifyRuntimeFiles } from "./ios-runtime.js";
+import { createHash } from "node:crypto";
+import { mkdtemp, writeFile, mkdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { CommandRunner } from "./process.js";
-
-test("commands preserve argv literally and bound binary output", async () => {
-  const runner = new CommandRunner();
-  const signal = new AbortController().signal;
-  try {
-    const args = ["a;b", "a|b", "a b", "a\nb"];
-    const output = await runner.run(
-      process.execPath,
-      ["-e", "process.stdout.write(JSON.stringify(process.argv.slice(1)))", ...args],
-      { signal },
-    );
-    expect(JSON.parse(output.toString())).toEqual(args);
-    await expect(
-      runner.run(process.execPath, ["-e", "process.stdout.write(Buffer.alloc(10000))"], {
-        signal,
-        maxBytes: 100,
-      }),
-    ).rejects.toThrow("设备命令");
-  } finally {
-    await runner.close();
-  }
-});
-
-test("cancellation joins the command and its child process before returning", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "preview-process-test-"));
-  const pidFile = join(directory, "child.pid");
-  const runner = new CommandRunner();
-  const controller = new AbortController();
-  const source = `const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'}); child.on('spawn',()=>require('node:fs').writeFileSync(${JSON.stringify(pidFile)},String(child.pid))); setInterval(()=>{},1000)`;
-  const task = runner.run(process.execPath, ["-e", source], {
-    signal: controller.signal,
-    timeoutMs: 3000,
-    maxBytes: 100,
+import { join } from "node:path";
+describe("owned preview subprocesses", () => {
+  it("requires every pinned runtime resource and refuses corrupted or symlinked helpers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "preview-runtime-"));
+    const bytes = Buffer.from("runtime fixture");
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    const files = [
+      { path: "Baguette", hash },
+      { path: "bundle/HingeControl", hash },
+    ];
+    try {
+      await writeFile(join(root, "Baguette"), bytes);
+      expect(await verifyRuntimeFiles(root, files)).toBe(false);
+      await mkdir(join(root, "bundle"));
+      await writeFile(join(root, "bundle/HingeControl"), bytes);
+      expect(await verifyRuntimeFiles(root, files)).toBe(true);
+      await writeFile(join(root, "bundle/HingeControl"), "corrupt");
+      expect(await verifyRuntimeFiles(root, files)).toBe(false);
+      await rm(join(root, "bundle/HingeControl"));
+      await symlink(join(root, "Baguette"), join(root, "bundle/HingeControl"));
+      expect(await verifyRuntimeFiles(root, files)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
-  const rejected = expect(task).rejects.toThrow("设备命令");
-  try {
-    await vi.waitFor(async () =>
-      expect(Number(await readFile(pidFile, "utf8"))).toBeGreaterThan(0),
+  it("caps output and joins a cancelled process before returning", async () => {
+    await expect(
+      command(
+        process.execPath,
+        ["-e", "process.stdout.write('x'.repeat(100000));setInterval(()=>{},1000)"],
+        { signal: AbortSignal.timeout(3000), maxBytes: 1024 },
+      ),
+    ).rejects.toThrow("未完成");
+    const owned = launch(process.execPath, [
+      "-e",
+      "process.stdout.write('ready');setInterval(()=>{},1000)",
+    ]);
+    await new Promise<void>((resolve) => owned.child.stdout.once("data", () => resolve()));
+    await owned.stop();
+    expect(await owned.closed).not.toBe(0);
+  });
+  it("passes argv literally without invoking a shell", async () => {
+    const literal = "a; echo $HOME | cat\n'quoted'";
+    const result = await command(
+      process.execPath,
+      ["-e", "process.stdout.write(process.argv[1])", literal],
+      { signal: AbortSignal.timeout(3000) },
     );
-    const pid = Number(await readFile(pidFile, "utf8"));
-    controller.abort();
-    await rejected;
-    expect(() => process.kill(pid, 0)).toThrow();
-  } finally {
-    await runner.close();
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
-test("cleanup cancels outstanding commands and rejects future work", async () => {
-  const runner = new CommandRunner();
-  const options = { signal: new AbortController().signal };
-  const task = runner.run(process.execPath, ["-e", "setInterval(()=>{},1000)"], options);
-  const rejection = expect(task).rejects.toThrow("设备命令");
-  await runner.close();
-  await rejection;
-  await expect(runner.run(process.execPath, ["-e", ""], options)).rejects.toThrow("设备命令");
+    expect(result.toString()).toBe(literal);
+  });
 });

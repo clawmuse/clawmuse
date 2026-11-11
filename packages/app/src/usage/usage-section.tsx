@@ -1,3 +1,4 @@
+import type { UsageDailyHistory } from "@getpaseo/protocol/messages";
 import { useTranslation } from "react-i18next";
 import { useMemo, useState, useCallback } from "react";
 import { Text, View } from "react-native";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { settingsStyles } from "@/styles/settings";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import type { UsageDisplay } from "./display";
+import { UsageHistoryCard } from "./history-card";
 import { useUsageSetting } from "./setting";
 import { UsageControls } from "./controls";
 import { UsageMonitoringSettings } from "./monitoring";
@@ -17,6 +19,7 @@ export function UsageSection({
   serverId,
   title,
   view,
+  dailyUsage,
   display,
   onRefresh,
   testID,
@@ -24,6 +27,7 @@ export function UsageSection({
   serverId: string;
   title: string;
   view: UsageView;
+  dailyUsage?: UsageDailyHistory;
   display: UsageDisplay;
   onRefresh: () => void;
   testID?: string;
@@ -32,6 +36,10 @@ export function UsageSection({
   const [monitoring, setMonitoring] = useState(false);
   const manageMonitoring = useCallback(() => setMonitoring(true), []);
   const closeMonitoring = useCallback(() => setMonitoring(false), []);
+  const histories = useMemo(
+    () => (dailyUsage === undefined ? undefined : [dailyUsage]),
+    [dailyUsage],
+  );
   const trailing = useMemo(
     () => (
       <UsageControls
@@ -54,7 +62,12 @@ export function UsageSection({
           <UsageMonitoringSettings key={serverId} serverId={serverId} />
         </>
       ) : (
-        <UsageBody serverId={serverId} view={view} display={display} onRefresh={onRefresh} />
+        <View style={styles.sectionBody}>
+          {view.kind === "ready" && histories ? (
+            <UsageHistoryCard histories={histories} scope="local" />
+          ) : null}
+          <UsageBody serverId={serverId} view={view} display={display} onRefresh={onRefresh} />
+        </View>
       )}
     </SettingsSection>
   );
@@ -121,6 +134,9 @@ export function UsageMessage({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create((theme) => ({
+  sectionBody: {
+    gap: theme.spacing[3],
+  },
   emptyCard: {
     padding: theme.spacing[4],
     alignItems: "center",

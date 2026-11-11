@@ -4,6 +4,7 @@ import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
+import { openProjectOnboarding } from "./open-project-onboarding";
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -149,6 +150,12 @@ export const es: TranslationResources = {
       daemonUnavailable: "Daemonno disponible",
       daemonClientUnavailable: "ClienteDaemonno disponible",
       daemonClientDisconnected: "El clienteDaemonestá desconectado",
+      modelProviderChanged:
+        "Esta conversación usa {{expected}}, pero el proveedor de modelos actual es {{current}}. Vuelve a {{expected}} para continuar o inicia una conversación nueva con {{current}}.",
+      hostConnectionLost:
+        "Se perdió la conexión con el host. Espera a que se restablezca y vuelve a intentarlo.",
+      hostRequestTimeout:
+        "El host no respondió a tiempo. El resultado aún no está confirmado. Revisa la conexión y el estado de la conversación antes de volver a intentarlo.",
       noFileFound: "No se encontró ningún archivo para{{token}}",
       folderOutsideWorkspace: "{{path}} está fuera de este espacio de trabajo",
       unexpectedDictationError: "Se produjo un error inesperado al manejar el dictado.",
@@ -478,6 +485,7 @@ export const es: TranslationResources = {
     },
     question: {
       responseFailed: "No se pudo enviar tu respuesta. Inténtalo de nuevo.",
+      responseFailedDetail: "No se pudo enviar tu respuesta: {{error}}",
       submit: "Entregar",
       next: "Siguiente",
       answerPlaceholder: "Escribe tu respuesta...",
@@ -1448,6 +1456,21 @@ export const es: TranslationResources = {
       },
     },
     workspace: {
+      deleteWorkspace: {
+        label: "Eliminar espacio permanentemente",
+        message:
+          "¿Eliminar permanentemente «{{name}}» y todas sus conversaciones, incluidas las archivadas? Se detendrán los agentes y terminales en ejecución. Esta acción no se puede deshacer. Se conservarán los archivos del proyecto y del árbol de trabajo.",
+        deleting: "Eliminando espacio…",
+        deleted: "Espacio eliminado permanentemente",
+        failed: "No se pudo eliminar el espacio: {{error}}",
+      },
+      deleteConversation: {
+        label: "Eliminar conversación actual",
+        message:
+          '¿Eliminar "{{title}}" de ClawMuse permanentemente? No se puede deshacer. Se conservarán las demás conversaciones y los archivos del proyecto.',
+        deleting: "Eliminando conversación…",
+        failed: "No se pudo eliminar la conversación. Inténtalo de nuevo.",
+      },
       status: {
         serviceRunning: "Servicio {{name}} en ejecución",
         serviceUnhealthy: "Servicio {{name}} con fallos",
@@ -1738,6 +1761,7 @@ export const es: TranslationResources = {
     },
   },
   openProject: {
+    onboarding: openProjectOnboarding["es"],
     tiles: {
       addProject: {
         title: "Agregar un proyecto",

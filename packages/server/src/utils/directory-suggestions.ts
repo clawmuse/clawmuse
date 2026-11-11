@@ -1,4 +1,8 @@
-import type { Dirent, Stats } from "node:fs";
+import {
+  isolatedDirectory,
+  type DirectoryEntry,
+  type DirectoryStat,
+} from "./isolated-directory.js";
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import pLimit from "p-limit";
@@ -122,11 +126,12 @@ const NO_MATCH_OFFSET = Number.MAX_SAFE_INTEGER;
 const NO_FUZZY_SCORE = Number.MAX_SAFE_INTEGER;
 const NO_MATCH_TIER = 5;
 
-// Each pending fs call holds one of libuv's shared threadpool threads (4 by default), and a read on
+// Outside macOS, each pending fs call holds a shared libuv thread, and a read on
 // a hung mount or a protected folder never returns. Searches pile up while the user types, so they
 // share two threads and leave the rest of the pool to the daemon. Searches over one tree walk it
 // in the same order and stop at the same stuck folder, so they share its pending call and hold one
-// thread between them instead of both.
+// thread between them instead of both. macOS uses shared isolates so TCC prompts
+// cannot occupy that pool; keep admission and coalescing in front of them as well.
 const filesystemCalls = pLimit(2);
 const pendingFilesystemCalls = new Map<string, Promise<unknown>>();
 
@@ -138,18 +143,24 @@ function sharedFilesystemCall<T>(key: string, call: () => Promise<T>): Promise<T
   return started;
 }
 
-function readdir(directory: string): Promise<Dirent[]> {
+function readdir(directory: string): Promise<DirectoryEntry[]> {
   return sharedFilesystemCall(`readdir:${directory}`, () =>
-    fs.readdir(directory, { withFileTypes: true }),
+    process.platform === "darwin"
+      ? isolatedDirectory.readdir(directory)
+      : fs.readdir(directory, { withFileTypes: true }),
   );
 }
 
 function realpath(target: string): Promise<string> {
-  return sharedFilesystemCall(`realpath:${target}`, () => fs.realpath(target));
+  return sharedFilesystemCall(`realpath:${target}`, () =>
+    process.platform === "darwin" ? isolatedDirectory.realpath(target) : fs.realpath(target),
+  );
 }
 
-function stat(target: string): Promise<Stats> {
-  return sharedFilesystemCall(`stat:${target}`, () => fs.stat(target));
+function stat(target: string): Promise<DirectoryStat> {
+  return sharedFilesystemCall(`stat:${target}`, () =>
+    process.platform === "darwin" ? isolatedDirectory.stat(target) : fs.stat(target),
+  );
 }
 
 export const WORKSPACE_SEARCH_HIDDEN_DIRECTORIES = [
@@ -759,7 +770,7 @@ async function* readChildren(directory: string): AsyncGenerator<ChildEntry> {
   ) {
     rawEntries = cached.entries;
   } else {
-    const dirents = await readdir(directory).catch(() => [] as Dirent[]);
+    const dirents = await readdir(directory).catch(() => [] as DirectoryEntry[]);
     rawEntries = dirents
       .map(toRawChildEntry)
       .filter((entry): entry is RawChildEntry => entry !== null)
@@ -822,7 +833,7 @@ function pruneGitIgnoredPathsCache(now: number): void {
   }
 }
 
-function toRawChildEntry(dirent: Dirent): RawChildEntry | null {
+function toRawChildEntry(dirent: DirectoryEntry): RawChildEntry | null {
   if (dirent.isDirectory()) return { name: dirent.name, kind: "directory" };
   if (dirent.isFile()) return { name: dirent.name, kind: "file" };
   if (dirent.isSymbolicLink()) return { name: dirent.name, kind: "symlink" };
@@ -842,7 +853,7 @@ async function resolveChild(directory: string, entry: RawChildEntry): Promise<Ch
   return kind ? { name: entry.name, resolvedPath, kind, viaSymlink: true } : null;
 }
 
-function getEntryKind(info: Stats | null): DirectorySuggestionKind | null {
+function getEntryKind(info: DirectoryStat | null): DirectorySuggestionKind | null {
   if (info?.isDirectory()) return "directory";
   if (info?.isFile()) return "file";
   return null;

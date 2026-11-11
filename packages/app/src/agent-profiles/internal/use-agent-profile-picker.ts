@@ -5,6 +5,7 @@ import { useFormPreferences } from "@/hooks/use-form-preferences";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { useSessionStore } from "@/stores/session-store";
 import { useToast } from "@/contexts/toast-context";
+import { findModelByReference } from "@/provider-selection/model-catalog";
 import { toErrorMessage } from "@/utils/error-messages";
 import { showProviderNoticeToast } from "@/utils/provider-notice-toast";
 import {
@@ -81,8 +82,22 @@ export function useAgentProfilePicker(
       return [];
     }
     const available = new Set(availableProviders);
-    return profiles.filter((profile) => available.has(profile.provider));
-  }, [availableProviders, isSupported, profiles]);
+    const entriesByProvider = new Map((entries ?? []).map((entry) => [entry.provider, entry]));
+    return profiles.filter((profile) => {
+      if (!available.has(profile.provider)) {
+        return false;
+      }
+      const modelId = profile.model?.trim();
+      if (!modelId) {
+        return true;
+      }
+      const entry = entriesByProvider.get(profile.provider);
+      if (entry?.status === "ready" && (entry.models?.length ?? 0) > 0) {
+        return findModelByReference(entry.models ?? null, modelId) !== null;
+      }
+      return true;
+    });
+  }, [availableProviders, entries, isSupported, profiles]);
 
   const formatFeatureCount = useCallback(
     (count: number) =>

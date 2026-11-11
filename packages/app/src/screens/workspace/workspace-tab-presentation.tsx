@@ -2,7 +2,7 @@ import type { Theme } from "@/styles/theme";
 import { StatusIcon } from "@/components/status-icon";
 import { useCallback, useMemo, type ReactElement, type ReactNode } from "react";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
-import { Check } from "lucide-react-native";
+import { Check } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import invariant from "tiny-invariant";

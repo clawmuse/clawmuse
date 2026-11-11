@@ -1,3 +1,4 @@
+import { deleteWorkspace } from "./workspace-delete-service.js";
 import { createVoiceAssistantTaskHost } from "./session/voice/voice-assistant-host.js";
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
@@ -190,6 +191,7 @@ import {
 } from "./session/checkout/git-metadata-generator.js";
 import { ScheduleSession } from "./session/schedule/schedule-session.js";
 import { ProviderCatalogSession } from "./session/provider/provider-catalog-session.js";
+import { LocalDailyUsageCollector } from "./session/usage/local-daily-usage.js";
 import { UsageSession } from "./session/usage/usage-session.js";
 import {
   SpeechModelsSession,
@@ -544,7 +546,7 @@ export interface SessionOptions {
   orchestrationSkills?: import("./orchestration-skills/index.js").OrchestrationSkills;
   mcpBaseUrl?: string | null;
   stt: Resolvable<SpeechToTextProvider | null>;
-  sttLanguage?: string;
+  sttLanguage?: Resolvable<string | undefined>;
   tts: Resolvable<TextToSpeechProvider | null>;
   speechModels?: SpeechModelsSessionOptions["runtime"];
   terminalManager: TerminalManager | null;
@@ -578,7 +580,7 @@ export interface SessionOptions {
   dictation?: {
     finalTimeoutMs?: number;
     stt?: Resolvable<SpeechToTextProvider | null>;
-    sttLanguage?: string;
+    sttLanguage?: Resolvable<string | undefined>;
     getSpeechReadiness?: () => SpeechReadinessSnapshot;
   };
   serverId?: string;
@@ -697,6 +699,8 @@ interface ClientActivity {
   appVisible: boolean;
   appVisibilityChangedAt: Date;
 }
+
+const sharedLocalDailyUsageCollector = new LocalDailyUsageCollector();
 
 export class Session {
   private readonly connectedHostSession: ConnectedHostSession | null;
@@ -1067,6 +1071,7 @@ export class Session {
       logger: this.sessionLogger,
     });
     this.usageSession = new UsageSession({
+      collectDailyUsage: (forceRefresh) => sharedLocalDailyUsageCollector.collect(forceRefresh),
       isEnabled: () => daemonConfigStore.get().usage?.enabled !== false,
       emit: (msg) => this.emit(msg),
       runtime: pluginRuntime,
@@ -3215,6 +3220,8 @@ export class Session {
         return this.handleProjectRemoveRequest(msg);
       case "workspace.title.set.request":
         return this.handleWorkspaceTitleSetRequest(msg.workspaceId, msg.title, msg.requestId);
+      case "workspace.delete.request":
+        return this.handleWorkspaceDeleteRequest(msg);
       case "workspace.pin.set.request":
         return this.handleWorkspacePinSetRequest(msg.workspaceId, msg.pinned, msg.requestId);
       default:
@@ -7667,6 +7674,40 @@ export class Session {
       },
       request,
     );
+  }
+
+  private async handleWorkspaceDeleteRequest(
+    request: Extract<SessionInboundMessage, { type: "workspace.delete.request" }>,
+  ): Promise<void> {
+    const { workspaceId, requestId } = request;
+    try {
+      await deleteWorkspace(
+        {
+          workspaceRegistry: this.workspaceRegistry,
+          agentStorage: this.agentStorage,
+          agentManager: this.agentManager,
+          terminalManager: this.terminalManager,
+          stopSetup: (id) => this.workspaceSetupRuntime.stop(id),
+          teardown: (id) => this.teardownArchivedWorkspace(id),
+        },
+        workspaceId,
+      );
+      await this.emitWorkspaceUpdatesForWorkspaceIds([workspaceId]);
+      this.emit({
+        type: "workspace.delete.response",
+        payload: { workspaceId, requestId, error: null },
+      });
+    } catch (error) {
+      this.sessionLogger.error({ err: error, workspaceId }, "Failed to delete workspace");
+      this.emit({
+        type: "workspace.delete.response",
+        payload: {
+          workspaceId,
+          requestId,
+          error: getErrorMessageOr(error, "Failed to delete workspace"),
+        },
+      });
+    }
   }
 
   private async handleArchiveWorkspaceRequest(

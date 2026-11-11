@@ -50,7 +50,7 @@ import {
   Image as ImageIcon,
   ClipboardPaste,
   Paperclip,
-} from "lucide-react-native";
+} from "@/components/icons/app-icons";
 import * as Clipboard from "expo-clipboard";
 import { FOOTER_HEIGHT } from "@/constants/layout";
 import {

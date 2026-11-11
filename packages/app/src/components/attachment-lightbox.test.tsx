@@ -81,7 +81,7 @@ vi.mock("react-native-gesture-handler", () => ({
     React.createElement("div", { "data-testid": "gesture-handler-root" }, children),
 }));
 
-vi.mock("lucide-react-native", () => {
+vi.mock("@/components/icons/app-icons", () => {
   const createIcon = (name: string) => (props: Record<string, unknown>) =>
     React.createElement("span", { ...props, "data-icon": name });
   return {
@@ -153,9 +153,9 @@ beforeEach(() => {
   useAttachmentPreviewUrlMock.mockReturnValue("blob:preview");
 });
 
-afterEach(() => {
+afterEach(async () => {
   if (root) {
-    act(() => {
+    await act(async () => {
       root?.unmount();
     });
   }

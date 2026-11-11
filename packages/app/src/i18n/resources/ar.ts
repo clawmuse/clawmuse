@@ -4,6 +4,7 @@ import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
+import { openProjectOnboarding } from "./open-project-onboarding";
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -146,6 +147,11 @@ export const ar: TranslationResources = {
       daemonUnavailable: "Daemon غير متوفر",
       daemonClientUnavailable: "عميل Daemon غير متوفر",
       daemonClientDisconnected: "تم قطع اتصال عميل Daemon",
+      modelProviderChanged:
+        "تستخدم هذه المحادثة {{expected}}، لكن مزوّد النموذج الحالي هو {{current}}. عُد إلى {{expected}} للمتابعة، أو ابدأ محادثة جديدة باستخدام {{current}}.",
+      hostConnectionLost: "انقطع الاتصال بالمضيف. انتظر إعادة الاتصال ثم حاول مرة أخرى.",
+      hostRequestTimeout:
+        "لم يستجب المضيف في الوقت المحدد. لم يتم تأكيد النتيجة بعد. تحقّق من الاتصال وحالة المحادثة قبل المحاولة مجددًا.",
       noFileFound: "لم يتم العثور على ملف لـ{{token}}",
       folderOutsideWorkspace: "{{path}} خارج مساحة العمل هذه",
       unexpectedDictationError: "حدث خطأ غير متوقع أثناء معالجة الإملاء.",
@@ -470,6 +476,7 @@ export const ar: TranslationResources = {
     },
     question: {
       responseFailed: "تعذر إرسال ردك. حاول مرة أخرى.",
+      responseFailedDetail: "تعذر إرسال ردك: {{error}}",
       submit: "يُقدِّم",
       next: "التالي",
       answerPlaceholder: "اكتب إجابتك...",
@@ -1409,6 +1416,21 @@ export const ar: TranslationResources = {
       },
     },
     workspace: {
+      deleteWorkspace: {
+        label: "حذف مساحة العمل نهائيًا",
+        message:
+          "هل تريد حذف «{{name}}» وجميع محادثاتها، بما فيها المؤرشفة، نهائيًا؟ سيتم إيقاف الوكلاء والطرفيات قيد التشغيل. لا يمكن التراجع عن هذا الإجراء. سيتم الاحتفاظ بملفات المشروع وشجرة العمل.",
+        deleting: "جارٍ حذف مساحة العمل…",
+        deleted: "تم حذف مساحة العمل نهائيًا",
+        failed: "تعذّر حذف مساحة العمل: {{error}}",
+      },
+      deleteConversation: {
+        label: "حذف المحادثة الحالية",
+        message:
+          'هل تريد حذف "{{title}}" نهائيًا من ClawMuse؟ لا يمكن التراجع عن ذلك. ستبقى المحادثات الأخرى وملفات المشروع.',
+        deleting: "جارٍ حذف المحادثة…",
+        failed: "تعذر حذف المحادثة. حاول مجددًا.",
+      },
       status: {
         serviceRunning: "الخدمة {{name}} قيد التشغيل",
         serviceUnhealthy: "الخدمة {{name}} غير سليمة",
@@ -1688,6 +1710,7 @@ export const ar: TranslationResources = {
     },
   },
   openProject: {
+    onboarding: openProjectOnboarding["ar"],
     tiles: {
       addProject: {
         title: "أضف مشروعًا",

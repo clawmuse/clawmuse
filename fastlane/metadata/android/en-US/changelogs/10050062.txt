@@ -1,0 +1,6 @@
+Fixed
+- Sync host daily token history into iOS usage widgets without requiring open phone sessions, and label missing cost data explicitly instead of showing $0.00.
+- Refresh iOS usage widgets when daily token history updates even if subscription quota percentages are unchanged.
+- Allow edited agent launch drafts to retry after workspace startup failures.
+
+Full notes: https://paseo.sh/changelog

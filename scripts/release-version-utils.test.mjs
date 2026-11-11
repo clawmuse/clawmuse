@@ -13,6 +13,65 @@ import {
 import { planDesktopBeta } from "./release-desktop-beta.mjs";
 import { checkReleaseSource } from "./check-release-source.mjs";
 
+test("dated stable releases retain their identity and stable channel", () => {
+  for (const prefix of ["", "desktop-", "desktop-macos-", "ios-", "android-"]) {
+    const release = getReleaseInfoFromSourceTag(`${prefix}v1.5.5+1108`);
+    assert.equal(release.version, "1.5.5+1108");
+    assert.equal(release.releaseTag, "v1.5.5+1108");
+    assert.equal(release.baseVersion, "1.5.5");
+    assert.equal(release.isPrerelease, false);
+    assert.equal(release.releaseChannel, "latest");
+  }
+  assert.equal(computeNextReleaseVersion("1.5.5+1108", "patch"), "1.5.6");
+});
+
+test("explicit version preparation preserves date metadata in workspaces and lockfile without tagging", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "clawmuse-date-version-"));
+  try {
+    mkdirSync(path.join(root, "scripts"));
+    mkdirSync(path.join(root, "packages/server"), { recursive: true });
+    for (const name of [
+      "set-release-version.mjs",
+      "sync-workspace-versions.mjs",
+      "release-version-utils.mjs",
+    ]) {
+      cpSync(new URL(`./${name}`, import.meta.url), path.join(root, "scripts", name));
+    }
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({
+        name: "release-fixture",
+        private: true,
+        version: "1.5.5",
+        workspaces: ["packages/server"],
+      }),
+    );
+    writeFileSync(
+      path.join(root, "packages/server/package.json"),
+      JSON.stringify({ name: "@getpaseo/server", version: "1.5.5" }),
+    );
+    execFileSync(
+      process.execPath,
+      [path.join(root, "scripts/set-release-version.mjs"), "--version", "1.5.5+1108"],
+      {
+        stdio: "pipe",
+        env: {
+          ...process.env,
+          npm_config_audit: "false",
+          npm_config_fund: "false",
+          npm_config_offline: "true",
+        },
+      },
+    );
+    const lock = JSON.parse(readFileSync(path.join(root, "package-lock.json"), "utf8"));
+    assert.equal(lock.version, "1.5.5+1108");
+    assert.equal(lock.packages[""].version, "1.5.5+1108");
+    assert.equal(lock.packages["packages/server"].version, "1.5.5+1108");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("release source rejects divergent tags, dirty sources, and obsolete betas", () => {
   const cwd = mkdtempSync(path.join(tmpdir(), "clawmuse-release-source-"));
   const git = (...args) =>

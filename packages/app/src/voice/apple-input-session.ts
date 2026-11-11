@@ -24,6 +24,8 @@ export function createAppleInputSession(native: AppleSpeechBridge): LocalVoiceIn
   let pending: Uint8Array[] = [];
   let pendingBytes = 0;
   let speechReported = false;
+  let detectedSpeech: boolean | null = null;
+  let pendingPartial: Extract<AppleSpeechEvent, { type: "partial" }> | null = null;
   let finishing = false;
   let onEvent: (event: LocalVoiceInputEvent) => void = () => {};
   const boundary = createLocalTurnBoundary();
@@ -31,6 +33,15 @@ export function createAppleInputSession(native: AppleSpeechBridge): LocalVoiceIn
   function resetTurn(): void {
     boundary.reset();
     speechReported = false;
+    detectedSpeech = null;
+    pendingPartial = null;
+  }
+  function publishPartial(event: Extract<AppleSpeechEvent, { type: "partial" }>): void {
+    if (!speechReported && event.text.trim()) {
+      speechReported = true;
+      onEvent({ type: "speech" });
+    }
+    onEvent(event);
   }
   function clearPending(): void {
     pending = [];
@@ -65,6 +76,17 @@ export function createAppleInputSession(native: AppleSpeechBridge): LocalVoiceIn
     }
     native.appendAppleSpeechAudio(sessionId, data, endOfTurn);
   }
+  function handleActivity(event: Extract<AppleSpeechEvent, { type: "activity" }>): void {
+    // Native detection and transcription arrive independently. Keep positive evidence
+    // through finalization, and retain text until a delayed detector can confirm it.
+    detectedSpeech = detectedSpeech === true || event.speechDetected;
+    if (!finishing) boundary.activity(event.speechDetected, event.audioTimeMs);
+    if (detectedSpeech && pendingPartial) {
+      const partial = pendingPartial;
+      pendingPartial = null;
+      publishPartial(partial);
+    }
+  }
   function receive(event: AppleSpeechEvent): void {
     if (event.sessionId !== sessionId || failed) return;
     if (event.type === "error") {
@@ -83,21 +105,27 @@ export function createAppleInputSession(native: AppleSpeechBridge): LocalVoiceIn
     }
     if (!ready && !finishing && event.type !== "preparing") return;
     if (event.type === "activity") {
-      if (!finishing) boundary.activity(event.speechDetected, event.audioTimeMs);
+      handleActivity(event);
       return;
     }
     if (event.type === "final") {
+      if (detectedSpeech === false) {
+        pendingPartial = null;
+        onEvent({ type: "idle" });
+        return;
+      }
       onEvent({ ...event, endpointMs: boundary.getEndpointMs() });
       return;
     }
     if (event.type === "partial") {
-      if (!finishing) {
-        boundary.transcript(event.text);
-        if (!speechReported && event.text.trim()) {
-          speechReported = true;
-          onEvent({ type: "speech" });
-        }
+      // Still endpoint rejected text so the native analyzer can start a fresh turn.
+      if (!finishing) boundary.transcript(event.text);
+      if (detectedSpeech === false) {
+        pendingPartial = event;
+        return;
       }
+      publishPartial(event);
+      return;
     }
     onEvent(event);
   }

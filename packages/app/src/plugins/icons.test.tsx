@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react-native";
+import { Settings } from "@/components/icons/app-icons";
 import React, { isValidElement, type ReactElement, type ReactNode } from "react";
 import { SvgXml } from "react-native-svg";
 import { describe, expect, it } from "vitest";

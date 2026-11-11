@@ -78,6 +78,10 @@ interface NativeAgentLiveActivityModule {
   resetRemoteStatusSession?(restartIfPresent: boolean): Promise<AgentLiveActivitySyncResult>;
   updateWidgetSnapshot?(json: string): Promise<void>;
   setWidgetCredentials?(baseUrl: string | null, token: string | null): Promise<void>;
+  writeUsageWidgetSnapshot?(json: string): boolean;
+  readUsageWidgetSnapshot?(): string | null;
+  readPinnedUsageWidgetDeviceIds?(): string[];
+  clearUsageWidgetSnapshot?(): void;
   addListener(
     event: "onAgentLiveActivityPushToken",
     listener: (event: PushTokenEvent) => void,
@@ -172,6 +176,22 @@ export async function setAgentWidgetCredentials(
     credentials?.baseUrl ?? null,
     credentials?.token ?? null,
   );
+}
+
+export function writeUsageWidgetSnapshot(json: string): boolean {
+  return nativeModule?.writeUsageWidgetSnapshot?.(json) ?? false;
+}
+
+export function readUsageWidgetSnapshot(): string | null {
+  return nativeModule?.readUsageWidgetSnapshot?.() ?? null;
+}
+
+export function readPinnedUsageWidgetDeviceIds(): string[] {
+  return nativeModule?.readPinnedUsageWidgetDeviceIds?.() ?? [];
+}
+
+export function clearUsageWidgetSnapshot(): void {
+  nativeModule?.clearUsageWidgetSnapshot?.();
 }
 
 export function addAgentLiveActivityPushTokenListener(

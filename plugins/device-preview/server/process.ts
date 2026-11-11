@@ -1,127 +1,118 @@
-import { spawn } from "node:child_process";
-import { setTimeout as delay } from "node:timers/promises";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { join } from "node:path";
+import { PreviewError } from "./errors.js";
+import { stopPosixTree } from "./posix-tree.js";
+
+export interface OwnedProcess {
+  child: ChildProcessWithoutNullStreams;
+  closed: Promise<number | null>;
+  stop(): Promise<void>;
+}
+
+export function launch(tool: string, args: string[]): OwnedProcess {
+  const child = spawn(tool, args, {
+    shell: false,
+    detached: process.platform !== "win32",
+    windowsHide: true,
+    stdio: "pipe",
+  });
+  // Diagnostics can contain simulator data. Never forward or retain stderr.
+  child.stderr.resume();
+  child.stdin.on("error", () => {});
+  child.on("error", () => {});
+  let finished = false;
+  const closed = new Promise<number | null>((resolve) =>
+    child.once("close", (code) => {
+      finished = true;
+      resolve(code);
+    }),
+  );
+  let stopping: Promise<void> | null = null;
+  async function terminate() {
+    if (finished) return;
+    if (child.pid === undefined) {
+      await closed;
+      return;
+    }
+    if (process.platform === "win32") {
+      const killer = spawn(
+        join(process.env.SystemRoot ?? "C:\\Windows", "System32", "taskkill.exe"),
+        ["/PID", String(child.pid), "/T", "/F"],
+        { shell: false, windowsHide: true, stdio: "ignore" },
+      );
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          killer.kill("SIGKILL");
+          reject(new PreviewError("预览子进程树清理超时，设备仍保持占用"));
+        }, 3000);
+        killer.once("error", () => {
+          clearTimeout(timeout);
+          reject(new PreviewError("无法清理预览子进程树"));
+        });
+        killer.once("close", (code) => {
+          clearTimeout(timeout);
+          if (code !== 0 && !finished) {
+            reject(new PreviewError("无法确认预览子进程树已退出"));
+            return;
+          }
+          resolve();
+        });
+      });
+      await closed;
+      return;
+    }
+    await stopPosixTree(child.pid, closed);
+  }
+  return {
+    child,
+    closed,
+    stop() {
+      stopping ??= terminate();
+      return stopping;
+    },
+  };
+}
 
 export interface CommandOptions {
   signal: AbortSignal;
-  timeoutMs?: number;
+  timeout?: number;
   maxBytes?: number;
 }
-
-export class PreviewCommandError extends Error {
-  constructor() {
-    super("设备命令未完成，请检查工具和模拟器状态后重试");
-  }
-}
-
-function signalGroup(pid: number, signal: NodeJS.Signals) {
-  try {
-    process.kill(-pid, signal);
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
-  }
-}
-
-async function terminateTree(pid: number) {
-  if (process.platform === "win32") {
-    await new Promise<void>((resolve, reject) => {
-      const killer = spawn(
-        `${process.env.SystemRoot || "C:\\Windows"}\\System32\\taskkill.exe`,
-        ["/pid", String(pid), "/t", "/f"],
-        { windowsHide: true, stdio: "ignore" },
-      );
-      killer.once("error", reject);
-      killer.once("close", () => resolve());
-    });
-    return;
-  }
-  signalGroup(pid, "SIGTERM");
-  await delay(150);
-  signalGroup(pid, "SIGKILL");
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try {
-      process.kill(-pid, 0);
-    } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "ESRCH") return;
-      throw error;
+export async function command(
+  tool: string,
+  args: string[],
+  options: CommandOptions,
+): Promise<Buffer> {
+  options.signal.throwIfAborted();
+  const owned = launch(tool, args);
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  let cancelled = false;
+  let termination: Promise<void> | null = null;
+  const abort = () => {
+    cancelled = true;
+    termination ??= owned.stop();
+    void termination.catch(() => {});
+  };
+  const timer = setTimeout(abort, options.timeout ?? 10_000);
+  options.signal.addEventListener("abort", abort, { once: true });
+  owned.child.stdout.on("data", (chunk: Buffer) => {
+    bytes += chunk.length;
+    if (bytes > (options.maxBytes ?? 1024 * 1024)) {
+      abort();
+      return;
     }
-    await delay(20);
-  }
-  throw new PreviewCommandError();
-}
-
-export class CommandRunner {
-  private readonly tasks = new Set<Promise<Buffer>>();
-  private readonly shutdown = new AbortController();
-
-  run(file: string, args: string[], options: CommandOptions): Promise<Buffer> {
-    const task = this.execute(file, args, options);
-    this.tasks.add(task);
-    void task.finally(() => this.tasks.delete(task)).catch(() => {});
-    return task;
-  }
-
-  private async execute(file: string, args: string[], options: CommandOptions): Promise<Buffer> {
-    const signal = AbortSignal.any([options.signal, this.shutdown.signal]);
-    if (signal.aborted) throw new PreviewCommandError();
-    const child = spawn(file, args, {
-      detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-      shell: false,
-    });
-    let failed = false;
-    let bytes = 0;
-    const chunks: Buffer[] = [];
-    let termination: Promise<void> | null = null;
-    function cancel() {
-      failed = true;
-      if (child.pid && !termination) termination = terminateTree(child.pid);
-      void termination?.catch(() => {});
-    }
-    const timeout = setTimeout(cancel, options.timeoutMs ?? 10_000);
-    signal.addEventListener("abort", cancel, { once: true });
-    child.stdout.on("data", (chunk: Buffer) => {
-      bytes += chunk.length;
-      if (bytes > (options.maxBytes ?? 1024 * 1024)) cancel();
-      else chunks.push(chunk);
-    });
-    let errorBytes = 0;
-    child.stderr.on("data", (chunk: Buffer) => {
-      errorBytes += chunk.length;
-      if (errorBytes > 64 * 1024) cancel();
-    });
-    try {
-      const code = await new Promise<number | null>((resolve, reject) => {
-        child.once("error", () => reject(new PreviewCommandError()));
-        child.once("close", resolve);
-      });
-      if (termination) await termination;
-      if (failed || code !== 0 || signal.aborted) throw new PreviewCommandError();
-      return Buffer.concat(chunks);
-    } finally {
-      clearTimeout(timeout);
-      signal.removeEventListener("abort", cancel);
-    }
-  }
-
-  async close() {
-    this.shutdown.abort();
-    await Promise.allSettled(this.tasks);
-  }
-}
-
-export async function launchEmulator(file: string, id: string) {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(file, ["-avd", id, "-no-snapshot-save", "-no-boot-anim"], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
-      shell: false,
-    });
-    child.once("error", () => reject(new PreviewCommandError()));
-    child.once("spawn", () => {
-      child.unref();
-      resolve();
-    });
+    if (!cancelled) chunks.push(chunk);
   });
+  owned.child.stdin.end();
+  try {
+    const code = await owned.closed;
+    if (termination) await termination;
+    if (cancelled || code !== 0)
+      throw new PreviewError("工具未完成操作，设备可能尚未就绪；请刷新后重试");
+    return Buffer.concat(chunks);
+  } finally {
+    clearTimeout(timer);
+    options.signal.removeEventListener("abort", abort);
+  }
 }

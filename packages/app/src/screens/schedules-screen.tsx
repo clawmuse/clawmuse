@@ -9,7 +9,7 @@ import {
 } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useIsFocused } from "expo-router/react-navigation";
-import { CalendarClock, Plus } from "lucide-react-native";
+import { CalendarClock, Plus } from "@/components/icons/app-icons";
 import { StyleSheet } from "react-native-unistyles";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { ExternalLink } from "@/components/ui/external-link";

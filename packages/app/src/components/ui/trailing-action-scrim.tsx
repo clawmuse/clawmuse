@@ -8,7 +8,15 @@ import type { Theme } from "@/styles/theme";
 export const SCRIM_WIDTH = 48;
 const SCRIM_SOLID_OFFSET = "55%";
 
-function TrailingActionScrimSvg({ gradientId, color }: { gradientId: string; color: string }) {
+function TrailingActionScrimSvg({
+  gradientId,
+  color,
+  solidOffset = SCRIM_SOLID_OFFSET,
+}: {
+  gradientId: string;
+  color: string;
+  solidOffset?: string;
+}) {
   return (
     <Svg width="100%" height="100%" preserveAspectRatio="none">
       <Defs>
@@ -16,7 +24,7 @@ function TrailingActionScrimSvg({ gradientId, color }: { gradientId: string; col
           {/* Vary opacity rather than interpolating toward `transparent`, which crosses black in
               some engines and leaves a grey fringe. */}
           <Stop offset="0%" stopColor={color} stopOpacity={0} />
-          <Stop offset={SCRIM_SOLID_OFFSET} stopColor={color} stopOpacity={1} />
+          <Stop offset={solidOffset} stopColor={color} stopOpacity={1} />
           <Stop offset="100%" stopColor={color} stopOpacity={1} />
         </SvgLinearGradient>
       </Defs>
@@ -39,17 +47,26 @@ const backdropColorMappings: Record<SurfaceBackdrop, (theme: Theme) => { color: 
 /** Fades trailing content into the surface beneath an absolutely overlaid action. */
 export function TrailingActionScrim({
   backdrop,
+  width,
+  solidOffset,
   testID,
 }: {
   backdrop: SurfaceBackdrop;
+  width?: number;
+  solidOffset?: string;
   testID?: string;
 }) {
   // React-generated ids contain characters that are invalid inside SVG fragment references.
   const gradientId = `trailing-action-scrim-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
-    <View style={styles.scrim} pointerEvents="none" testID={testID}>
+    <View
+      style={[styles.scrim, width !== undefined && { width }]}
+      pointerEvents="none"
+      testID={testID}
+    >
       <ThemedTrailingActionScrimSvg
         gradientId={gradientId}
+        solidOffset={solidOffset}
         uniProps={backdropColorMappings[backdrop]}
       />
     </View>

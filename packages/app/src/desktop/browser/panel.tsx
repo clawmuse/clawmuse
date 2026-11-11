@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Image } from "react-native";
-import { Globe } from "lucide-react-native";
+import { Globe } from "@/components/icons/app-icons";
 import invariant from "tiny-invariant";
 import { BrowserPane } from "@/desktop/browser/pane";
 import { usePaneContext, usePaneFocus } from "@/panels/pane-context";

@@ -6,7 +6,7 @@ import type { ProviderLaunch, ProviderTimelineItem } from "@getpaseo/plugin/serv
 import { toolItem } from "./timeline.js";
 import { AntigravityError } from "./wire.js";
 
-const recordSchema = z.object({
+export const recordSchema = z.object({
   step_index: z.number().int().nonnegative(),
   type: z.string(),
   status: z.string(),
@@ -32,20 +32,10 @@ export async function readHistory(
   conversationId: string,
   launch: ProviderLaunch,
 ): Promise<HistoryItem[] | null> {
-  const home = launch.env.HOME || launch.env.USERPROFILE || homedir();
-  const directory = path.join(
-    home,
-    ".gemini",
-    "antigravity-cli",
-    "brain",
-    conversationId,
-    ".system_generated",
-    "logs",
-  );
-  for (const filename of ["transcript_full.jsonl", "transcript.jsonl"]) {
+  for (const filename of transcriptPaths(conversationId, launch)) {
     let text: string;
     try {
-      text = await readFile(path.join(directory, filename), "utf8");
+      text = await readFile(filename, "utf8");
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
       throw new AntigravityError(
@@ -56,6 +46,22 @@ export async function readHistory(
     return parseHistory(text, conversationId);
   }
   return null;
+}
+
+export function transcriptPaths(conversationId: string, launch: ProviderLaunch): string[] {
+  const home = launch.env.HOME || launch.env.USERPROFILE || homedir();
+  const directory = path.join(
+    home,
+    ".gemini",
+    "antigravity-cli",
+    "brain",
+    conversationId,
+    ".system_generated",
+    "logs",
+  );
+  return ["transcript_full.jsonl", "transcript.jsonl"].map((filename) =>
+    path.join(directory, filename),
+  );
 }
 
 function parseHistory(text: string, conversationId: string): HistoryItem[] {

@@ -1,15 +1,17 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { computeNextReleaseVersion } from "./release-version-utils.mjs";
+import { computeNextReleaseVersion, parseReleaseVersion } from "./release-version-utils.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 const rootPackagePath = path.join(rootDir, "package.json");
 
 function usageAndExit(code = 1) {
-  process.stderr.write(`Usage: node scripts/set-release-version.mjs --mode <mode> [--print]\n`);
+  process.stderr.write(
+    `Usage: node scripts/set-release-version.mjs (--mode <mode> | --version <version>) [--print]\n`,
+  );
   process.stderr.write(
     "Modes: patch, minor, major, beta-patch, beta-minor, beta-major, beta-next, promote\n",
   );
@@ -19,11 +21,17 @@ function usageAndExit(code = 1) {
 function parseArgs(argv) {
   const args = {
     mode: "",
+    version: "",
     print: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === "--version") {
+      args.version = argv[index + 1] ?? "";
+      index += 1;
+      continue;
+    }
     if (arg === "--mode") {
       args.mode = argv[index + 1] ?? "";
       index += 1;
@@ -39,7 +47,7 @@ function parseArgs(argv) {
     usageAndExit();
   }
 
-  if (!args.mode) {
+  if (Boolean(args.mode) === Boolean(args.version)) {
     usageAndExit();
   }
 
@@ -54,10 +62,28 @@ if (!currentVersion) {
   throw new Error('Root package.json must contain a valid "version".');
 }
 
-const nextVersion = computeNextReleaseVersion(currentVersion, args.mode);
+const nextVersion = args.version
+  ? parseReleaseVersion(args.version).version
+  : computeNextReleaseVersion(currentVersion, args.mode);
 
 if (args.print) {
   process.stdout.write(`${nextVersion}\n`);
+  process.exit(0);
+}
+
+if (args.version) {
+  // npm version normalizes away build metadata. Explicit preparation preserves it
+  // and leaves review, commits and tags to the release owner.
+  rootPackage.version = nextVersion;
+  writeFileSync(rootPackagePath, `${JSON.stringify(rootPackage, null, 2)}\n`);
+  execFileSync(process.execPath, [path.join(__dirname, "sync-workspace-versions.mjs")], {
+    cwd: rootDir,
+    stdio: "inherit",
+  });
+  execFileSync("npm", ["install", "--package-lock-only", "--ignore-scripts"], {
+    cwd: rootDir,
+    stdio: "inherit",
+  });
   process.exit(0);
 }
 

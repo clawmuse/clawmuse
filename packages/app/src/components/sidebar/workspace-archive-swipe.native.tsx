@@ -11,7 +11,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
-import { Archive } from "lucide-react-native";
+import { Archive } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { useMobilePanelsRuntime } from "@/mobile-panels/provider";

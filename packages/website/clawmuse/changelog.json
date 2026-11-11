@@ -1,6 +1,52 @@
 {
   "en": [
     {
+      "version": "1.5.8",
+      "date": "2026-11-09",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Show a merged 30-day token usage history card (today, 30-day total, daily average, 30-day bar chart, and top models) across all connected computers in the desktop and web Usage modal and Settings Usage section, with Chinese 万 / 亿 token unit hints in Chinese locales across both the app and iOS widgets."
+          ]
+        }
+      ],
+      "notes": []
+    },
+    {
+      "version": "1.5.7",
+      "date": "2026-11-09",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Merge subscription quota accounts and 30-day daily usage history across all connected computers when iOS widgets use the default \"Automatic\" computer selection, while preserving single-computer filtering when a specific computer is chosen."
+          ]
+        }
+      ],
+      "notes": []
+    },
+    {
+      "version": "1.5.6",
+      "date": "2026-11-09",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Sync host daily token history into iOS usage widgets without requiring open phone sessions, and label missing cost data explicitly instead of showing $0.00.",
+            "Refresh iOS usage widgets when daily token history updates even if subscription quota percentages are unchanged.",
+            "Allow edited agent launch drafts to retry after workspace startup failures.",
+            "Keep remote relay connections responsive when host filesystem inspection blocks on slow or protected directories.",
+            "Stream Antigravity thinking updates during active turns without replaying completed reasoning.",
+            "Filter unavailable host providers and uninstalled CLI commands out of model and profile pickers, and skip unsupported legacy favorites during profile migration.",
+            "Resolve dictation and voice STT language dynamically and prevent premature 3-second audio chunk cutoffs on StepFun ASR.",
+            "Require the configured daemon password on legacy relay admission handshakes."
+          ]
+        }
+      ],
+      "notes": []
+    },
+    {
       "version": "1.5.5",
       "date": "2026-11-05",
       "sections": [
@@ -57,74 +103,55 @@
       "notes": [
         "Includes the interactive question and plan confirmation translations introduced in 1.5.2. Update both the client and the connected host to use them."
       ]
-    },
-    {
-      "version": "1.5.2",
-      "date": "2026-11-05",
-      "sections": [
-        {
-          "title": "Fixed",
-          "items": [
-            "Translate interactive question labels, options and plan confirmations without changing submitted answers.",
-            "Preserve Markdown structure, prioritize current questions and isolate translations after model changes. Failed translations remain retryable with original text available."
-          ]
-        }
-      ],
-      "notes": [
-        "This iOS/TestFlight update requires the updated conversation-translation plugin on the connected host for interactive card translations. Other platform installers remain on their existing versions."
-      ]
-    },
-    {
-      "version": "1.5.1",
-      "date": "2026-11-04",
-      "sections": [
-        {
-          "title": "Added",
-          "items": [
-            "Automatically discover managed hosts signed in to the same account and authorize each client independently. Invitation connections remain available without signing in and require host confirmation.",
-            "Enable the optional Device Preview plugin to watch iOS simulators and Android emulators on the connected host. Android supports single-finger taps, swipes and navigation keys; iOS supports viewing and appearance changes.",
-            "Browse models by provider and quickly return to recently used models.",
-            "Use official account speech services and view the shared trial allowance without configuring a provider key.",
-            "Track task dependencies, user decisions and acceptance evidence in the unified task board."
-          ]
-        },
-        {
-          "title": "Fixed",
-          "items": [
-            "Show approval progress, verification codes, and errors for anonymous invitation links, and continue pairing when a password is required.",
-            "Keep chat controls under the pointer when opening completed turns instead of scrolling away before the click completes.",
-            "Keep custom dictation independent of official account connectivity and synchronize published speech configuration options.",
-            "Suppress task-reading progress speech, stop repeated queries, and ignore late audio after voice playback fails. The voice assistant uses Chinese task status descriptions.",
-            "Resize the Settings sidebar and preserve its width; correct safe-area spacing, touch targets and host-label density.",
-            "Reduce composer button sizes while retaining their touch targets.",
-            "Show clearer desktop errors without internal invocation prefixes, preserve real paths and technical identifiers, and explain Linux update authorization failures and cancellations.",
-            "Conversation translation uses the host's configured providers, including Grok, without requiring a separate CLI installation."
-          ]
-        }
-      ],
-      "notes": [
-        "Voice fixes require the updated host; late-audio protection also requires the updated client. Official speech and unified tasks depend on the corresponding account services. Device Preview requires existing simulator tools and leaves simulators running when a preview stops.",
-        "Same-account authorization requires the updated Hub, host and client. Existing managed hosts must sign in again to bind their account authority."
-      ]
-    },
-    {
-      "version": "1.4.6",
-      "date": "2026-11-02",
-      "sections": [
-        {
-          "title": "Fixed",
-          "items": [
-            "Generate new workspace titles in the creating client's selected language, or its detected device language when following the system. Keep technical identifiers unchanged and preserve the chosen title across connected hosts.",
-            "Make the x64 installer the primary Windows download on the website."
-          ]
-        }
-      ],
-      "notes": [
-        "Workspace title language requires both the client and host to run 1.4.6 or later. Existing workspace titles are preserved."
-      ]
     }
   ],
   "zh-CN": [
+    {
+      "version": "1.5.8",
+      "date": "2026-11-09",
+      "sections": [
+        {
+          "title": "新增",
+          "items": [
+            "桌面端与网页端「用量」弹窗及设置页新增跨全部已连接电脑合并的近 30 天历史 token 用量卡片（今日、30 天总计、日均、30 天柱状趋势与常用模型占比），并在中文界面与 iOS 小组件中为百万/十亿级 token 补充 （万 / 亿） 单位提示。"
+          ]
+        }
+      ],
+      "notes": []
+    },
+    {
+      "version": "1.5.7",
+      "date": "2026-11-09",
+      "sections": [
+        {
+          "title": "修复",
+          "items": [
+            "iOS 订阅余量与每日用量小组件在默认的「自动」模式下自动合并所有已连接电脑的账号余量与近 30 天历史 token 用量（不再只锁定单台电脑），手动指定单台电脑时仍仅展示该电脑的数据。"
+          ]
+        }
+      ],
+      "notes": []
+    },
+    {
+      "version": "1.5.6",
+      "date": "2026-11-09",
+      "sections": [
+        {
+          "title": "修复",
+          "items": [
+            "iOS 用量小组件直接接入主机历史日用量账本，无需在手机端先打开会话即可展示今日与近 30 天总 token，并将未上报的费用明确标记为“暂无费用数据”而不再误显 $0.00。",
+            "修复订阅额度百分比不变时，新增历史 token 用量不触发小组件刷新的问题。",
+            "工作区启动失败后修改草稿并重试时，使用最新编辑的配置重新创建会话。",
+            "主机目录探测在受保护或阻塞目录上卡住时通过隔离工作线程执行，保持远程中继连接响应。",
+            "Antigravity 执行期间实时展示思考过程，且不重复回放已完成轮次的推理内容。",
+            "模型与预设选择器过滤当前主机未安装或不可用的服务，迁移旧版收藏时自动跳过目标主机不支持的模型。",
+            "动态解析听写与实时语音的识别语言配置，并修复阶跃语音识别被 3 秒分片提前截断的问题。",
+            "移除旧版中继握手免密兼容分支，统一要求已配置的访问密码。"
+          ]
+        }
+      ],
+      "notes": []
+    },
     {
       "version": "1.5.5",
       "date": "2026-11-05",
@@ -174,69 +201,6 @@
         }
       ],
       "notes": ["包含 1.5.2 引入的交互题目与计划确认翻译，需要同时更新客户端和连接的主机。"]
-    },
-    {
-      "version": "1.5.2",
-      "date": "2026-11-05",
-      "sections": [
-        {
-          "title": "修复",
-          "items": [
-            "翻译交互题目的标签、问题、选项和计划确认内容，同时保留原始答案提交值。",
-            "保留 Markdown 结构，优先翻译当前提问，并在更换模型后隔离旧译文；失败时保留原文并支持重试。"
-          ]
-        }
-      ],
-      "notes": [
-        "本次仅发布 iOS/TestFlight。交互卡片翻译还需要连接主机上的新版会话翻译插件，其他平台安装包保持原有版本。"
-      ]
-    },
-    {
-      "version": "1.5.1",
-      "date": "2026-11-04",
-      "sections": [
-        {
-          "title": "新增",
-          "items": [
-            "自动发现同账号的受管主机，并为各客户端独立授权；邀请连接无需登录，仍需主机确认。",
-            "启用可选的「设备预览」插件后，可观看所连接主机的 iOS 或 Android 模拟器。Android 支持单指点击、滑动和导航按键；iOS 支持观看和明暗模式切换。",
-            "模型按供应商分类，并可快速选择最近使用的模型。",
-            "使用官方账号语音服务并查看共享试用额度，无需自行填写供应商密钥。",
-            "在统一任务面板跟进依赖、待决定事项和验收证据。"
-          ]
-        },
-        {
-          "title": "修复",
-          "items": [
-            "匿名邀请链接显示等待主机批准、校验码和失败原因，需要密码时继续配对。",
-            "修复点击已完成任务摘要时聊天自动滚动导致命令无法展开的问题。",
-            "自定义听写不再依赖官方账号网络，并同步公开的语音配置选项。",
-            "拦截“正在读取”等任务查询过程播报，停止重复查询，并在语音失败后忽略迟到音频。语音助理使用中文描述任务状态。",
-            "设置侧栏支持拖动并保留宽度，修正安全区留白、触摸目标和主机标签文字密度。",
-            "缩小输入栏按钮，同时保留便于点击的触摸范围。",
-            "桌面错误提示去掉内部调用前缀，保留真实文件路径和技术标识，并明确说明 Linux 更新授权失败或取消的原因。",
-            "会话翻译使用主机已配置的模型供应商，包括 Grok，无需单独安装命令行工具。"
-          ]
-        }
-      ],
-      "notes": [
-        "语音修复需要更新主机；迟到音频保护也需要更新客户端。官方语音和统一任务依赖对应的账号服务。设备预览需要预先安装模拟器工具，停止预览后模拟器继续运行。",
-        "同账号自动授权需要更新 Hub、主机和客户端；已有受管主机需重新登录，以绑定账号授权。"
-      ]
-    },
-    {
-      "version": "1.4.6",
-      "date": "2026-11-02",
-      "sections": [
-        {
-          "title": "修复",
-          "items": [
-            "新建工作区标题使用创建它的客户端所选语言；选择跟随系统时，使用检测到的设备语言。技术标识符保留原样，标题在连接不同主机时保持一致。",
-            "官网 Windows 下载优先提供 x64 安装包。"
-          ]
-        }
-      ],
-      "notes": ["工作区标题语言需要客户端和主机均为 1.4.6 或更新版本。已有工作区标题保持不变。"]
     }
   ]
 }

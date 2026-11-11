@@ -172,6 +172,7 @@ p {
   line-height: 1.4;
   transition:
     background 0.18s,
+    color 0.18s,
     transform 0.18s,
     border-color 0.18s;
 }
@@ -886,40 +887,85 @@ p {
 .arm-download {
   position: relative;
 }
-.arm-download-trigger {
-  color: var(--muted);
-  font-size: 12px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.arm-download-panel {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 2;
+.arm-download .arm-download-trigger.button {
   width: 100%;
-  min-width: 220px;
-  padding: 16px;
+  justify-content: flex-start;
+  padding-inline: 12px;
+  font-size: 14px;
+  gap: 8px;
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  border-color: var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+.arm-download .arm-download-trigger.button:hover {
+  background: var(--soft);
+  border-color: var(--accent);
+}
+.arm-download .arm-download-trigger.button span {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.arm-download-details {
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  overflow: hidden;
 }
-.arm-download:hover .arm-download-panel,
-.arm-download:focus-within .arm-download-panel {
+.arm-download-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--ink);
+  user-select: none;
+}
+.arm-download-summary::-webkit-details-marker {
+  display: none;
+}
+.arm-download-summary:hover {
+  background: var(--soft);
+}
+.arm-download-summary-copy {
   display: grid;
-  gap: 12px;
+  gap: 2px;
+  min-width: 0;
+}
+.arm-download-summary small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 450;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arm-download-summary svg {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+.arm-download-details[open] .arm-download-summary svg {
+  transform: rotate(180deg);
 }
 .arm-download-links {
   display: grid;
-  gap: 6px;
+  gap: 4px;
+  padding: 6px 8px 10px;
+  border-top: 1px solid var(--line);
 }
 .arm-download-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 10px;
+  padding: 7px 10px;
   border-radius: 7px;
   font-size: 13px;
   color: var(--ink);
@@ -944,7 +990,7 @@ p {
   gap: 8px;
 }
 .installer .button span {
-  margin-left: auto;
+  margin-inline-start: auto;
   white-space: nowrap;
 }
 .download-footer {

@@ -15,6 +15,41 @@ import { findFile, resolveFiles } from "electron-updater/out/providers/Provider.
 const releaseDate = "2026-09-04T00:00:00.000Z";
 const scriptPath = fileURLToPath(new URL("./validate-desktop-manifests.mjs", import.meta.url));
 
+test("dated stable update manifests retain the full release identity", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "clawmuse-dated-feed-"));
+  try {
+    const source = path.join(dir, "source");
+    const output = path.join(dir, "output");
+    mkdirSync(source);
+    const filename = "ClawMuse-Setup-1.5.5+1108-x64.exe";
+    const artifact = Buffer.from("dated installer fixture");
+    writeFileSync(path.join(source, filename), artifact);
+    writeFileSync(
+      path.join(source, "latest.yml"),
+      dump({
+        version: "1.5.5+1108",
+        releaseDate,
+        files: [
+          {
+            url: filename,
+            size: artifact.length,
+            sha512: createHash("sha512").update(artifact).digest("base64"),
+          },
+        ],
+      }),
+    );
+    await prepareDesktopUpdates(source, output, {
+      platform: "windows",
+      expectedVersion: "1.5.5+1108",
+    });
+    const manifest = load(readFileSync(path.join(output, "latest.yml"), "utf8"));
+    assert.equal(manifest.version, "1.5.5+1108");
+    assert.equal(manifest.files[0].url, `releases/1.5.5+1108/${filename}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("DMG stapling refreshes checksums and blockmaps before staging Mac updates", async () => {
   const directory = mkdtempSync(path.join(tmpdir(), "clawmuse-notarized-dmg-"));
   const source = path.join(directory, "source");

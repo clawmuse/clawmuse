@@ -497,16 +497,12 @@ test("iOS cloud builds require explicit selection and budget confirmation", () =
   );
   assert.deepEqual(Object.keys(workflow.on), ["workflow_dispatch"]);
   const inputs = workflow.on.workflow_dispatch.inputs;
-  // The distribution-only workflow has no cloud runner to authorize. Keep its
-  // manual/self-hosted boundary checked without requiring build-only inputs.
-  if (!workflow.jobs.cloud) {
-    assert.equal(inputs.distribute.default, false);
-    for (const job of Object.values(workflow.jobs)) {
-      assert.ok(Array.isArray(job["runs-on"]));
-      assert.ok(job["runs-on"].includes("self-hosted"));
-    }
-    return;
-  }
+  assert.equal(
+    workflow.jobs.testflight.steps.find((step) => step.uses?.startsWith("actions/checkout@"))?.with
+      ?.ref,
+    "${{ github.ref_name }}",
+    "manual builds must use the requested release ref, not a pinned historical inspection build",
+  );
   assert.equal(inputs.build_host.default, "self-hosted");
   assert.equal(inputs.cloud_mode.default, "simulator");
   assert.equal(inputs.free_budget_confirmed.default, false);
@@ -941,6 +937,27 @@ test("electron-builder loads signed stable and credential-free beta configuratio
       assert.equal(typeof stable.mac.sign, 'function');
       assert.equal(stable.dmg.sign, true);
       assert.equal(stable.mac.publish.url, config.mac.publish.url);
+      require(process.cwd() + '/packages/desktop/package.json').version = '1.5.5+1108';
+      const dated = await getConfig(process.cwd() + '/packages/desktop', 'electron-builder.config.cjs');
+      assert.equal(dated.mac.bundleShortVersion, '1.5.5');
+      assert.equal(dated.mac.bundleVersion, '1108');
+      assert.equal(dated.mac.extendInfo.ClawMuseReleaseVersion, '1.5.5+1108');
+      assert.equal(dated.buildVersion, '1.5.5.1108');
+      assert.equal(dated.mac.notarize, true);
+      // Exercise the actual metadata normalization path, not only the config object.
+      const { Packager } = require('app-builder-lib/out/packager.js');
+      const packager = new Packager({
+        projectDir: process.cwd() + '/packages/desktop',
+        config: 'electron-builder.config.cjs',
+      });
+      await packager.validateConfig();
+      const { AppInfo } = require('app-builder-lib/out/appInfo.js');
+      const info = new AppInfo(packager, null);
+      assert.equal(info.version, '1.5.5+1108');
+      assert.equal(info.channel, null);
+      const { expandMacro } = require('app-builder-lib/out/util/macroExpander.js');
+      assert.equal(expandMacro(dated.mac.artifactName, 'arm64', info, { ext: 'zip' }),
+        'ClawMuse-1.5.5+1108-arm64.zip');
     }).catch(error => { console.error(error); process.exitCode = 1; });
   `;
   execFileSync(process.execPath, ["-e", script], { cwd: repoRoot, stdio: "pipe" });
@@ -961,7 +978,14 @@ test("release preflight rejects the historical node:test/Vitest mismatch before 
 });
 
 test("parallel gates preserve every suite and reject failed, skipped or incomplete children", async () => {
-  const { childPipeline, gateGroups, inspectChild } = await import("./cnb/gates.mjs");
+  const { childPipeline, gateGroups, inspectChild, websiteBrowserRuntime } =
+    await import("./cnb/gates.mjs");
+  const lock = JSON.parse(readFileSync(new URL("package-lock.json", repoRoot), "utf8"));
+  assert.equal(
+    websiteBrowserRuntime.playwrightVersion,
+    lock.packages["node_modules/playwright"].version,
+  );
+  assert.match(websiteBrowserRuntime.image, /@sha256:[a-f0-9]{64}$/);
   assert.deepEqual(inspectChild({ status: "error" }, []), { state: "running", stages: [] });
   const commands = Object.values(gateGroups)
     .flat()
@@ -969,7 +993,7 @@ test("parallel gates preserve every suite and reject failed, skipped or incomple
     .sort();
   assert.deepEqual(
     commands,
-    ["quality", "server", "app", "sdk", "cli", "desktop", "e2e 1/2", "e2e 2/2"]
+    ["quality", "website", "server", "app", "sdk", "cli", "desktop", "e2e 1/2", "e2e 2/2"]
       .map((suite) => `bash scripts/cnb/ci.sh ${suite}`)
       .sort(),
   );
@@ -977,6 +1001,14 @@ test("parallel gates preserve every suite and reject failed, skipped or incomple
     const plan = childPipeline({ group, source: "a".repeat(40), branch: "ci/cnb-test" });
     const [pipeline] = plan["ci/cnb-test"].api_trigger;
     assert.deepEqual(pipeline.services, ["docker", "vscode"]);
+    for (const stage of pipeline.stages) {
+      assert.equal(
+        stage.image,
+        stage.script === "bash scripts/cnb/ci.sh website"
+          ? websiteBrowserRuntime.image
+          : "node:22-bookworm",
+      );
+    }
     const stages = pipeline.stages.map((stage) => ({
       name: stage.name,
       status: "success",

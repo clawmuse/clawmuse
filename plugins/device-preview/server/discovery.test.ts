@@ -1,80 +1,65 @@
-import { expect, test } from "vitest";
-import { deviceIdSchema } from "../shared/contracts.js";
-import { parseAdbDevices, parseAvds, parseSimctl, matchAndroid } from "./discovery.js";
+import { describe, expect, it } from "vitest";
+import {
+  parseAdbDevices,
+  parseAvds,
+  matchAndroidDevices,
+  parseSimctlDevices,
+} from "./discovery.js";
 
-test("AVDs are bounded safe names; duplicates and invalid names are rejected", () => {
-  expect(parseAvds("Pixel_9\nPhone.API-35\nPixel_9\nbad name\nbad;name\n")).toEqual([
-    "Pixel_9",
-    "Phone.API-35",
-  ]);
-  for (const id of [
-    "",
-    "bad name",
-    "a'b",
-    'a"b',
-    "a;b",
-    "a|b",
-    "a\nb",
-    "Pixel\n",
-    "Pixel\r",
-    "Pixel\u2028",
-    "../foo",
-    "a".repeat(201),
-  ]) {
-    expect(deviceIdSchema.safeParse(id).success).toBe(false);
-  }
-});
+describe("device discovery without an SDK", () => {
+  it("accepts only configured safe AVD names", () => {
+    expect(parseAvds("Pixel_8\nTablet-35.1\n bad\nbad name\nbad;id\n")).toEqual([
+      "Pixel_8",
+      "Tablet-35.1",
+    ]);
+  });
 
-test("adb accepts only emulator-number serials and excludes physical/offline devices", () => {
-  const result = parseAdbDevices(
-    "List of devices attached\nUSB123\tdevice product:phone\n192.168.1.2:5555 device\nemulator-5554 device product:sdk\nemulator-5556 offline\nemulator-x device\n",
-  );
-  expect(result.serials).toEqual(["emulator-5554"]);
-  expect(result.excluded).toHaveLength(4);
-});
-
-test("multiple instances of one AVD are unavailable and unknown AVDs are excluded", () => {
-  const result = matchAndroid(
-    ["Pixel", "Tablet"],
-    [
-      { serial: "emulator-5554", avd: "Pixel" },
-      { serial: "emulator-5556", avd: "Pixel" },
-      { serial: "emulator-5558", avd: "Missing" },
-      { serial: "USB123", avd: "Tablet" },
-    ],
-  );
-  expect(result.devices[0]).toMatchObject({ id: "Pixel", state: "unavailable" });
-  expect(result.devices[0]?.reason).toContain("多个");
-  expect(result.devices[1]).toMatchObject({ id: "Tablet", state: "shutdown" });
-  expect(result.serials.size).toBe(0);
-  expect(result.excluded).toHaveLength(2);
-});
-
-test("simctl lists available devices only and validates every UDID", () => {
-  const udid = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE";
-  const result = parseSimctl(
-    JSON.stringify({
-      devices: {
-        "com.apple.CoreSimulator.SimRuntime.iOS-26-0": [
-          { udid, name: "iPhone", state: "Booted", isAvailable: true },
-          {
-            udid: "11111111-2222-3333-4444-555555555555",
-            name: "iPad",
-            state: "Shutdown",
-            isAvailable: true,
-          },
-          {
-            udid: "22222222-2222-3333-4444-555555555555",
-            name: "Old",
-            state: "Shutdown",
-            isAvailable: false,
-          },
-          { udid: "bad;id", name: "Unsafe", state: "Booted", isAvailable: true },
-        ],
+  it("excludes physical devices, offline emulators and duplicate AVD instances", () => {
+    const serials = parseAdbDevices(
+      "List of devices attached\nemulator-5554\tdevice product:sdk\nemulator-5556\tdevice\nR58ABC\tdevice\nemulator-5558\toffline\nlocalhost:5555\tdevice\n",
+    );
+    expect(serials).toEqual([
+      { serial: "emulator-5554", state: "device" },
+      { serial: "emulator-5556", state: "device" },
+      { serial: "emulator-5558", state: "offline" },
+    ]);
+    const result = matchAndroidDevices(
+      ["Pixel_8", "Tablet"],
+      [
+        { serial: "emulator-5554", state: "device", avd: "Pixel_8" },
+        { serial: "emulator-5556", state: "device", avd: "Pixel_8" },
+        { serial: "R58ABC", state: "device", avd: "Tablet" },
+      ],
+    );
+    expect(result).toEqual([
+      {
+        id: "Pixel_8",
+        name: "Pixel_8",
+        state: "unavailable",
+        reason: "同一个 AVD 有多个运行实例，无法选择",
+        serial: null,
       },
-    }),
-  );
-  expect(result.devices.map((device) => device.state)).toEqual(["booted", "shutdown"]);
-  expect(result.devices[0]?.id).toBe(udid);
-  expect(result.excluded).toHaveLength(2);
+      { id: "Tablet", name: "Tablet", state: "shutdown", reason: null, serial: null },
+    ]);
+  });
+
+  it("only lists available simctl devices with valid UDIDs", () => {
+    const udid = "12345678-1234-1234-1234-123456789ABC";
+    expect(
+      parseSimctlDevices({
+        devices: {
+          "com.apple.CoreSimulator.SimRuntime.iOS-18-0": [
+            { name: "iPhone", udid, state: "Booted", isAvailable: true },
+            {
+              name: "Old",
+              udid: "87654321-1234-1234-1234-123456789ABC",
+              state: "Shutdown",
+              isAvailable: false,
+            },
+            { name: "Invalid", udid: "x;id", state: "Shutdown", isAvailable: true },
+          ],
+        },
+      }),
+    ).toEqual([{ id: udid, name: "iPhone", state: "booted", reason: null, serial: null }]);
+  });
 });

@@ -1,4 +1,4 @@
-import { X } from "lucide-react-native";
+import { X } from "@/components/icons/app-icons";
 import type { StyleProp, ViewStyle } from "react-native";
 import { withUnistyles } from "react-native-unistyles";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";

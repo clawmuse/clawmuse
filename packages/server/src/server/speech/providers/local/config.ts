@@ -118,23 +118,33 @@ function firstNonEmptyString(values: Array<string | null | undefined>): string |
   return undefined;
 }
 
+function defaultSttLanguageForProvider(provider: string | undefined): string {
+  return provider === "stepfun" ? "zh" : DEFAULT_STT_LANGUAGE;
+}
+
 function buildLocalSpeechLanguageResolutionInput(params: {
   env: NodeJS.ProcessEnv;
   persisted: PersistedConfig;
 }): Record<string, unknown> {
   const { env, persisted } = params;
+  const dictationStt = persisted.features?.dictation?.stt;
+  const voiceStt = persisted.features?.voiceMode?.stt;
+  const dictationDefaultLanguage = defaultSttLanguageForProvider(dictationStt?.provider);
+  const voiceDefaultLanguage = defaultSttLanguageForProvider(
+    voiceStt?.provider ?? dictationStt?.provider,
+  );
   return {
     dictationLanguage: firstNonEmptyString([
       env.PASEO_DICTATION_LANGUAGE,
-      persisted.features?.dictation?.stt?.language,
-      DEFAULT_STT_LANGUAGE,
+      dictationStt?.language,
+      dictationDefaultLanguage,
     ]),
     voiceLanguage: firstNonEmptyString([
       env.PASEO_VOICE_LANGUAGE,
       env.PASEO_DICTATION_LANGUAGE,
-      persisted.features?.voiceMode?.stt?.language,
-      persisted.features?.dictation?.stt?.language,
-      DEFAULT_STT_LANGUAGE,
+      voiceStt?.language,
+      dictationStt?.language,
+      voiceDefaultLanguage,
     ]),
   };
 }

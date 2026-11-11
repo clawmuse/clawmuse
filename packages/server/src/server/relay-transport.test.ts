@@ -1,6 +1,78 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import pino from "pino";
 import { startRelayTransport } from "./relay-transport";
+import { execFile } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { build } from "esbuild";
+import { lookup } from "node:dns/promises";
+import { relayLookup } from "./relay-lookup.js";
+
+test("relay lookup preserves system resolver addresses and single-address callbacks", async () => {
+  const expected = await lookup("localhost", { family: 4, all: true });
+  const addresses = await new Promise((resolve, reject) => {
+    relayLookup("localhost", { family: 4, all: true }, (error, result) =>
+      error ? reject(error) : resolve(result),
+    );
+  });
+  expect(addresses).toEqual(expected);
+  const single = await new Promise((resolve, reject) => {
+    relayLookup("localhost", { family: 4 }, (error, address, family) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve({ address, family });
+    });
+  });
+  expect(single).toEqual(expected[0]);
+});
+
+test("relay lookup propagates system resolver failures", async () => {
+  await expect(
+    new Promise((resolve, reject) => {
+      relayLookup("invalid/hostname", {}, (error, address) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(address);
+      });
+    }),
+  ).rejects.toMatchObject({ code: "ENOTFOUND" });
+});
+
+test.skipIf(process.platform === "win32")(
+  "remote control and data reconnect with a saturated filesystem pool",
+  async () => {
+    const directory = mkdtempSync(join(tmpdir(), "relay-starvation-"));
+    try {
+      const fifo = join(directory, "blocked-fs");
+      await promisify(execFile)("mkfifo", [fifo]);
+      const probe = join(directory, "probe.mjs");
+      await build({
+        entryPoints: [fileURLToPath(new URL("./test-utils/relay-starvation.ts", import.meta.url))],
+        outfile: probe,
+        bundle: true,
+        platform: "node",
+        format: "esm",
+        banner: {
+          js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+        },
+      });
+      const { stdout } = await promisify(execFile)(process.execPath, [probe, fifo], {
+        env: { ...process.env, UV_THREADPOOL_SIZE: "1" },
+        timeout: 12_000,
+      });
+      expect(stdout).toBe("remote-control-and-data-survived");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);
 
 function createMockLogger() {
   const messages: { level: "debug" | "info" | "warn" | "error"; args: unknown[] }[] = [];

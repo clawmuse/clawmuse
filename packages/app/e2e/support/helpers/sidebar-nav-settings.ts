@@ -283,7 +283,7 @@ export async function expectFooterIconRow(page: Page): Promise<void> {
 export async function expectFooterSeparator(page: Page, shown: boolean): Promise<void> {
   await expect(page.locator('[data-testid="sidebar-footer"]:visible')).toHaveCSS(
     "border-top-width",
-    "1px",
+    "0px",
   );
   await expect(page.locator('[data-testid="sidebar-footer-bottom-line"]:visible')).toHaveCSS(
     "border-top-width",

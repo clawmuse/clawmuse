@@ -16,7 +16,7 @@ interface DriverOptions {
   launch: ProviderLaunch;
   config: ProviderSessionConfig;
   conversationId: string | null;
-  onFrame(frame: Frame): void;
+  onFrame(frame: Frame): void | Promise<void>;
   onExit(error: AntigravityError): void;
 }
 
@@ -60,6 +60,7 @@ export function startDriver(options: DriverOptions): Driver {
   const decodeFrame = createFrameDecoder();
   let cleanup: Promise<void> | null = null;
   let stderr = "";
+  let frames = Promise.resolve();
   let state: "starting" | "ready" | "stopping" | "exited" = "starting";
   let resolveReady: (init: Init) => void;
   let rejectReady: (error: Error) => void;
@@ -93,9 +94,13 @@ export function startDriver(options: DriverOptions): Driver {
       "PROCESS_EXIT",
     );
     if (state === "starting") rejectReady(error);
-    if (state === "ready") options.onExit(error);
-    state = "exited";
-    resolveExit();
+    // A final frame may still be draining transcript-backed thinking when stdout closes.
+    void frames.then(() => {
+      if (state === "ready") options.onExit(error);
+      state = "exited";
+      resolveExit();
+      return undefined;
+    });
   });
   lines.on("line", (line) => {
     if (!line.trim() || state === "exited" || state === "stopping") return;
@@ -117,7 +122,19 @@ export function startDriver(options: DriverOptions): Driver {
       }
       return;
     }
-    options.onFrame(decoded);
+    frames = frames
+      .then(() => {
+        if (state === "ready") return options.onFrame(decoded);
+        return undefined;
+      })
+      .catch((error: unknown) => {
+        fail(
+          new AntigravityError(
+            error instanceof Error ? error.message : String(error),
+            "FRAME_ERROR",
+          ),
+        );
+      });
   });
 
   function fail(failure: AntigravityError): void {

@@ -18,6 +18,12 @@ provider deltas (every provider streams incrementally)
 
 Every provider delivers incremental text, so there is no provider that needs special handling: Claude via `includePartialMessages`, Codex via `agent_message_delta`, ACP agents via `agent_message_chunk`, Pi and OMP via `text_delta`.
 
+Antigravity's `stream-json` carries incremental assistant text but omits thinking text in
+agy 1.5.3. Its plugin tails the native transcript during active turns to surface completed
+thinking steps. The transcript is append-only in this version; retain partial UTF-8 and
+JSONL records between reads, and drain it before reporting turn completion. Do not replay
+steps before the current `user_input` boundary or keep polling after cancellation.
+
 ## Why the reveal is paced
 
 Arrival is lumpy and there is no fixing that at the source. A 60ms coalescing window carries however many characters the model produced in those 60ms, which swings by an order of magnitude within a single turn. Painting each delta as it lands makes the size of those lumps visible, and that is what reads as jagged.

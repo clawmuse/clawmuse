@@ -320,9 +320,11 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         }
         let officialVoiceCredential: string | undefined;
         if (enabled) {
-          const settings = await client.getDaemonConfig();
+          const [settings, account] = await Promise.all([
+            client.getDaemonConfig(),
+            accountRequest("/get-session"),
+          ]);
           if (settings.config.speech?.assistant?.service !== "custom") {
-            const account = await accountRequest("/get-session");
             if (account.status === 200 && (account.data as { session?: unknown } | null)?.session) {
               if (!client.getLastServerInfoMessage()?.features?.officialVoice)
                 throw new Error(t("speechSettings.officialHostUpdate"));

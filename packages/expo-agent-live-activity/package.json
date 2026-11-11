@@ -1,6 +1,6 @@
 {
   "name": "@clawmuse/expo-agent-live-activity",
-  "version": "1.5.5",
+  "version": "1.5.8",
   "private": true,
   "description": "Native ActivityKit bridge for ClawMuse agent Live Activities",
   "license": "MIT",

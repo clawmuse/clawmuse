@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
-import { Settings } from "lucide-react-native";
+import { Settings } from "@/components/icons/app-icons";
 import { withUnistyles } from "react-native-unistyles";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { extraMutedIconColorMapping } from "@/components/ui/icon-button-chrome";

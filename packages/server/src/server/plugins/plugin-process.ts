@@ -13,6 +13,10 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import {
   PluginTextGenerationRequestSchema,
+  PluginTextPreparationRequestSchema,
+  type PluginTextPreparationRequest,
+  type PluginTextGenerationRequest,
+  type PluginTextPreparer,
   type PluginTextGenerator,
 } from "@getpaseo/plugin/server";
 import type { ZodType } from "zod";
@@ -82,8 +86,12 @@ export function createPluginWorker(options: {
     { resolve(text: string): void; reject(error: Error): void }
   >();
   const textLifetime = new AbortController();
-  const generateText: PluginTextGenerator = async (request, generationOptions) => {
-    const input = PluginTextGenerationRequestSchema.parse(request);
+  function requestText(
+    message:
+      | { type: "text.generate"; request: PluginTextGenerationRequest }
+      | { type: "text.prepare"; request: PluginTextPreparationRequest },
+    generationOptions?: { signal?: AbortSignal },
+  ): Promise<string> {
     const signal = AbortSignal.any([
       textLifetime.signal,
       AbortSignal.timeout(25000),
@@ -112,8 +120,19 @@ export function createPluginWorker(options: {
         },
       });
       signal.addEventListener("abort", abort, { once: true });
-      send({ type: "text.generate", requestId, request: input });
+      send({ ...message, requestId });
     });
+  }
+  const generateText: PluginTextGenerator = async (request, generationOptions) =>
+    requestText(
+      { type: "text.generate", request: PluginTextGenerationRequestSchema.parse(request) },
+      generationOptions,
+    );
+  const prepareTextGeneration: PluginTextPreparer = async (request, generationOptions) => {
+    await requestText(
+      { type: "text.prepare", request: PluginTextPreparationRequestSchema.parse(request) },
+      generationOptions,
+    );
   };
   let cleanup: (() => void | Promise<void>) | null = null;
   let daemonClient: DaemonClient | null = null;
@@ -327,6 +346,7 @@ export function createPluginWorker(options: {
       : null;
     const contributedCleanup = contribute({
       generateText,
+      prepareTextGeneration,
       handle: (contract, handler) =>
         register(contract, (input, context) => handler(contract.input.parse(input), context)),
       registerProvider,
