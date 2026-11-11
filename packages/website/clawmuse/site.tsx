@@ -51,54 +51,6 @@ import {
 import { FAQ, PageLink, SectionHeading, type Localized } from "./ui";
 import { InnerPage } from "./pages";
 
-const LANG_HINT_STORAGE_KEY = "clawmuse-lang-hint-dismissed";
-
-const SIMPLE_LOCALE_PREFIXES: Record<string, Language> = {
-  pt: "pt-BR",
-  ar: "ar",
-  es: "es",
-  fr: "fr",
-  ja: "ja",
-  ko: "ko",
-  ru: "ru",
-};
-
-function isTraditionalChineseTag(tag: string): boolean {
-  return tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo" || tag.startsWith("zh-hant");
-}
-
-function resolveTagCandidate(tag: string, supported: readonly Language[]): Language | null {
-  if (isTraditionalChineseTag(tag)) {
-    if (supported.includes("zh-TW")) return "zh-TW";
-    return supported.includes("zh-CN") ? "zh-CN" : null;
-  }
-  if (tag === "zh" || tag.startsWith("zh-")) {
-    return supported.includes("zh-CN") ? "zh-CN" : null;
-  }
-  const base = tag.split("-")[0];
-  return SIMPLE_LOCALE_PREFIXES[base] ?? null;
-}
-
-export function matchPreferredLanguage(
-  browserLanguages: readonly string[],
-  supported: readonly Language[],
-): Language | null {
-  for (const raw of browserLanguages) {
-    const tag = raw.trim().toLowerCase();
-    if (!tag) continue;
-    if (tag === "en" || tag.startsWith("en-")) return null;
-    const candidate = resolveTagCandidate(tag, supported);
-    if (candidate && supported.includes(candidate)) return candidate;
-  }
-  return null;
-}
-
-function browserLanguageList(): readonly string[] {
-  if (navigator.languages && navigator.languages.length > 0) return navigator.languages;
-  if (navigator.language) return [navigator.language];
-  return [];
-}
-
 function resolveInternalLink(event: MouseEvent<HTMLDivElement>): URL | null {
   if (
     event.defaultPrevented ||
@@ -177,69 +129,8 @@ export function Site({
         {t("site.skipToContent")}
       </a>
       <Header language={language} page={page} />
-      {found && <LanguageSuggestionBanner language={language} page={page} />}
       <main id="main">{body}</main>
       <Footer language={language} />
-    </div>
-  );
-}
-
-function LanguageSuggestionBanner({ language, page }: { language: Language; page: Page }) {
-  const [suggested, setSuggested] = useState<Language | null>(null);
-  useEffect(() => {
-    if (language !== "en") {
-      setSuggested(null);
-      return;
-    }
-    try {
-      if (localStorage.getItem(LANG_HINT_STORAGE_KEY) === "1") {
-        setSuggested(null);
-        return;
-      }
-    } catch {
-      /* Storage may be disabled. */
-    }
-    setSuggested(matchPreferredLanguage(browserLanguageList(), pageLanguages(page)));
-  }, [language, page]);
-
-  const dismiss = useCallback(() => {
-    setSuggested(null);
-    try {
-      localStorage.setItem(LANG_HINT_STORAGE_KEY, "1");
-    } catch {
-      /* Storage may be disabled. */
-    }
-  }, []);
-
-  if (!suggested) return null;
-  const targetT = getTranslator(suggested);
-  return (
-    <div
-      className="language-banner"
-      data-testid="language-suggestion-banner"
-      lang={suggested}
-      dir={locales[suggested].dir}
-    >
-      <div className="container language-banner-inner">
-        <span className="language-banner-copy">
-          <Globe size={15} aria-hidden="true" />
-          <span>{targetT("site.languageBannerPrompt")}</span>
-        </span>
-        <div className="language-banner-actions">
-          <a className="language-banner-link" href={href(page, suggested)}>
-            {targetT("site.languageBannerSwitch")}
-            <ArrowRight size={14} aria-hidden="true" />
-          </a>
-          <button
-            type="button"
-            className="language-banner-dismiss"
-            onClick={dismiss}
-            aria-label={targetT("site.languageBannerDismiss")}
-          >
-            <X size={15} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -1110,7 +1110,7 @@ for (const language of ["en", "zh-CN"] as const) {
   }
 }
 
-test("downloads secondary formats, checksums, product demo, showcase images and language hint", async ({
+test("downloads secondary formats, checksums, product demo and showcase images", async ({
   browser,
   page,
 }) => {
@@ -1181,12 +1181,6 @@ test("downloads secondary formats, checksums, product demo, showcase images and 
   const zhContext = await browser.newContext({ locale: "zh-CN" });
   const zhPage = await zhContext.newPage();
   await zhPage.goto("/");
-  const banner = zhPage.getByTestId("language-suggestion-banner");
-  await expect(banner).toBeVisible();
-  await expect(banner.locator(".language-banner-link")).toHaveAttribute("href", "/zh/");
-  await banner.locator(".language-banner-dismiss").click();
-  await expect(banner).toHaveCount(0);
-  await zhPage.reload();
   await expect(zhPage.getByTestId("language-suggestion-banner")).toHaveCount(0);
   await zhContext.close();
 });

@@ -1,20 +1,12 @@
 import { officialPluginIds, pluginsCopy } from "../clawmuse/plugins-content";
 import { describe, expect, it } from "vitest";
-import {
-  coreRoutes,
-  descriptionFor,
-  href,
-  pageLanguages,
-  routeInfo,
-  titleFor,
-} from "../clawmuse/content";
+import { coreRoutes, descriptionFor, href, routeInfo, titleFor } from "../clawmuse/content";
 import {
   installerMirrorUrl,
   platformVersion,
   primaryPlatformInstaller,
   release,
 } from "../clawmuse/downloads";
-import { matchPreferredLanguage } from "../clawmuse/site";
 import { articleRoutes } from "../clawmuse/editorial-content";
 import { agentFor, agentRoutes, isAgentPage } from "../clawmuse/agents-content";
 import { getTranslator, resources } from "../clawmuse/i18n/i18n";
@@ -177,17 +169,6 @@ describe("ClawMuse website languages", () => {
     expect(routeInfo("/zh-TW/missing")).toEqual({ language: "zh-TW", page: "/", found: false });
     expect(routeInfo("/zh/missing")).toEqual({ language: "zh-CN", page: "/", found: false });
     expect(routeInfo("/zh-TW-other")).toEqual({ language: "en", page: "/", found: false });
-  });
-
-  it("matches preferred non-English browser locales without overriding English preference", () => {
-    expect(matchPreferredLanguage(["en-US", "zh-CN"], languages)).toBeNull();
-    expect(matchPreferredLanguage(["zh-CN", "en-US"], languages)).toBe("zh-CN");
-    expect(matchPreferredLanguage(["zh-TW", "zh"], languages)).toBe("zh-TW");
-    expect(matchPreferredLanguage(["zh-HK"], pageLanguages("/plugins"))).toBe("zh-CN");
-    expect(matchPreferredLanguage(["ja-JP"], languages)).toBe("ja");
-    expect(matchPreferredLanguage(["ja-JP"], pageLanguages("/agents"))).toBeNull();
-    expect(matchPreferredLanguage(["pt-PT"], languages)).toBe("pt-BR");
-    expect(matchPreferredLanguage(["ar-EG"], languages)).toBe("ar");
   });
 
   it("resolves per-platform installer mirror URLs and SHA-256 checksums", () => {
