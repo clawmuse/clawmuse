@@ -1026,6 +1026,42 @@ export const ArchiveAgentRequestMessageSchema = z.object({
   requestId: z.string(),
 });
 
+export const AgentArchiveReviewSchema = z.object({
+  agentId: z.string(),
+  eligible: z.boolean(),
+  reason: z.string(),
+  token: z.string().nullable(),
+});
+export type AgentArchiveReview = z.infer<typeof AgentArchiveReviewSchema>;
+
+export const AgentArchiveReviewRequestSchema = z.object({
+  type: z.literal("agent.archive.review.request"),
+  agentId: z.string(),
+  requestId: z.string(),
+});
+export const AgentArchiveReviewResponseSchema = z.object({
+  type: z.literal("agent.archive.review.response"),
+  payload: z.object({
+    requestId: z.string(),
+    review: AgentArchiveReviewSchema.nullable(),
+    error: z.string().nullable(),
+  }),
+});
+export const AgentArchiveApplyRequestSchema = z.object({
+  type: z.literal("agent.archive.apply.request"),
+  agentId: z.string(),
+  token: z.string(),
+  requestId: z.string(),
+});
+export const AgentArchiveApplyResponseSchema = z.object({
+  type: z.literal("agent.archive.apply.response"),
+  payload: z.object({
+    requestId: z.string(),
+    archivedAt: z.string().nullable(),
+    error: z.string().nullable(),
+  }),
+});
+
 export const CloseItemsRequestMessageSchema = z.object({
   type: z.literal("close_items_request"),
   agentIds: z.array(z.string()).default([]),
@@ -3419,6 +3455,8 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   FetchAgentRequestMessageSchema,
   DeleteAgentRequestMessageSchema,
   ArchiveAgentRequestMessageSchema,
+  AgentArchiveReviewRequestSchema,
+  AgentArchiveApplyRequestSchema,
   CloseItemsRequestMessageSchema,
   UpdateAgentRequestMessageSchema,
   ProjectRenameRequestSchema,
@@ -3825,6 +3863,7 @@ export const ServerInfoStatusPayloadSchema = z
         // COMPAT(internalWorkspaces): added in v0.9.0; remove gate after 2027-03-17.
         internalWorkspaces: z.boolean().optional(),
         backgroundWorkspaces: z.boolean().optional(),
+        aiAgentArchive: z.boolean().optional(),
         workspaceDeletion: z.boolean().optional(),
         providersSnapshot: z.boolean().optional(),
         promptPredictions: z.boolean().optional(),
@@ -6704,7 +6743,7 @@ export const UsageListReportsUpdateMessageSchema = z.object({
 });
 export const UsageDailyModelEntrySchema = z.object({
   name: z.string(),
-  harness: z.enum(["claude-code", "codex", "pi"]),
+  harness: z.enum(["claude-code", "codex", "pi", "antigravity"]),
 });
 export const UsageDailyPointSchema = z.object({
   money: z.array(z.number()),
@@ -7387,6 +7426,8 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   SetAgentFeatureResponseMessageSchema,
   AgentConfigApplyResponseMessageSchema,
   AgentDetachResponseMessageSchema,
+  AgentArchiveReviewResponseSchema,
+  AgentArchiveApplyResponseSchema,
   AgentRewindResponseMessageSchema,
   UpdateAgentResponseMessageSchema,
   ProjectRenameResponseSchema,

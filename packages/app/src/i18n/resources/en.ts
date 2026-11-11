@@ -7,6 +7,46 @@ import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
 import { openProjectOnboarding } from "./open-project-onboarding";
 export const en = {
+  aiArchive: {
+    title: "AI archive",
+    description:
+      "AI checks the task and latest replies before archiving completed agents. Running work and tasks needing your input stay open. Archived conversations remain in History. Uses the host’s configured AI models.",
+    scan: "Check agents",
+    stop: "Stop",
+    auto: "Auto archive",
+    archiveReady: "Archive ready ({{count}})",
+    count: "{{count}} open agents on visible hosts",
+    loading: "Loading agents…",
+    empty: "No open agents to archive.",
+    progress: "Checked {{done}} / {{total}}",
+    summary: "{{ready}} ready · {{archived}} archived · {{kept}} kept",
+    offline: "Host is offline. Reconnect and check again.",
+    updateHost: "Update this host to use AI archive.",
+    noPermission: "Workspace write permission is required.",
+    failed: "Could not check this agent. Check again to retry.",
+    phase: {
+      pending: "Queued",
+      reviewing: "Checking",
+      ready: "Ready to archive",
+      kept: "Keep open",
+      archiving: "Archiving",
+      archived: "Archived",
+      failed: "Check again",
+    },
+    reason: {
+      active: "Agent is running or starting.",
+      permission: "Waiting for permission.",
+      awaiting_reply: "Waiting for the agent’s reply.",
+      error: "Agent has an error or its provider is unavailable.",
+      missing_context: "Not enough conversation history to verify completion.",
+      children: "Review and archive child agents first.",
+      background_work: "Agent still owns background work or pending operations.",
+      missing_evidence: "The completion claim could not be verified against the latest reply.",
+      changed: "The conversation changed during review. Check again.",
+      needs_user: "Waiting for your decision or acceptance.",
+      unfinished: "The task has unfinished work.",
+    },
+  },
   cloudSpace: cloudSpace.en,
   schedules: {
     title: "Schedules",

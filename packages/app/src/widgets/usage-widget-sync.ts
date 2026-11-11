@@ -48,12 +48,12 @@ export interface MobileUsageWidgetSource {
 }
 
 export interface MobileUsageWidgetDay {
-  /** Reported cost per harness: [claude-code, codex, pi]. */
+  /** Reported cost per harness: [claude-code, codex, pi, antigravity]. */
   money: number[];
   /** Paid API / extra usage cost for the day. */
   paid: number;
   costAvailable?: boolean;
-  /** Total tokens per harness: [claude-code, codex, pi]. */
+  /** Total tokens per harness: [claude-code, codex, pi, antigravity]. */
   tokens: number[];
   /** Tokens per top model in `usage.models` order. */
   modelTokens?: number[];
@@ -117,7 +117,6 @@ export const EMPTY_USAGE_WIDGET_STORE: UsageWidgetStore = {
 };
 
 const MAX_USAGE_WIDGET_STATE_AGE_MS = 7 * 24 * 60 * 60_000;
-const MERGED_SERIES_MODELS = 5;
 const MERGED_HISTORY_DAYS = 30;
 
 export function parseUsageWidgetStore(raw: string | null): UsageWidgetStore {
@@ -361,8 +360,8 @@ function sumNumbers(values: readonly number[]): number {
   return sum;
 }
 
-function addTripleInPlace(target: number[], source: readonly number[]): void {
-  for (let i = 0; i < 3; i += 1) {
+function addHarnessValuesInPlace(target: number[], source: readonly number[]): void {
+  for (let i = 0; i < source.length; i += 1) {
     target[i] = (target[i] ?? 0) + (source[i] ?? 0);
   }
 }
@@ -379,8 +378,8 @@ function mergeSingleDayAcrossHosts(input: {
   otherByDay: number[];
 }): { day: MobileUsageWidgetDay; sawModelSeries: boolean } {
   const { dayKey, dayIdx, dayCount, perHostDays, modelTotals, otherByDay } = input;
-  const money = [0, 0, 0];
-  const tokens = [0, 0, 0];
+  const money: number[] = [];
+  const tokens: number[] = [];
   let paid = 0;
   let activeContributors = 0;
   let allActiveContributorsHaveCost = true;
@@ -389,8 +388,8 @@ function mergeSingleDayAcrossHosts(input: {
   for (const { usage, map } of perHostDays) {
     const day = map.get(dayKey);
     if (!day) continue;
-    addTripleInPlace(money, day.money);
-    addTripleInPlace(tokens, day.tokens);
+    addHarnessValuesInPlace(money, day.money);
+    addHarnessValuesInPlace(tokens, day.tokens);
     paid += day.paid;
 
     const dayTokens = sumNumbers(day.tokens);
@@ -501,18 +500,13 @@ export function mergeWidgetUsageHistories(
 
   let mergedModels: MobileUsageWidgetModel[] | undefined;
   if (hasModelSeries && modelTotals.size > 0) {
+    // All series are kept — every token has a model to attribute to. otherByDay only holds what
+    // a host itself reported as unattributed (older daemons, days without model series).
     const ranked = [...modelTotals.values()].sort((a, b) => b.total - a.total);
-    const topModels = ranked.slice(0, MERGED_SERIES_MODELS);
-    const overflowModels = ranked.slice(MERGED_SERIES_MODELS);
-    for (const overflow of overflowModels) {
-      for (let d = 0; d < mergedDays.length; d += 1) {
-        otherByDay[d] = (otherByDay[d] ?? 0) + (overflow.byDay[d] ?? 0);
-      }
-    }
-    mergedModels = topModels.map((model) => ({ name: model.name, harness: model.harness }));
+    mergedModels = ranked.map((model) => ({ name: model.name, harness: model.harness }));
     for (let d = 0; d < mergedDaily.length; d += 1) {
       mergedDaily[d]!.modelTokens = [
-        ...topModels.map((model) => model.byDay[d] ?? 0),
+        ...ranked.map((model) => model.byDay[d] ?? 0),
         otherByDay[d] ?? 0,
       ];
     }
@@ -1170,6 +1164,7 @@ export function buildWidgetLocalizedStrings(locale: string): Record<string, stri
       "harness.claude-code": "Claude Code",
       "harness.codex": "Codex",
       "harness.pi": "Pi",
+      "harness.antigravity": "Antigravity",
       updatedJustNow: "刚刚更新",
       updatedMinutes: "{{n}} 分钟前更新",
       updatedHours: "{{n}} 小时前更新",
@@ -1198,6 +1193,7 @@ export function buildWidgetLocalizedStrings(locale: string): Record<string, stri
     "harness.claude-code": "Claude Code",
     "harness.codex": "Codex",
     "harness.pi": "Pi",
+    "harness.antigravity": "Antigravity",
     updatedJustNow: "Updated just now",
     updatedMinutes: "Updated {{n}}m ago",
     updatedHours: "Updated {{n}}h ago",

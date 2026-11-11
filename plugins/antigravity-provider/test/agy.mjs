@@ -60,6 +60,20 @@ const init = fixture("text-turn")[0];
 if (args.includes("--model")) init.init.model = args[args.indexOf("--model") + 1];
 emit(init);
 let interrupted = null;
+function fixtureName(text) {
+  if (text.includes("Attached image: ")) return "image-file-external";
+  if (text.includes("TOOLS")) return "tools-default";
+  if (text.includes("DENIAL_REPLAY")) return "denial-replay";
+  if (text.includes("SUBAGENT")) return "subagent";
+  if (text.includes("MULTI")) return "multi-turn-reasoning";
+  if (text.includes("RESUME")) return "resume";
+  if (text.includes("HANG")) return "sigint-mid-text";
+  if (text.includes("TOOL_HANG")) return "sigint-mid-tool";
+  if (text.includes("RECOVERED_API_ERROR")) return "mcp-project";
+  if (text.includes("STALE_QUOTA")) return "stale-quota";
+  if (text.includes("STALE_INTERRUPT")) return "stale-interrupt";
+  return "text-turn";
+}
 const turns = new Map();
 const lines = createInterface({ input: process.stdin });
 lines.on("line", (line) => {
@@ -96,17 +110,7 @@ lines.on("line", (line) => {
       }) + "\n",
     );
   }
-  let name = "text-turn";
-  if (text.includes("Attached image: ")) name = "image-file-external";
-  if (text.includes("TOOLS")) name = "tools-default";
-  if (text.includes("DENIAL_REPLAY")) name = "denial-replay";
-  if (text.includes("SUBAGENT")) name = "subagent";
-  if (text.includes("MULTI")) name = "multi-turn-reasoning";
-  if (text.includes("RESUME")) name = "resume";
-  if (text.includes("HANG")) name = "sigint-mid-text";
-  if (text.includes("TOOL_HANG")) name = "sigint-mid-tool";
-  if (text.includes("RECOVERED_API_ERROR")) name = "mcp-project";
-  if (text.includes("STALE_QUOTA")) name = "stale-quota";
+  const name = fixtureName(text);
   const frames = fixture(name).slice(1);
   if (name.startsWith("sigint")) {
     interrupted = frames[frames.length - 1];

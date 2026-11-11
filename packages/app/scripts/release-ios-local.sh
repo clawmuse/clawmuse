@@ -96,13 +96,15 @@ export FASTLANE_HIDE_CHANGELOG=1
 # is created by the first run on a Mac and cannot exist before then.
 [ -f "${APP_ROOT}/Gemfile.lock" ] && export BUNDLE_FROZEN=true
 
-# Exercise the private key in the same keychain that Xcode will use. Merely
-# listing the certificate does not prove a non-interactive runner may sign.
-CLAWMUSE_IOS_SIGNING_IDENTITY="$(/bin/bash "${APP_ROOT}/scripts/verify-ios-release-signing.sh")"
-export CLAWMUSE_IOS_SIGNING_IDENTITY
+# Pin signing to the login keychain. The user keychain search list on this Mac starts
+# with a shared runner keychain that also carries the same Apple Distribution cert but a
+# key codesign cannot reach, and resolving the identity through that list lands on the
+# unreachable copy (errSecInternalComponent). --keychain picks the login copy directly.
+CLAWMUSE_IOS_KEYCHAIN_PATH="${CLAWMUSE_IOS_KEYCHAIN_PATH:-${HOME}/Library/Keychains/login.keychain-db}"
+export CLAWMUSE_IOS_KEYCHAIN_PATH
 unset CLAWMUSE_IOS_KEYCHAIN_PASSWORD
 
-echo "team ${APPLE_TEAM_ID} · signing ${CLAWMUSE_IOS_SIGNING_IDENTITY}"
+echo "team ${APPLE_TEAM_ID} · keychain ${CLAWMUSE_IOS_KEYCHAIN_PATH}"
 
 cd "${APP_ROOT}"
 

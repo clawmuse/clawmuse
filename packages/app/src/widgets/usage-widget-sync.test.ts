@@ -4,6 +4,7 @@ import {
   AUTO_USAGE_WIDGET_DEVICE_ID,
   buildHostUsageWidgetSnapshot,
   EMPTY_USAGE_WIDGET_STORE,
+  mergeWidgetUsageHistories,
   mergeUsageWidgetState,
   reconcileUsageWidgetComputers,
   selectAutoUsageWidgetDeviceId,
@@ -11,6 +12,27 @@ import {
 } from "./usage-widget-sync";
 
 describe("usage-widget-sync", () => {
+  it("keeps every model series when merging host histories", () => {
+    const names = ["m7", "m6", "m5", "m4", "m3", "m2", "m1"];
+    const merged = mergeWidgetUsageHistories([
+      {
+        scope: "local",
+        days: ["2026-11-08"],
+        daily: [
+          {
+            money: [0, 0, 0, 0],
+            paid: 0,
+            tokens: [28_000, 0, 0, 0],
+            modelTokens: [7000, 6000, 5000, 4000, 3000, 2000, 1000, 0],
+          },
+        ],
+        models: names.map((name) => ({ name, harness: "claude-code" as const })),
+      },
+    ]);
+    expect(merged.models?.map((m) => m.name)).toEqual(names);
+    expect(merged.daily[0]?.modelTokens).toEqual([7000, 6000, 5000, 4000, 3000, 2000, 1000, 0]);
+  });
+
   it("rejects invalid cached snapshots", () => {
     expect(
       parseUsageWidgetStore('{"version":2,"computers":[],"states":{"bad":null}}').states,

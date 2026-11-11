@@ -10,6 +10,7 @@ export type HostTextGenerator = (
     signal?: AbortSignal;
     sessionPool?: TextGenerationSessionPool;
     prepareOnly?: boolean;
+    timeoutMs?: number;
   },
 ) => Promise<string>;
 
@@ -23,6 +24,7 @@ interface TextGenerationOptions {
   signal?: AbortSignal;
   sessionPool?: TextGenerationSessionPool;
   prepareOnly?: boolean;
+  timeoutMs?: number;
 }
 
 export async function generateProviderText(options: TextGenerationOptions): Promise<string> {
@@ -117,17 +119,21 @@ export class TextGenerationSessionPool {
   }
 }
 
+function generationSignal(options: TextGenerationOptions, permissionDenied: AbortSignal) {
+  return AbortSignal.any([
+    permissionDenied,
+    AbortSignal.timeout(options.timeoutMs ?? 22000),
+    ...(options.signal ? [options.signal] : []),
+  ]);
+}
+
 async function runTextGeneration(
   options: TextGenerationOptions,
   existing?: ResidentSession,
   retain?: (resident: ResidentSession) => void,
 ): Promise<string> {
   const permissionDenied = new AbortController();
-  const signal = AbortSignal.any([
-    permissionDenied.signal,
-    AbortSignal.timeout(22000),
-    ...(options.signal ? [options.signal] : []),
-  ]);
+  const signal = generationSignal(options, permissionDenied.signal);
   const directory = existing?.directory ?? (await mkdtemp(join(tmpdir(), "paseo-generation-")));
   let session = existing?.session;
   let retained = false;

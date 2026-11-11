@@ -9,6 +9,7 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const ptBR: TranslationResources = {
+  aiArchive: en.aiArchive,
   cloudSpace: cloudSpace.en,
   schedules: en.schedules,
   privacy: {

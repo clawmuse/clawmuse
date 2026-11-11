@@ -1,5 +1,6 @@
 import { createVoiceAssistantTaskHost } from "./voice-assistant-host.js";
 import { matchesTaskBriefing } from "./task-review.js";
+import { createAgentArchiveReview } from "../agent-archive-review.js";
 import { buildStoredAgentPayload } from "../../agent/agent-projections.js";
 import type { AgentSnapshotPayload } from "../../messages.js";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -1368,4 +1369,150 @@ test("an older completion cannot archive a newer unanswered user request", async
     "not ready",
   );
   expect(h.archive).not.toHaveBeenCalled();
+});
+
+function setupArchiveReview() {
+  let task: AssistantTaskDetail = {
+    id: taskId,
+    title: "Fix button",
+    status: "idle",
+    attention: "finished",
+    updatedAt: "2026-11-11T00:00:00Z",
+    revision: "first",
+    cwd: "/tmp",
+    lastUserMessage: "Fix the button and test it",
+    lastMessage: "Fixed the button and verified all tests pass.",
+    recentActivity: "",
+    awaitingAgentReply: false,
+    error: null,
+    pendingPermissions: [],
+    providerUnavailable: false,
+  };
+  let clock = 0;
+  const host = {
+    getTask: vi.fn(async () => task),
+    listTasks: vi.fn(async (): Promise<AssistantTask[]> => [task]),
+    archiveTask: vi.fn<VoiceAssistantHost["archiveTask"]>(async () => ({
+      agentId: taskId,
+      archivedAt: "2026-11-11T01:00:00Z",
+    })),
+  };
+  const evaluate = vi.fn(async () => ({
+    decision: "completed" as const,
+    completionEvidence: "Fixed the button and verified all tests pass.",
+    nextStep: null,
+  }));
+  const canStopRuntime = vi.fn(async () => true);
+  const service = createAgentArchiveReview({ host, evaluate, canStopRuntime, now: () => clock });
+  return {
+    service,
+    host,
+    evaluate,
+    canStopRuntime,
+    change: (patch: Partial<AssistantTaskDetail>) => {
+      task = { ...task, ...patch };
+    },
+    expire: () => {
+      clock = 600_001;
+    },
+  };
+}
+
+test("AI archive requires an issued review and passes the exact revision and quote to the lifecycle owner", async () => {
+  const h = setupArchiveReview();
+  await expect(h.service.archive(taskId, "invented")).rejects.toThrow("scan again");
+  const review = await h.service.review(taskId);
+  expect(review.eligible).toBe(true);
+  expect(h.host.archiveTask).not.toHaveBeenCalled();
+  await expect(h.service.archive(taskId, review.token!)).resolves.toEqual({
+    agentId: taskId,
+    archivedAt: "2026-11-11T01:00:00Z",
+  });
+  expect(h.host.archiveTask).toHaveBeenCalledWith(
+    taskId,
+    "first",
+    "Fixed the button and verified all tests pass.",
+  );
+  await expect(h.service.archive(taskId, review.token!)).rejects.toThrow("scan again");
+});
+
+test.each([
+  [{ status: "running" }, "active"],
+  [{ status: "initializing" }, "active"],
+  [{ pendingPermissions: [{ id: "p", kind: "tool" }] }, "permission"],
+  [{ awaitingAgentReply: true }, "awaiting_reply"],
+  [{ error: "Failed" }, "error"],
+  [{ providerUnavailable: true }, "error"],
+  [{ lastUserMessage: null }, "missing_context"],
+] as const)(
+  "AI archive preserves blocked tasks before spending on a review: %j",
+  async (patch, reason) => {
+    const h = setupArchiveReview();
+    h.change(patch as Partial<AssistantTaskDetail>);
+    expect(await h.service.review(taskId)).toEqual({
+      agentId: taskId,
+      eligible: false,
+      reason,
+      token: null,
+    });
+    expect(h.evaluate).not.toHaveBeenCalled();
+  },
+);
+
+test("AI archive retains parents with children and tasks lacking a real completion quote", async () => {
+  const h = setupArchiveReview();
+  h.host.listTasks.mockResolvedValueOnce([
+    { id: "child", parentAgentId: taskId, title: "Child", status: "idle", attention: null },
+  ]);
+  expect((await h.service.review(taskId)).reason).toBe("children");
+  h.change({ lastMessage: "Still working. This turn has ended." });
+  expect(await h.service.review(taskId)).toEqual({
+    agentId: taskId,
+    eligible: false,
+    reason: "missing_evidence",
+    token: null,
+  });
+});
+
+test("AI archive discards a decision when new work arrives during generation", async () => {
+  const h = setupArchiveReview();
+  h.evaluate.mockImplementationOnce(async () => {
+    h.change({ revision: "new-prompt" });
+    return {
+      decision: "completed",
+      completionEvidence: "Fixed the button and verified all tests pass.",
+      nextStep: null,
+    };
+  });
+  expect((await h.service.review(taskId)).reason).toBe("changed");
+});
+
+test("AI archive expires reviews and reports lifecycle refusal without retrying an archive", async () => {
+  const h = setupArchiveReview();
+  const first = await h.service.review(taskId);
+  h.expire();
+  await expect(h.service.archive(taskId, first.token!)).rejects.toThrow("scan again");
+  const second = await h.service.review(taskId);
+  h.host.archiveTask.mockRejectedValueOnce(new Error("Task still owns background work"));
+  await expect(h.service.archive(taskId, second.token!)).rejects.toThrow("background work");
+  expect(h.host.archiveTask).toHaveBeenCalledTimes(1);
+});
+
+test("AI archive keeps background work without asking the model for a decision", async () => {
+  const h = setupArchiveReview();
+  h.canStopRuntime.mockResolvedValue(false);
+  expect(await h.service.review(taskId)).toEqual({
+    agentId: taskId,
+    eligible: false,
+    token: null,
+    reason: "background_work",
+  });
+  expect(h.evaluate).not.toHaveBeenCalled();
+});
+
+test("AI archive surfaces model failure and never issues an archive approval", async () => {
+  const h = setupArchiveReview();
+  h.evaluate.mockRejectedValue(new Error("Model unavailable"));
+  await expect(h.service.review(taskId)).rejects.toThrow("Model unavailable");
+  expect(h.host.archiveTask).not.toHaveBeenCalled();
 });

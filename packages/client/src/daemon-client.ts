@@ -3497,6 +3497,26 @@ export class DaemonClient {
     }
   }
 
+  async reviewAgentArchive(agentId: string) {
+    const payload =
+      await this.sendNamespacedCorrelatedSessionRequest<"agent.archive.review.response">({
+        message: { type: "agent.archive.review.request", agentId },
+        timeout: 180_000,
+      });
+    if (!payload.review) throw new Error(payload.error ?? "Archive review failed");
+    return payload.review;
+  }
+
+  async applyAgentArchive(agentId: string, token: string): Promise<{ archivedAt: string }> {
+    const payload =
+      await this.sendNamespacedCorrelatedSessionRequest<"agent.archive.apply.response">({
+        message: { type: "agent.archive.apply.request", agentId, token },
+        timeout: 30_000,
+      });
+    if (!payload.archivedAt) throw new Error(payload.error ?? "Archive failed; scan again");
+    return { archivedAt: payload.archivedAt };
+  }
+
   async updateAgent(
     agentId: string,
     updates: { name?: string; labels?: Record<string, string> },

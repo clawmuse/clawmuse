@@ -51,3 +51,33 @@ test("archiving from compact chat opens the workspace list", async ({ page }, te
     await workspace.cleanup();
   }
 });
+
+for (const width of [1280, 390]) {
+  test(`AI archive preserves unverified agents through the real daemon at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    const workspace = await seedMockAgentWorkspace({
+      repoPrefix: "ai-archive-",
+      title: "Unverified task",
+    });
+    try {
+      await gotoAppShell(page);
+      await waitForSidebarHydration(page);
+      const entry = width < 600 ? "mobile-home-ai-archive" : "sidebar-ai-archive";
+      await page.locator(`[data-testid="${entry}"]:visible`).first().click();
+      await page.getByTestId("ai-archive-auto").click();
+      const row = page.getByTestId(`ai-archive-row-${workspace.agentId}`);
+      await expect(row).toContainText("Keep open");
+      await expect(row).toContainText("Not enough conversation history to verify completion.");
+      await expect(page.getByTestId("ai-archive-scan")).toBeEnabled();
+      expect(
+        (await workspace.client.fetchAgent({ agentId: workspace.agentId }))?.agent.archivedAt,
+      ).toBeNull();
+      expect(existsSync(workspace.cwd)).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath(`ai-archive-${width}.png`) });
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+}

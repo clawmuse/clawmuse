@@ -214,6 +214,19 @@ lifecycle is separate from public workspace visibility and is not a public creat
 
 Archive is a **soft delete**: the agent record stays on disk with `archivedAt` set, the runtime is closed, and the agent disappears from active lists. Archive is **global** — it lives on the server and propagates to every connected client.
 
+**AI archive** in the sidebar checks unarchived agents on visible hosts. You can inspect its
+recommendations or archive completed tasks in one action. It uses the host's metadata-generation
+models in disposable text-only sessions, without workspace tools. A finished turn alone does not
+qualify: the review compares the latest user request, reply and recent activity, and must quote
+completion evidence from that reply. Missing history, errors, pending replies, permissions,
+background work and unarchived children keep the task open.
+
+An approval expires after ten minutes and belongs to the requesting session. Archive re-reads the
+conversation revision and enters the same settled-task lifecycle guard used by the voice assistant.
+New activity or a background-work veto requires another check. This archives agents only; their
+workspaces and checkouts stay available. Model or host failures remain visible per agent so you can
+retry without losing successful results.
+
 Archive sets `archivedAt`, invokes the provider's native archive hook, and cascades to managed
 children.
 

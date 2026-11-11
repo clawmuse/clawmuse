@@ -273,3 +273,11 @@ test("preparing a text session starts no model turn and repeated prepares reuse 
   }
   expect(fake.closed()).toBe(1);
 });
+
+test("a caller's generation deadline releases the provider instead of leaving a pending session", async () => {
+  const fake = harness(async () => new Promise<AgentRunResult>(() => {}));
+  await expect(
+    generateProviderText({ client: fake.client, request, timeoutMs: 5 }),
+  ).rejects.toThrow("timeout");
+  expect(fake.closed()).toBe(1);
+});

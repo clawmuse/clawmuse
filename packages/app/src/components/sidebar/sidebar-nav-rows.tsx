@@ -1,4 +1,5 @@
 import { useAssistantPanel } from "@/voice/assistant-panel-store";
+import { AiAgentArchiveButton } from "@/components/ai-agent-archive";
 import { router, usePathname } from "expo-router";
 import { memo, useCallback, useMemo, useRef, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -73,6 +74,7 @@ export function SidebarNavRows({ style, onBeforeNavigate, trailing }: SidebarNav
           onPress={openAssistant}
           testID="sidebar-voice-assistant"
         />
+        <AiAgentArchiveButton />
         {trailing ? <View style={styles.iconLineSpacer} /> : null}
         {trailing}
       </View>

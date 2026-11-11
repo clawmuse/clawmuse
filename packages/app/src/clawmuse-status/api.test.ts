@@ -422,4 +422,43 @@ describe("ClawMuseStatusApiClient requests", () => {
     expect(await selfHosted.hasSession()).toBe(false);
     expect(requests).toEqual([]);
   });
+
+  it("rebuilds the task board from status filters a service without `all` still serves", async () => {
+    const goal = {
+      id: "goal-1",
+      repoKey: "remote:example.invalid/repo",
+      repoDisplayName: "repo",
+      title: "Title",
+      summary: "Summary",
+      acceptance: "Done",
+      origin: "manual",
+      status: "needs_review",
+      reviewReason: "completed",
+      priority: 3,
+      budgetRuns: 3,
+      runsUsed: 1,
+      expiresAt: null,
+      decidedAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      latestReport: null,
+      currentRun: null,
+    };
+    const { api, requests } = await enrolledClient((request) => {
+      const filter = new URLSearchParams(request.path.split("?")[1] ?? "").get("filter");
+      if (filter === "all") {
+        return { status: 422, body: { error: "invalid_request" } };
+      }
+      return { body: { goals: filter === "needs_review" ? [goal] : [] } };
+    });
+
+    const goals = await api.listGoals("all");
+
+    expect(goals.map((entry) => entry.id)).toEqual(["goal-1"]);
+    expect(
+      requests.map((request) =>
+        new URLSearchParams(request.path.split("?")[1] ?? "").get("filter"),
+      ),
+    ).toEqual(["all", "suggested", "active", "needs_review", "closed"]);
+  });
 });

@@ -12,10 +12,9 @@ import type {
 export type UsageHarness = UsageDailyModelEntry["harness"];
 
 const WIDGET_DAYS = 30;
-const SERIES_MODELS = 5;
 const DAY_MS = 86_400_000;
 const DEFAULT_CACHE_TTL_MS = 60_000;
-const HARNESSES: readonly UsageHarness[] = ["claude-code", "codex", "pi"];
+const HARNESSES: readonly UsageHarness[] = ["claude-code", "codex", "pi", "antigravity"];
 
 interface ParsedUsageSample {
   timestampMs: number;
@@ -181,6 +180,54 @@ async function parseCodexFileContent(lines: AsyncIterable<string>): Promise<Pars
   return samples;
 }
 
+// The user's model pick only appears inside USER_SETTINGS_CHANGE notices, e.g.
+// "The user changed setting `Model Selection` from None to Gemini 4 Argon (High)."
+const ANTIGRAVITY_MODEL_PATTERN = /`Model Selection`(?:\s+from\s+.*?)?\s+to\s+(.+?)\.(?=\s|$|<)/;
+
+function extractAntigravityModel(content: string): string | null {
+  const match = ANTIGRAVITY_MODEL_PATTERN.exec(content);
+  const model = match?.[1]?.trim();
+  return model ? model : null;
+}
+
+async function parseAntigravityFileContent(
+  lines: AsyncIterable<string>,
+): Promise<ParsedUsageSample[]> {
+  const samples: ParsedUsageSample[] = [];
+  // Transcripts before the settings notice carried no model name; group them under
+  // the harness label instead of guessing.
+  let currentModel = "Antigravity";
+  for await (const line of lines) {
+    if (!line.includes('"input_tokens"') && !line.includes("Model Selection")) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObjectRecord(parsed)) continue;
+    if (typeof parsed.content === "string") {
+      const model = extractAntigravityModel(parsed.content);
+      if (model) currentModel = model;
+    }
+    if (parsed.type !== "PLANNER_RESPONSE") continue;
+    const tokens =
+      finiteNonNegative(parsed.input_tokens) +
+      finiteNonNegative(parsed.cache_read_tokens) +
+      finiteNonNegative(parsed.output_tokens);
+    if (tokens <= 0) continue;
+    const timestampMs = parseTimestampMs(parsed.created_at);
+    if (!Number.isFinite(timestampMs)) continue;
+    samples.push({
+      timestampMs,
+      harness: "antigravity",
+      model: currentModel,
+      tokens,
+    });
+  }
+  return samples;
+}
+
 function reportedPiCost(usage: Record<string, unknown>): number | undefined {
   const cost = isObjectRecord(usage.cost) ? usage.cost.total : undefined;
   return typeof cost === "number" && Number.isFinite(cost) && cost >= 0 ? cost : undefined;
@@ -268,9 +315,9 @@ export function buildUsageDailyHistoryFromSamples(
   const days = buildRecentDayKeys(nowMs, WIDGET_DAYS);
   const indexOfDay = new Map(days.map((day, idx) => [day, idx]));
   const dailyTotals = days.map(() => ({
-    money: [0, 0, 0],
+    money: zeroArray(HARNESSES.length),
     paid: 0,
-    tokens: [0, 0, 0],
+    tokens: zeroArray(HARNESSES.length),
     sampleCount: 0,
     knownCostCount: 0,
   }));
@@ -309,13 +356,14 @@ export function buildUsageDailyHistoryFromSamples(
     byModel.set(modelKey, existing);
   }
 
+  // Every series is reported: each sample carries its model, so nothing is folded into an
+  // anonymous bucket. The trailing "other" slot stays in the wire shape for older clients but
+  // is always zero; hosts only fill it when a day's tokens have no model to attribute to.
   const ranked = [...byModel.entries()]
     .filter(([, entry]) => entry.totalTokens > 0)
     .sort((a, b) => b[1].totalTokens - a[1].totalTokens);
-  const top = ranked.slice(0, SERIES_MODELS);
-  const rest = ranked.slice(SERIES_MODELS);
 
-  const models: UsageDailyModelEntry[] = top.map(([name, entry]) => ({
+  const models: UsageDailyModelEntry[] = ranked.map(([name, entry]) => ({
     name: name.slice(name.indexOf(":") + 1),
     harness: entry.harness,
   }));
@@ -327,11 +375,8 @@ export function buildUsageDailyHistoryFromSamples(
       tokens: point.tokens,
       costAvailable: point.sampleCount > 0 && point.knownCostCount === point.sampleCount,
     };
-    if (top.length === 0) return day;
-    const modelTokens = [
-      ...top.map(([, entry]) => entry.tokensByDay[dayIdx] ?? 0),
-      rest.reduce((sum, [, entry]) => sum + (entry.tokensByDay[dayIdx] ?? 0), 0),
-    ];
+    if (ranked.length === 0) return day;
+    const modelTokens = [...ranked.map(([, entry]) => entry.tokensByDay[dayIdx] ?? 0), 0];
     return {
       money: day.money,
       paid: day.paid,
@@ -402,6 +447,16 @@ export class LocalDailyUsageCollector {
       {
         dir: path.join(this.homeDir, ".pi", "agent", "sessions"),
         parse: parsePiFileContent,
+      },
+      {
+        // Antigravity IDE conversations.
+        dir: path.join(this.homeDir, ".gemini", "antigravity", "brain"),
+        parse: parseAntigravityFileContent,
+      },
+      {
+        // Antigravity CLI (`agy`) conversations.
+        dir: path.join(this.homeDir, ".gemini", "antigravity-cli", "brain"),
+        parse: parseAntigravityFileContent,
       },
     ];
 

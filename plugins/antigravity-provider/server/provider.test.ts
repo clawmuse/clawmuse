@@ -504,6 +504,52 @@ describe("recovered Antigravity result errors", () => {
     },
   );
 
+  it.each([
+    { name: "a stale interrupt from an earlier turn", steps: [userStep, answer] },
+    { name: "a recovered interrupt in this turn", steps: [errorStep, answer] },
+  ] satisfies Array<{ name: string; steps: Partial<Step>[] }>)(
+    "completes an answer over a stream interruption: $name",
+    ({ steps }) => {
+      const decode = decoder();
+      for (const update of steps) step(decode, update);
+      expect(
+        result(decode, {
+          error: "The stream was interrupted. Please continue the task you were working on.",
+        }),
+      ).toMatchObject({ result: { status: "SUCCESS", error: "", response: "Done." } });
+    },
+  );
+
+  it.each([
+    { name: "no user boundary", steps: [answer] },
+    {
+      name: "a pending tool",
+      steps: [userStep, { step_index: 1, step_type: "tool", state: "ACTIVE" }, answer],
+    },
+    { name: "an incomplete answer", steps: [userStep, { ...answer, state: "ACTIVE" }] },
+    { name: "a failed answer", steps: [userStep, { ...answer, state: "ERROR" }] },
+    {
+      name: "a later error",
+      steps: [userStep, answer, { ...errorStep, step_index: 3 }],
+    },
+  ] satisfies Array<{ name: string; steps: Partial<Step>[] }>)(
+    "preserves a real stream interruption with $name",
+    ({ steps }) => {
+      const decode = decoder();
+      for (const update of steps) step(decode, update);
+      expect(
+        result(decode, {
+          error: "The stream was interrupted. Please continue the task you were working on.",
+        }),
+      ).toMatchObject({
+        result: {
+          status: "ERROR",
+          error: "The stream was interrupted. Please continue the task you were working on.",
+        },
+      });
+    },
+  );
+
   it("does not reuse a completed turn to dismiss the next quota failure", () => {
     const decode = decoder();
     const error = "Individual quota reached. Resets in 4m4s.";
@@ -518,6 +564,18 @@ it("completes a fresh answer when agy replays a quota error from an older turn",
   const h = await harness();
   await h.open();
   expect(await h.completed(await h.prompt("STALE_QUOTA"))).toMatchObject({ state: "completed" });
+  expect(await h.completed(await h.prompt("HELLO"))).toMatchObject({ state: "completed" });
+  expect(
+    (await h.records()).filter((entry) => entry.args?.includes("--input-format")),
+  ).toHaveLength(1);
+});
+
+it("completes a fresh answer when agy replays a stream interruption from an older turn", async () => {
+  const h = await harness();
+  await h.open();
+  expect(await h.completed(await h.prompt("STALE_INTERRUPT"))).toMatchObject({
+    state: "completed",
+  });
   expect(await h.completed(await h.prompt("HELLO"))).toMatchObject({ state: "completed" });
   expect(
     (await h.records()).filter((entry) => entry.args?.includes("--input-format")),

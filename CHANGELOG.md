@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.5.9 - 2026-11-11
+
+### Added
+
+- Count Antigravity tokens in the local daily usage history. The daemon now scans `~/.gemini/antigravity` (IDE) and `~/.gemini/antigravity-cli` (agy CLI) transcripts, summing input, cache and output tokens per planner step and labelling each model by the `Model Selection` notice; the usage card shows them under the new `antigravity` harness and each day bar opens a per-model breakdown panel.
+- Add an AI archive review with one-click archiving. The sidebar and mobile home headers gain an archive button that reviews idle agents server-side, keeps the ones still owed work and archives the rest after confirmation.
+
+### Fixed
+
+- Recover Antigravity turns that report a stale "stream was interrupted" error after the answer already completed; the interrupt is treated as recovered when it predates the current user boundary or matches an error seen by the active driver.
+- Merge the goals board on status services that predate the unified task board: `listGoals("all")` now falls back to merging the four status views an older service still serves instead of failing on `422 invalid_request`.
+- Sync account host visibility across signed-in clients so hiding a host on one device applies everywhere.
+
 ## 1.5.8 - 2026-11-09
 
 ### Added

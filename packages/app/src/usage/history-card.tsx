@@ -1,8 +1,11 @@
 import type { UsageDailyHistory } from "@getpaseo/protocol/messages";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { X } from "@/components/icons/app-icons";
+import { Button } from "@/components/ui/button";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { settingsStyles } from "@/styles/settings";
 import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
 import {
@@ -14,11 +17,11 @@ import {
 } from "@/widgets/usage-widget-sync";
 
 function sumDayTokens(day: MobileUsageWidgetDay): number {
-  return (day.tokens[0] ?? 0) + (day.tokens[1] ?? 0) + (day.tokens[2] ?? 0);
+  return day.tokens.reduce((sum, value) => sum + value, 0);
 }
 
 function sumDayMoney(day: MobileUsageWidgetDay): number {
-  return (day.money[0] ?? 0) + (day.money[1] ?? 0) + (day.money[2] ?? 0);
+  return day.money.reduce((sum, value) => sum + value, 0);
 }
 
 function hasDayCost(day: MobileUsageWidgetDay): boolean {
@@ -137,8 +140,8 @@ function collectRawBreakdownRows(
     return rawRows;
   }
 
-  const harnessKeys = ["claude-code", "codex", "pi"] as const;
-  for (let h = 0; h < 3; h += 1) {
+  const harnessKeys = ["claude-code", "codex", "pi", "antigravity"] as const;
+  for (let h = 0; h < harnessKeys.length; h += 1) {
     let sum = 0;
     for (const day of usage.daily) {
       sum += day.tokens[h] ?? 0;
@@ -163,29 +166,154 @@ function computeRankedModelRows(
   otherLabel: string,
 ): RankedModelRow[] {
   if (totalTokens <= 0) return [];
+  // Every series is shown — no display-side folding into an "Other" row. The other slot only
+  // produces a row when the data source itself reported unattributed tokens (older hosts).
   const rawRows = collectRawBreakdownRows(usage, strings, otherLabel);
   rawRows.sort((a, b) => b.tokens - a.tokens);
-  const limit = 4;
-  const finalRows =
-    rawRows.length <= limit
-      ? rawRows
-      : [
-          ...rawRows.slice(0, limit - 1),
-          {
-            key: "merged:other",
-            label: otherLabel,
-            tokens: rawRows.slice(limit - 1).reduce((acc, item) => acc + item.tokens, 0),
-            slotIndex: 5,
-          },
-        ];
-
-  return finalRows.map((row) => ({
+  return rawRows.map((row) => ({
     key: row.key,
     label: row.label,
     tokens: row.tokens,
     sharePercent: Math.max(1, Math.round((row.tokens / totalTokens) * 100)),
     slotIndex: row.slotIndex,
   }));
+}
+
+function HistoryModelRows({ rows, isZh }: { rows: readonly RankedModelRow[]; isZh: boolean }) {
+  return rows.map((row) => (
+    <View key={row.key} style={styles.modelRow}>
+      <Text style={styles.modelName} numberOfLines={1}>
+        {row.label}
+      </Text>
+      <Text style={styles.modelValue}>
+        {`${formatHistoryModelTokens(row.tokens, isZh)} (${row.sharePercent}%)`}
+      </Text>
+    </View>
+  ));
+}
+
+interface DayDetail {
+  date: string;
+  caption: string;
+  tokens: number;
+  costLabel: string;
+  rows: RankedModelRow[];
+}
+
+function resolveSelectedDayDetail(input: {
+  selectedDay: string | null;
+  days: readonly string[];
+  daily: readonly MobileUsageWidgetDay[];
+  usage: MobileUsageWidgetSnapshot["usage"];
+  strings: Readonly<Record<string, string>>;
+  otherLabel: string;
+}): DayDetail | null {
+  const { selectedDay, days, daily, usage, strings, otherLabel } = input;
+  if (!selectedDay) return null;
+  const index = days.indexOf(selectedDay);
+  const entry = index >= 0 ? daily[index] : null;
+  if (!entry) return null;
+  const tokens = sumDayTokens(entry);
+  const caption = index === daily.length - 1 ? `${strings.today} · ${selectedDay}` : selectedDay;
+  return {
+    date: selectedDay,
+    caption,
+    tokens,
+    costLabel: formatHistoryReportedCost([entry], strings),
+    rows: computeRankedModelRows(
+      { ...usage, days: [selectedDay], daily: [entry] },
+      tokens,
+      strings,
+      otherLabel,
+    ),
+  };
+}
+
+function HistoryChartBar({
+  date,
+  height,
+  isSelected,
+  isToday,
+  label,
+  onToggle,
+}: {
+  date: string;
+  height: number;
+  isSelected: boolean;
+  isToday: boolean;
+  label: string;
+  onToggle: (date: string) => void;
+}) {
+  const handleToggle = useCallback(() => onToggle(date), [onToggle, date]);
+  return (
+    <PressHighlight
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={handleToggle}
+      style={styles.barSlot}
+      testID={`usage-history-bar-${date}`}
+    >
+      <View
+        style={[
+          styles.barFill,
+          barFillStyle(isSelected, isToday),
+          inlineUnistylesStyle({ height }),
+        ]}
+      />
+    </PressHighlight>
+  );
+}
+
+function barFillStyle(isSelected: boolean, isToday: boolean) {
+  if (isSelected) return styles.barFillSelected;
+  if (isToday) return styles.barFillToday;
+  return styles.barFillPast;
+}
+
+function DayDetailPanel({
+  detail,
+  isZh,
+  tokenUnit,
+  closeLabel,
+  onClose,
+}: {
+  detail: DayDetail;
+  isZh: boolean;
+  tokenUnit: string;
+  closeLabel: string;
+  onClose: () => void;
+}) {
+  return (
+    <View style={styles.dayPanel} testID="usage-history-day-detail">
+      <View style={styles.dayHeaderRow}>
+        <Text style={styles.summaryCaption}>{detail.caption}</Text>
+        <Button
+          variant="ghost"
+          size="xs"
+          leftIcon={X}
+          accessibilityLabel={closeLabel}
+          onPress={onClose}
+          testID="usage-history-day-close"
+        />
+      </View>
+      <View style={styles.figureRow}>
+        <Text style={styles.figureValue} testID="usage-history-day-tokens">
+          {formatHistoryTokens(detail.tokens)}
+        </Text>
+        <Text style={styles.figureUnit}>
+          {formatHistoryTokenUnit(detail.tokens, tokenUnit, isZh)}
+        </Text>
+      </View>
+      <Text style={styles.costText} testID="usage-history-day-cost">
+        {detail.costLabel}
+      </Text>
+      {detail.rows.length > 0 ? (
+        <View style={styles.dayModels}>
+          <HistoryModelRows rows={detail.rows} isZh={isZh} />
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 export function UsageHistoryCard({
@@ -197,7 +325,12 @@ export function UsageHistoryCard({
   scope: "all" | "local";
   testID?: string;
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const toggleDay = useCallback((date: string) => {
+    setSelectedDay((current) => (current === date ? null : date));
+  }, []);
+  const closeSelectedDay = useCallback(() => setSelectedDay(null), []);
   const locale = i18n.language || "en";
   const isZh = locale.toLowerCase().startsWith("zh");
   const strings = useMemo(() => buildWidgetLocalizedStrings(locale), [locale]);
@@ -240,15 +373,27 @@ export function UsageHistoryCard({
   let totalTokens = 0;
   let peakTokens = 1;
   for (const day of daily) {
-    const t = sumDayTokens(day);
-    totalTokens += t;
-    if (t > peakTokens) peakTokens = t;
+    const dayTotal = sumDayTokens(day);
+    totalTokens += dayTotal;
+    if (dayTotal > peakTokens) peakTokens = dayTotal;
   }
   const averageTokens = totalTokens / daily.length;
   const todayCostLabel = formatHistoryReportedCost([todayEntry], strings);
   const monthCostLabel = formatHistoryReportedCost(daily, strings);
   const modelRows = computeRankedModelRows(mergedUsage, totalTokens, strings, otherLabel);
   const baseTokenUnit = strings.tokenUnit ?? "tokens";
+
+  // Selection is held by date, not index: the 30-day window slides forward at midnight and on
+  // refreshes from other hosts, and an index would silently start naming a different day.
+  const selectedDayIndex = selectedDay === null ? -1 : days.indexOf(selectedDay);
+  const selectedDayDetail = resolveSelectedDayDetail({
+    selectedDay,
+    days,
+    daily,
+    usage: mergedUsage,
+    strings,
+    otherLabel,
+  });
 
   return (
     <View style={[settingsStyles.card, styles.card]} testID={testID}>
@@ -295,20 +440,19 @@ export function UsageHistoryCard({
 
       <View style={styles.chartContainer} testID="usage-history-bars">
         {daily.map((day, idx) => {
+          const date = days[idx] ?? String(idx);
           const dayTokens = sumDayTokens(day);
           const ratio = dayTokens > 0 ? Math.max(0.06, dayTokens / peakTokens) : 0.03;
-          const barHeight = Math.round(ratio * 56);
-          const isLast = idx === daily.length - 1;
           return (
-            <View key={days[idx] ?? idx} style={styles.barSlot}>
-              <View
-                style={[
-                  styles.barFill,
-                  isLast ? styles.barFillToday : styles.barFillPast,
-                  inlineUnistylesStyle({ height: barHeight }),
-                ]}
-              />
-            </View>
+            <HistoryChartBar
+              key={date}
+              date={date}
+              height={Math.round(ratio * 56)}
+              isSelected={idx === selectedDayIndex}
+              isToday={idx === daily.length - 1}
+              label={`${date} · ${formatHistoryTokens(dayTokens)} ${baseTokenUnit}`}
+              onToggle={toggleDay}
+            />
           );
         })}
       </View>
@@ -318,18 +462,20 @@ export function UsageHistoryCard({
         <Text style={styles.axisText}>{strings.today}</Text>
       </View>
 
+      {selectedDayDetail ? (
+        <DayDetailPanel
+          detail={selectedDayDetail}
+          isZh={isZh}
+          tokenUnit={baseTokenUnit}
+          closeLabel={t("common.actions.close")}
+          onClose={closeSelectedDay}
+        />
+      ) : null}
+
       {modelRows.length > 0 ? (
         <View style={styles.modelsContainer} testID="usage-history-models">
-          {modelRows.map((row) => (
-            <View key={row.key} style={styles.modelRow}>
-              <Text style={styles.modelName} numberOfLines={1}>
-                {row.label}
-              </Text>
-              <Text style={styles.modelValue}>
-                {`${formatHistoryModelTokens(row.tokens, isZh)} (${row.sharePercent}%)`}
-              </Text>
-            </View>
-          ))}
+          <Text style={styles.summaryCaption}>{scopeLabel.split(" · ")[0] ?? scopeLabel}</Text>
+          <HistoryModelRows rows={modelRows} isZh={isZh} />
         </View>
       ) : null}
     </View>
@@ -411,6 +557,9 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.foregroundMuted,
     opacity: 0.45,
   },
+  barFillSelected: {
+    backgroundColor: theme.colors.foreground,
+  },
   axisRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -425,6 +574,19 @@ const styles = StyleSheet.create((theme) => ({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     gap: theme.spacing[1.5],
+  },
+  dayPanel: {
+    gap: theme.spacing[1],
+  },
+  dayHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[2],
+  },
+  dayModels: {
+    gap: theme.spacing[1.5],
+    paddingTop: theme.spacing[2],
   },
   modelRow: {
     flexDirection: "row",

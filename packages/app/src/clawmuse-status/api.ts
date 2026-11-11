@@ -49,6 +49,20 @@ import {
 const ACCESS_TOKEN_SKEW_MS = 30_000;
 
 /**
+ * Every `filter=all` status view an older status service still accepts. Kept in
+ * board column order so the merged list reads the same as a native `all` page.
+ */
+const FALLBACK_LIST_FILTERS = ["suggested", "active", "needs_review", "closed"] as const;
+
+function isInvalidRequestError(error: unknown): boolean {
+  return (
+    error instanceof ClawMuseStatusHttpError &&
+    error.status === 422 &&
+    error.code === "invalid_request"
+  );
+}
+
+/**
  * The phone omits the field (the service defaults to `ios`); the Electron app
  * says `desktop` so the service can tell an installation without APNs apart.
  */
@@ -186,6 +200,28 @@ export class ClawMuseStatusApiClient {
   }
 
   async listGoals(filter: GoalListFilter, repoKey: string | null = null): Promise<Goal[]> {
+    try {
+      return await this.listGoalsPage(filter, repoKey);
+    } catch (error) {
+      // Services deployed before the unified task board reject `filter=all`
+      // (and the `before`/`parentGoalId` query fields) with 422 invalid_request.
+      // The board is the four status views combined, so fall back to fetching
+      // each filter the old service understands and merging the results.
+      if (filter !== "all" || !isInvalidRequestError(error)) {
+        throw error;
+      }
+      const groups = await Promise.all(
+        FALLBACK_LIST_FILTERS.map((fallback) => this.listGoalsPage(fallback, repoKey)),
+      );
+      const goals = new Map<string, Goal>();
+      for (const group of groups) {
+        for (const goal of group) goals.set(goal.id, goal);
+      }
+      return [...goals.values()];
+    }
+  }
+
+  private async listGoalsPage(filter: GoalListFilter, repoKey: string | null): Promise<Goal[]> {
     const query = new URLSearchParams({ filter });
     if (repoKey) {
       query.set("repoKey", repoKey);

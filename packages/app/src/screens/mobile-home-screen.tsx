@@ -18,6 +18,7 @@ import {
 import { useOpenAddProject } from "@/hooks/use-open-add-project";
 import { useOpenNewWorkspace } from "@/hooks/use-open-new-workspace";
 import { useImportSession } from "@/hooks/use-import-session";
+import { AiAgentArchiveButton } from "@/components/ai-agent-archive";
 import { useKeyboardShortcutsStore } from "@/stores/keyboard-shortcuts-store";
 
 export function MobileHomeScreen({ supportContent }: { supportContent: ReactNode }) {
@@ -49,16 +50,19 @@ function MobileHomeContent({ supportContent }: { supportContent: ReactNode }) {
   );
   const searchAction = useMemo(
     () => (
-      <HeaderToggleButton
-        onPress={openSearch}
-        tooltipLabel={searchLabel}
-        tooltipKeys={[]}
-        tooltipSide="bottom"
-        accessibilityLabel={searchLabel}
-        testID="mobile-home-search"
-      >
-        <DensityIcon icon={Search} size="lg" color="foreground" />
-      </HeaderToggleButton>
+      <View style={styles.headerActions}>
+        <AiAgentArchiveButton variant="header" />
+        <HeaderToggleButton
+          onPress={openSearch}
+          tooltipLabel={searchLabel}
+          tooltipKeys={[]}
+          tooltipSide="bottom"
+          accessibilityLabel={searchLabel}
+          testID="mobile-home-search"
+        >
+          <DensityIcon icon={Search} size="lg" color="foreground" />
+        </HeaderToggleButton>
+      </View>
     ),
     [openSearch, searchLabel],
   );
@@ -107,6 +111,7 @@ function MobileHomeContent({ supportContent }: { supportContent: ReactNode }) {
 }
 
 const styles = StyleSheet.create((theme) => ({
+  headerActions: { flexDirection: "row", alignItems: "center", gap: theme.spacing[2] },
   container: { flex: 1, backgroundColor: theme.colors.surface0 },
   list: { flex: 1, minHeight: 0 },
   listFooter: (bottomInset: number) => ({

@@ -1251,6 +1251,7 @@ export class AgentManager {
       signal: options?.signal,
       sessionPool: options?.sessionPool,
       prepareOnly: options?.prepareOnly,
+      timeoutMs: options?.timeoutMs,
     });
   };
 

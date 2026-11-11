@@ -1,3 +1,11 @@
+import { createAgentArchiveReview } from "./session/agent-archive-review.js";
+import { withTimeout } from "../utils/promise-timeout.js";
+import {
+  TaskDecisionSchema,
+  taskReviewInstructions,
+  taskReviewInput,
+} from "./session/voice/task-review.js";
+import { resolveStructuredGenerationProviders } from "./agent/structured-generation-providers.js";
 import { deleteWorkspace } from "./workspace-delete-service.js";
 import { createVoiceAssistantTaskHost } from "./session/voice/voice-assistant-host.js";
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
@@ -768,6 +776,7 @@ export class Session {
 
   private agentManager: AgentManager;
   private readonly agentStorage: AgentStorage;
+  private readonly agentArchiveReview: ReturnType<typeof createAgentArchiveReview>;
   private readonly projectRegistry: ProjectRegistry;
   private readonly workspaceRegistry: WorkspaceRegistry;
   private readonly agentDirectory: AgentDirectory;
@@ -1283,38 +1292,95 @@ export class Session {
       buildWorkspaceDescriptor: (input) => this.buildWorkspaceDescriptor(input),
     });
 
+    const taskHost = createVoiceAssistantTaskHost({
+      listAgents: () =>
+        this.agentDirectory.list({
+          includeBackground: true,
+          includeUnavailablePersisted: true,
+        }),
+      getAgent: (agentId) => this.getAgentPayloadById(agentId),
+      assertPermission: (permission) => {
+        if (!this.authorization.allowsPermission(permission))
+          throw new Error(`${permission} permission required`);
+      },
+      manager: this.agentManager,
+      sendMessage: async (agentId, message) => {
+        await sendPromptToAgent({
+          agentManager: this.agentManager,
+          agentStorage: this.agentStorage,
+          agentId,
+          prompt: message,
+          activeTurnBehavior: "steer",
+          clearPendingPermissions: false,
+          logger: this.sessionLogger,
+        });
+      },
+      archive: (agentId, updatedAt, signal) =>
+        this.archiveAgentForClose(agentId, updatedAt, signal),
+    });
+    this.agentArchiveReview = createAgentArchiveReview({
+      host: taskHost,
+      canStopRuntime: async (agentId) => {
+        const candidate = this.agentManager
+          .getRuntimeCleanupCandidates()
+          .find((entry) => entry.agentId === agentId);
+        if (!candidate) return true;
+        if (!candidate.isEligible()) return false;
+        if (
+          candidate.canStopRuntime &&
+          !(await withTimeout(
+            candidate.canStopRuntime(),
+            10_000,
+            "Background-work check timed out",
+          ))
+        )
+          return false;
+        return candidate.isEligible();
+      },
+      evaluate: async (task) => {
+        const cwd = task.cwd ?? this.paseoHome;
+        const providers = await resolveStructuredGenerationProviders({
+          cwd,
+          providerSnapshotManager,
+          daemonConfig: this.readStructuredGenerationDaemonConfig(),
+          currentSelection: this.getFocusedAgentSelectionForCwd(cwd),
+        });
+        const available = await providerSnapshotManager.listProviders({ cwd, wait: true });
+        const signal = AbortSignal.timeout(90_000);
+        let failure: unknown = new Error("No model available for archive review");
+        for (const provider of providers) {
+          signal.throwIfAborted();
+          try {
+            const models = available.find((entry) => entry.provider === provider.provider)?.models;
+            const model =
+              provider.model ?? models?.find((entry) => entry.isDefault)?.id ?? models?.[0]?.id;
+            if (!model) throw new Error(`No model available for ${provider.provider}`);
+            const text = await this.agentManager.generateText(
+              {
+                ...provider,
+                model,
+                systemPrompt: taskReviewInstructions,
+                prompt: taskReviewInput(task),
+              },
+              { timeoutMs: 60_000, signal },
+            );
+            const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(text.trim());
+            return TaskDecisionSchema.parse(JSON.parse(fenced ? fenced[1]! : text));
+          } catch (error) {
+            failure = error;
+          }
+        }
+        throw failure;
+      },
+    });
+
     this.voiceSessions = new VoiceSessions(
       {
         assistant: {
           config: () =>
             resolveVoiceAssistantConfig(loadPersistedConfig(this.paseoHome), process.env),
           host: {
-            ...createVoiceAssistantTaskHost({
-              listAgents: () =>
-                this.agentDirectory.list({
-                  includeBackground: true,
-                  includeUnavailablePersisted: true,
-                }),
-              getAgent: (agentId) => this.getAgentPayloadById(agentId),
-              assertPermission: (permission) => {
-                if (!this.authorization.allowsPermission(permission))
-                  throw new Error(`${permission} permission required`);
-              },
-              manager: this.agentManager,
-              sendMessage: async (agentId, message) => {
-                await sendPromptToAgent({
-                  agentManager: this.agentManager,
-                  agentStorage: this.agentStorage,
-                  agentId,
-                  prompt: message,
-                  activeTurnBehavior: "steer",
-                  clearPendingPermissions: false,
-                  logger: this.sessionLogger,
-                });
-              },
-              archive: (agentId, updatedAt, signal) =>
-                this.archiveAgentForClose(agentId, updatedAt, signal),
-            }),
+            ...taskHost,
             createTask: async (anchorAgentId, title, prompt) => {
               if (!this.authorization.allowsPermission("workspace.write"))
                 throw new Error("Workspace write permission required");
@@ -2553,6 +2619,7 @@ export class Session {
       this.dispatchAgentObservationMessage(msg, source) ??
       this.dispatchHubExecutionMessage(msg) ??
       this.dispatchCreationMessage(msg, source) ??
+      this.dispatchAgentArchiveMessage(msg) ??
       this.dispatchAgentLifecycleMessage(msg) ??
       this.dispatchAgentConfigMessage(msg) ??
       this.dispatchClawMuseStatusMessage(msg) ??
@@ -3000,6 +3067,12 @@ export class Session {
       default:
         return undefined;
     }
+  }
+
+  private dispatchAgentArchiveMessage(msg: SessionInboundMessage): Promise<void> | undefined {
+    if (msg.type === "agent.archive.review.request") return this.handleAgentArchiveReview(msg);
+    if (msg.type === "agent.archive.apply.request") return this.handleAgentArchiveApply(msg);
+    return undefined;
   }
 
   private dispatchAgentLifecycleMessage(msg: SessionInboundMessage): Promise<void> | undefined {
@@ -3526,6 +3599,48 @@ export class Session {
         requestId,
       },
     });
+  }
+
+  private async handleAgentArchiveReview(
+    msg: Extract<SessionInboundMessage, { type: "agent.archive.review.request" }>,
+  ): Promise<void> {
+    try {
+      const review = await this.agentArchiveReview.review(msg.agentId);
+      this.emit({
+        type: "agent.archive.review.response",
+        payload: { requestId: msg.requestId, review, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "agent.archive.review.response",
+        payload: {
+          requestId: msg.requestId,
+          review: null,
+          error: error instanceof Error ? error.message : "Archive review failed",
+        },
+      });
+    }
+  }
+
+  private async handleAgentArchiveApply(
+    msg: Extract<SessionInboundMessage, { type: "agent.archive.apply.request" }>,
+  ): Promise<void> {
+    try {
+      const { archivedAt } = await this.agentArchiveReview.archive(msg.agentId, msg.token);
+      this.emit({
+        type: "agent.archive.apply.response",
+        payload: { requestId: msg.requestId, archivedAt, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "agent.archive.apply.response",
+        payload: {
+          requestId: msg.requestId,
+          archivedAt: null,
+          error: error instanceof Error ? error.message : "Archive failed",
+        },
+      });
+    }
   }
 
   private async handleArchiveAgentRequest(agentId: string, requestId: string): Promise<void> {

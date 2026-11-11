@@ -9,6 +9,46 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const zhCN: TranslationResources = {
+  aiArchive: {
+    title: "AI 归档",
+    description:
+      "AI 根据任务和最近对话判断是否已完成，保留运行中和需要你处理的会话。归档后仍可在历史记录中恢复。使用主机已有的 AI 模型配置。",
+    scan: "检查可归档",
+    stop: "停止",
+    auto: "一键自动归档",
+    archiveReady: "归档可归档项（{{count}}）",
+    count: "可见主机上共有 {{count}} 个未归档 agent",
+    loading: "正在加载 agent…",
+    empty: "暂无需要归档的 agent。",
+    progress: "已检查 {{done}} / {{total}}",
+    summary: "{{ready}} 个可归档 · {{archived}} 个已归档 · {{kept}} 个保留",
+    offline: "主机未连接，请连接后重新检查。",
+    updateHost: "请更新此主机后使用 AI 归档。",
+    noPermission: "需要工作区写入权限才能使用 AI 归档。",
+    failed: "检查失败，请重新检查后重试。",
+    phase: {
+      pending: "排队中",
+      reviewing: "检查中",
+      ready: "可归档",
+      kept: "需保留",
+      archiving: "归档中",
+      archived: "已归档",
+      failed: "需重试",
+    },
+    reason: {
+      active: "agent 正在运行或启动，暂不归档。",
+      permission: "正在等待权限批准。",
+      awaiting_reply: "正在等待 agent 回复。",
+      error: "agent 存在错误，或模型提供方不可用。",
+      missing_context: "对话信息不足，无法确认任务完成。",
+      children: "请先检查并归档子 agent，再处理此会话。",
+      background_work: "agent 仍有后台任务或待处理操作，暂不归档。",
+      missing_evidence: "无法从最新回复核实完成证据。",
+      changed: "检查期间对话发生变化，请重新检查。",
+      needs_user: "仍需你选择、补充信息或验收。",
+      unfinished: "任务仍有未完成的工作。",
+    },
+  },
   cloudSpace: cloudSpace.zhCN,
   schedules: {
     title: "定时任务",

@@ -110,8 +110,17 @@ export function createFrameDecoder(): (line: string) => Frame {
       result.error.startsWith("Individual quota reached.") &&
       userInputIndex !== null &&
       errorIndex === null;
+    // COMPAT(antigravityStaleInterrupt): added in v1.5.9, remove after 2027-05-04
+    // agy reports a stream interruption from an earlier driver (or an earlier step
+    // of this turn, before it recovered) as the final result error even after the
+    // answer completes. Both evidence paths apply: an error step observed in this
+    // driver, or this turn's user boundary when the interruption predates it.
+    const interrupted =
+      result.error.includes("The stream was interrupted. Please continue the task") &&
+      (errorIndex !== null || userInputIndex !== null);
     let completedAfter: number | null = null;
-    if (recoveredApiError) completedAfter = errorIndex;
+    if (interrupted) completedAfter = errorIndex ?? userInputIndex;
+    else if (recoveredApiError) completedAfter = errorIndex;
     else if (staleQuota) completedAfter = userInputIndex;
     return (
       result.conversation_id === conversationId &&

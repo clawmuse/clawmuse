@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { AssistantTaskDetail } from "./voice-assistant.js";
 import type { StepRealtimeEvent } from "../../speech/providers/stepfun/realtime.js";
 
-const DecisionSchema = z
+export const TaskDecisionSchema = z
   .object({
     decision: z.enum(["completed", "needs_user", "unfinished"]),
     completionEvidence: z.string().max(2000),
@@ -94,7 +94,7 @@ export function readTaskDecision(response: NonNullable<StepRealtimeEvent["respon
     .trim();
   const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(text);
   try {
-    return DecisionSchema.parse(JSON.parse(fenced ? fenced[1]! : text));
+    return TaskDecisionSchema.parse(JSON.parse(fenced ? fenced[1]! : text));
   } catch (error) {
     if (!(error instanceof SyntaxError) && !(error instanceof z.ZodError)) throw error;
     // A spoken promise or malformed review cannot authorize an archive.
