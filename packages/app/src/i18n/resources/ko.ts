@@ -2879,6 +2879,8 @@ export const ko: TranslationResources = {
           label: "사이드바에 표시",
           hint: "연결을 끊지 않고 이 호스트를 선택기와 사이드바에서 숨깁니다.",
           accessibilityLabel: "사이드바에 이 호스트 표시",
+          accountHint:
+            "같은 계정으로 로그인한 모든 기기에 동기화됩니다. 숨겨도 호스트 연결은 유지됩니다.",
         },
         name: {
           label: "이름",

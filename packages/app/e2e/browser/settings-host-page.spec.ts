@@ -148,6 +148,46 @@ test.describe("Settings host page", () => {
     await expectHostLabelEditMode(page, "Local development Mac");
   });
 
+  test("saves manual host visibility locally and preserves it after reload", async ({ page }) => {
+    await gotoAppShell(page);
+    await openHostAppearanceSettings(page, getServerId());
+    const toggle = page.getByTestId("host-appearance-visible-switch");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await reloadPreservingHostRegistry(page);
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByTestId("host-visibility-error")).toHaveCount(0);
+  });
+
+  test("shows a cached account visibility save failure without changing the switch", async ({
+    page,
+  }) => {
+    await gotoAppShell(page);
+    await openHostAppearanceSettings(page, getServerId());
+    // Keep a cached account import while its directory is unavailable.
+    await page.evaluate((serverId) => {
+      localStorage.setItem("clawmuse.account.managed-hosts.v1", JSON.stringify([serverId]));
+    }, getServerId());
+    await page.context().setOffline(true);
+    try {
+      const toggle = page.getByTestId("host-appearance-visible-switch");
+      await toggle.click();
+      await expect(page.getByTestId("host-visibility-error")).toBeVisible();
+      await expect(toggle).toHaveAttribute("aria-checked", "true");
+      await expect(toggle).toBeEnabled();
+      // Returning this host to manual management makes retry independent of Hub connectivity.
+      await page.evaluate(() => localStorage.setItem("clawmuse.account.managed-hosts.v1", "[]"));
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-checked", "false");
+      await expect(page.getByTestId("host-visibility-error")).toHaveCount(0);
+    } finally {
+      await page.context().setOffline(false);
+    }
+  });
+
   test("visits host settings and opens the label editor", async ({ page }) => {
     const serverId = getServerId();
     await gotoAppShell(page);

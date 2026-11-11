@@ -3132,6 +3132,7 @@ export const zhCN: TranslationResources = {
         visible: {
           label: "在侧边栏显示",
           hint: "将此主机从选择器和侧边栏中隐藏，但不断开连接。",
+          accountHint: "同步到登录此账号的所有设备。隐藏后仍保持连接。",
           accessibilityLabel: "在侧边栏显示此主机",
         },
         name: {

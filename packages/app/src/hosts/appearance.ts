@@ -11,7 +11,8 @@ export type HostBadgeDisplay = "name" | "icon" | "hidden";
 export const HOST_BADGE_DISPLAYS: readonly HostBadgeDisplay[] = ["name", "icon", "hidden"];
 
 /**
- * Per-device host presentation. `badgeDisplay` is null while the user has not chosen,
+ * Host presentation cache. Color and badge display are per-device; account directory
+ * visibility is refreshed by the account model. `badgeDisplay` is null while the user has not chosen,
  * because the default differs by host (local hides, remote shows) and local-ness is only
  * knowable from a desktop-only async query — never at parse time.
  *

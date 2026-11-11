@@ -92,6 +92,12 @@ export function ClawMuseAccountProvider({ children }: { children: ReactNode }) {
           }
         },
         removeHost: (id) => getHostRuntimeStore().removeHost(id),
+        setHostHidden: async ({ serverId, hidden }) => {
+          const runtime = getHostRuntimeStore();
+          const host = runtime.getHosts().find((entry) => entry.serverId === serverId);
+          if (host && host.appearance.hidden !== hidden)
+            await runtime.setHostHidden(serverId, hidden);
+        },
         clearAccountCredentials: (keep) => getHostRuntimeStore().clearAccountCredentials(keep),
         bindLocalAccount: async (accountId) => {
           if (!shouldUseDesktopDaemon()) return null;

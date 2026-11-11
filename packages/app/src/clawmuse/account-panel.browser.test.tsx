@@ -52,6 +52,7 @@ beforeEach(async () => {
     addHost: async () => {},
     authorizeHost: async () => {},
     renameHost: async () => {},
+    setHostHidden: async () => {},
     removeHost: async () => {},
     clearAccountCredentials: async () => {},
     bindLocalAccount: async () => null,

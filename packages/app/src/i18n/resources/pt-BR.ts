@@ -2908,6 +2908,8 @@ export const ptBR: TranslationResources = {
           label: "Mostrar na barra lateral",
           hint: "Oculta este host dos seletores e da barra lateral sem desconectá-lo.",
           accessibilityLabel: "Mostrar este host na barra lateral",
+          accountHint:
+            "Sincronizado entre os dispositivos conectados à sua conta. O host permanece conectado ao ser ocultado.",
         },
         name: {
           label: "Nome",

@@ -3249,6 +3249,8 @@ export const en = {
         visible: {
           label: "Show in sidebar",
           hint: "Hide this host from pickers and the sidebar without disconnecting it.",
+          accountHint:
+            "Synced across devices signed in to your account. Hiding keeps this host connected.",
           accessibilityLabel: "Show this host in the sidebar",
         },
         name: {

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { Pencil } from "@/components/icons/app-icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -246,7 +246,11 @@ function BadgePreview({
 export function HostAppearanceSection({ host }: { host: HostProfile }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const { setHostColor, setHostBadgeDisplay, setHostHidden } = useHostMutations();
+  const { setHostColor, setHostBadgeDisplay } = useHostMutations();
+  const { model, state } = useClawMuseAccount();
+  const [savingVisibility, setSavingVisibility] = useState(false);
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
+  const isAccountDevice = state.devices.some((device) => device.serverId === host.serverId);
   const localDaemon = useLocalDaemonServerIdState();
   const isLocalHost = localDaemon.status === "resolved" && localDaemon.serverId === host.serverId;
   const badgeDisplay = resolveHostBadgeDisplay({
@@ -277,13 +281,17 @@ export function HostAppearanceSection({ host }: { host: HostProfile }) {
   );
   const handleHiddenChange = useCallback(
     async (visible: boolean) => {
+      setSavingVisibility(true);
+      setVisibilityError(null);
       try {
-        await setHostHidden(host.serverId, !visible);
-      } catch {
-        toast.error(t("errors.unableToSave"));
+        await model.setHostHidden({ serverId: host.serverId, hidden: !visible });
+      } catch (error) {
+        setVisibilityError(error instanceof Error ? error.message : t("errors.unableToSave"));
+      } finally {
+        setSavingVisibility(false);
       }
     },
-    [host.serverId, setHostHidden, t, toast],
+    [host.serverId, model, t],
   );
 
   return (
@@ -305,10 +313,29 @@ export function HostAppearanceSection({ host }: { host: HostProfile }) {
             <Text style={settingsStyles.rowTitle}>
               {t("settings.host.appearance.visible.label")}
             </Text>
-            <Text style={settingsStyles.rowHint}>{t("settings.host.appearance.visible.hint")}</Text>
+            <Text style={settingsStyles.rowHint}>
+              {t(
+                isAccountDevice
+                  ? "settings.host.appearance.visible.accountHint"
+                  : "settings.host.appearance.visible.hint",
+              )}
+            </Text>
+            {visibilityError ? (
+              <Text
+                style={settingsStyles.rowError}
+                accessibilityRole="alert"
+                testID="host-visibility-error"
+              >
+                {visibilityError}
+              </Text>
+            ) : null}
           </View>
+          {savingVisibility ? (
+            <ActivityIndicator size="small" testID="host-visibility-saving" />
+          ) : null}
           <Switch
             value={!host.appearance.hidden}
+            disabled={savingVisibility}
             onValueChange={handleHiddenChange}
             accessibilityLabel={t("settings.host.appearance.visible.accessibilityLabel")}
             testID="host-appearance-visible-switch"

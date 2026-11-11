@@ -8,6 +8,8 @@ function fixture(request?: AccountDependencies["request"]) {
   const hosts = new Set(["manual"]);
   const labels = new Map([["manual", "Manual host"]]);
   let directoryLabel = "Computer";
+  const hidden = new Map<string, boolean>();
+  let directoryHidden = false;
   let managed: string[] = [];
   let signedIn = true;
   let offline = false;
@@ -37,6 +39,10 @@ function fixture(request?: AccountDependencies["request"]) {
         }
         if (path === "/get-session")
           return { status: 200, data: signedIn ? { user: { id: "alice" } } : null };
+        if (path === "/clawmuse/devices/visibility" && signedIn) {
+          directoryHidden = (body as { hidden: boolean }).hidden;
+          return { status: 200, data: { ok: true } };
+        }
         if (path === "/clawmuse/devices/rename" && signedIn) {
           directoryLabel = (body as { label: string }).label;
           return { status: 200, data: { ok: true } };
@@ -46,7 +52,14 @@ function fixture(request?: AccountDependencies["request"]) {
               status: 200,
               data: {
                 account: { id: "alice", email: "alice@example.test", name: "Alice" },
-                devices: [{ serverId: offer.serverId, label: directoryLabel, offer }],
+                devices: [
+                  {
+                    serverId: offer.serverId,
+                    label: directoryLabel,
+                    hidden: directoryHidden,
+                    offer,
+                  },
+                ],
               },
             }
           : { status: 401, data: {} };
@@ -60,6 +73,9 @@ function fixture(request?: AccountDependencies["request"]) {
       hosts.add(device.serverId);
       // Connection upserts preserve an existing local name in the host runtime.
       if (!labels.has(device.serverId)) labels.set(device.serverId, label);
+    },
+    setHostHidden: async ({ serverId, hidden: value }) => {
+      hidden.set(serverId, value);
     },
     renameHost: async (id, label) => {
       labels.set(id, label);
@@ -82,6 +98,7 @@ function fixture(request?: AccountDependencies["request"]) {
     changed: () => accountChanges,
     hosts,
     labels,
+    hidden,
     removed: () => [...removed],
     expire: () => {
       signedIn = false;
@@ -421,6 +438,63 @@ describe("ClawMuse account discovery", () => {
     expect(desktop.labels.get("srv_phone")).toBe("Home Mac");
     expect(desktop.model.getState().devices[0]?.label).toBe("Home Mac");
     expect(requests.filter((path) => path === "/clawmuse/devices/rename")).toHaveLength(2);
+  });
+
+  it("shares visibility between clients through the account directory", async () => {
+    const desktop = fixture();
+    const phone = fixture(desktop.deps.request);
+    await desktop.model.refresh();
+    await phone.model.refresh();
+    await desktop.model.setHostHidden({ serverId: "srv_phone", hidden: true });
+    expect(desktop.hidden.get("srv_phone")).toBe(true);
+    await phone.model.refresh();
+    expect(phone.hidden.get("srv_phone")).toBe(true);
+    await phone.model.setHostHidden({ serverId: "srv_phone", hidden: false });
+    await desktop.model.refresh();
+    expect(desktop.hidden.get("srv_phone")).toBe(false);
+    expect(desktop.hosts.has("srv_phone")).toBe(true);
+  });
+
+  it("keeps visibility unchanged when an account save fails and allows retry", async () => {
+    const sample = fixture();
+    await sample.model.refresh();
+    sample.offline();
+    await expect(
+      sample.model.setHostHidden({ serverId: "srv_phone", hidden: true }),
+    ).rejects.toThrow("network offline");
+    expect(sample.hidden.get("srv_phone")).toBe(false);
+    expect(sample.model.getState().devices[0]?.hidden).toBe(false);
+    sample.online();
+    await sample.model.setHostHidden({ serverId: "srv_phone", hidden: true });
+    expect(sample.hidden.get("srv_phone")).toBe(true);
+    expect(sample.model.getState().error).toBeNull();
+  });
+
+  it("does not save a cached account device's visibility locally before discovery", async () => {
+    const sample = fixture();
+    await sample.deps.writeManagedHosts(["srv_phone"]);
+    sample.hidden.set("srv_phone", false);
+    sample.offline();
+    await expect(
+      sample.model.setHostHidden({ serverId: "srv_phone", hidden: true }),
+    ).rejects.toThrow("network offline");
+    expect(sample.hidden.get("srv_phone")).toBe(false);
+  });
+
+  it("keeps manual visibility local while signed out and offline", async () => {
+    const sample = fixture();
+    sample.offline();
+    await sample.model.setHostHidden({ serverId: "manual", hidden: true });
+    expect(sample.hidden.get("manual")).toBe(true);
+  });
+
+  it("replaces stale local visibility with the directory preference", async () => {
+    const sample = fixture();
+    sample.hidden.set("srv_phone", true);
+    sample.hidden.set("manual", true);
+    await sample.model.refresh();
+    expect(sample.hidden.get("srv_phone")).toBe(false);
+    expect(sample.hidden.get("manual")).toBe(true);
   });
 
   it("rejects a failed account rename without changing the cache and allows retry", async () => {

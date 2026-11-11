@@ -10,6 +10,7 @@ const directorySchema = z.object({
     z.object({
       serverId: z.string(),
       label: z.string(),
+      hidden: z.boolean().default(false),
       offer: ConnectionOfferSchema,
       accountAuthorization: z.boolean().optional(),
     }),
@@ -42,6 +43,10 @@ export interface AccountState {
   cloudEnabled?: boolean;
   cloudError?: string | null;
 }
+export interface HostVisibility {
+  serverId: string;
+  hidden: boolean;
+}
 export interface AccountDependencies {
   beforeAccountChange: () => Promise<void>;
   controlledOnly?: () => Promise<boolean>;
@@ -56,6 +61,7 @@ export interface AccountDependencies {
     authorize: (controllerHash: string) => Promise<string>,
   ) => Promise<unknown>;
   renameHost: (id: string, label: string) => Promise<void>;
+  setHostHidden: (input: HostVisibility) => Promise<void>;
   removeHost: (id: string) => Promise<void>;
   clearAccountCredentials: (keep: string[]) => Promise<void>;
   localDevice: () => Promise<{ offer: ConnectionOffer; label: string } | null>;
@@ -235,6 +241,12 @@ export class AccountModel {
           `${device.label}: ${error instanceof Error ? error.message : i18n.t("clawmuseAccount.requestError")}`,
         );
       }
+      if (this.deps.existingHostIds().includes(device.serverId)) {
+        await this.deps.setHostHidden({
+          serverId: device.serverId,
+          hidden: device.hidden,
+        });
+      }
     }
     if (directory.cloud?.enabled) await this.syncCloud();
     else if (this.state.cloudEnabled) this.clearCloud();
@@ -391,6 +403,26 @@ export class AccountModel {
             ),
           });
         }
+      },
+      { propagateError: true },
+    );
+  setHostHidden = (input: HostVisibility) =>
+    this.enqueue(
+      async () => {
+        const managed = await this.deps.readManagedHosts();
+        const isAccountDevice =
+          input.serverId !== this.cloudHostId &&
+          (this.state.devices.some((device) => device.serverId === input.serverId) ||
+            managed.includes(input.serverId));
+        if (isAccountDevice) {
+          await this.request("/clawmuse/devices/visibility", input);
+          this.publish({
+            devices: this.state.devices.map((device) =>
+              device.serverId === input.serverId ? { ...device, hidden: input.hidden } : device,
+            ),
+          });
+        }
+        await this.deps.setHostHidden(input);
       },
       { propagateError: true },
     );

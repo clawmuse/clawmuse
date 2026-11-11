@@ -2928,6 +2928,8 @@ export const es: TranslationResources = {
           label: "Mostrar en la barra lateral",
           hint: "Oculta este host de los selectores y la barra lateral sin desconectarlo.",
           accessibilityLabel: "Mostrar este host en la barra lateral",
+          accountHint:
+            "Se sincroniza entre los dispositivos de tu cuenta. El host sigue conectado al ocultarlo.",
         },
         name: {
           label: "Nombre",

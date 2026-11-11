@@ -2893,6 +2893,8 @@ export const ja: TranslationResources = {
           label: "サイドバーに表示",
           hint: "接続を切らずに、このホストをピッカーとサイドバーから隠します。",
           accessibilityLabel: "このホストをサイドバーに表示",
+          accountHint:
+            "同じアカウントでログインしたすべてのデバイスに同期します。非表示にしても接続は維持されます。",
         },
         name: {
           label: "名前",

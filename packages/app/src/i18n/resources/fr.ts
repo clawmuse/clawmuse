@@ -2932,6 +2932,8 @@ export const fr: TranslationResources = {
           label: "Afficher dans la barre latérale",
           hint: "Masque cet hôte des sélecteurs et de la barre latérale sans le déconnecter.",
           accessibilityLabel: "Afficher cet hôte dans la barre latérale",
+          accountHint:
+            "Synchronisé sur les appareils connectés à votre compte. Masquer cet hôte maintient sa connexion.",
         },
         name: {
           label: "Nom",
