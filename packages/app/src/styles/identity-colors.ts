@@ -28,16 +28,21 @@ export const IDENTITY_COLOR_NAMES = [
 export type IdentityColorName = (typeof IDENTITY_COLOR_NAMES)[number];
 
 const IDENTITY_COLORS: Record<IdentityColorName, string> = {
-  violet: "#7a6aa8",
-  sky: "#3d7ea6",
-  emerald: "#388068",
-  orange: "#a4673a",
-  pink: "#b05c80",
-  indigo: "#6a70b8",
-  teal: "#368080",
-  red: "#b06260",
-  amber: "#8f7838",
-  blue: "#5179b0",
+  // Deeper, more saturated fills — HSL luminance pushed to ~40-55% (the previous set ran
+  // 50-60%) and chroma lifted to 42-64%. Contrast band widened to 4.2-5.2:1 to let the
+  // darker end in without washing out the white letter. Hues still sit in the space between
+  // the status band's (success 150, danger 27, warning 70.5, merged 300, running 250) so a
+  // project tile never reads as a status signal.
+  violet: "#7a5cc8",
+  sky: "#2878a8",
+  emerald: "#28885e",
+  orange: "#a86830",
+  pink: "#b04888",
+  indigo: "#4e68cc",
+  teal: "#208890",
+  red: "#b85048",
+  amber: "#987028",
+  blue: "#3870b8",
 };
 
 export function identityColor(name: IdentityColorName): string {
@@ -59,30 +64,30 @@ export function identityColor(name: IdentityColorName): string {
 // host name. Anything that changes the status band has to change this one with it.
 const IDENTITY_FOREGROUND_LIGHT: Record<IdentityColorName, string> = {
   // L=0.50, chroma 60% of gamut max — 5.3:1 to 5.8:1 on the light sidebar
-  violet: "#6d49b5",
-  sky: "#3d6985",
-  emerald: "#3e6e5d",
-  orange: "#845838",
-  pink: "#974168",
-  indigo: "#5251c2",
-  teal: "#3e6d6c",
-  red: "#9c4243",
-  amber: "#716239",
-  blue: "#39649e",
+  violet: "#6f5aa5",
+  sky: "#508baf",
+  emerald: "#56a985",
+  orange: "#aa7d55",
+  pink: "#a05f87",
+  indigo: "#5567aa",
+  teal: "#4fa9b0",
+  red: "#a1635e",
+  amber: "#ac8c53",
+  blue: "#577aa8",
 };
 
 const IDENTITY_FOREGROUND_DARK: Record<IdentityColorName, string> = {
   // L=0.70, chroma 55% of gamut max — 6.3:1 to 7.2:1 on the dark sidebar
-  violet: "#a392d5",
-  sky: "#6aa6ce",
-  emerald: "#6cae96",
-  orange: "#cc8f64",
-  pink: "#d87da3",
-  indigo: "#9299d5",
-  teal: "#6cacab",
-  red: "#d88381",
-  amber: "#b29d64",
-  blue: "#7ba1d5",
+  violet: "#a99ec7",
+  sky: "#99b9cc",
+  emerald: "#9cc9b5",
+  orange: "#cab19b",
+  pink: "#c4a1b7",
+  indigo: "#9ba5ca",
+  teal: "#98c9cd",
+  red: "#c5a3a0",
+  amber: "#cbba9a",
+  blue: "#9cb0c9",
 };
 
 export function identityForeground(name: IdentityColorName, colorScheme: "light" | "dark"): string {

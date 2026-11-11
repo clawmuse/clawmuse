@@ -39,6 +39,8 @@ const foregroundMutedColorMapping = (theme: Theme) => ({
 export interface SubagentsTrackProps {
   serverId: string;
   rows: SubagentRow[];
+  /** Rendered inside the composer's action rail — see `ComposerTrackPill`'s `rail`. */
+  rail?: boolean;
   onOpenSubagent: (address: AgentAddress) => void;
   onOpenProviderSubagent: (parentAgentId: string, subagentId: string) => void;
   /**
@@ -71,6 +73,7 @@ function useRowPresentation(row: SubagentRow, serverId: string): WorkspaceTabPre
 export function SubagentsTrack({
   serverId,
   rows,
+  rail = false,
   onOpenSubagent,
   onOpenProviderSubagent,
   sheetTabFor,
@@ -101,6 +104,7 @@ export function SubagentsTrack({
       segments={pill.segments}
       accessibilityLabel={pill.accessibilityLabel}
       panelTitle={t("subagents.title")}
+      rail={rail}
     >
       {showArchiveFinished && onArchiveFinished ? (
         <ComposerTrackActions divided={rows.length > 0}>

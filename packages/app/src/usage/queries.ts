@@ -16,6 +16,7 @@ import {
   useHostRuntimeConnectionStatuses,
   useHostRuntimeIsConnected,
   useHosts,
+  useVisibleHosts,
 } from "@/runtime/host-runtime";
 import { useSessionStore, type SessionState } from "@/stores/session-store";
 import { useUsageSetting, useUsageSettings } from "./setting";
@@ -353,7 +354,7 @@ export function useHostReportsUsage(serverId: string): boolean {
 
 /** Every host with whether it is connected and reports usage, in host order. */
 export function useUsageHosts(): UsageHost[] {
-  const hosts = useHosts();
+  const hosts = useVisibleHosts();
   const serverIds = useMemo(() => hosts.map((host) => host.serverId), [hosts]);
   const connectionStatuses = useHostRuntimeConnectionStatuses(serverIds);
   const supportedServerIds = useSessionStore(

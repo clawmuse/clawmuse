@@ -5,6 +5,7 @@ import {
   resolveDesktopAppContentMinimum,
   resolveDesktopSidebarVisibility,
   resolveDesktopSidebarWidth,
+  resolveDesktopSidebarNavScale,
   resolveDesktopSidebarScale,
   resolveDesktopSidebarToggleScale,
 } from "@/components/desktop-sidebar-layout";
@@ -16,6 +17,13 @@ describe("desktop sidebar layout", () => {
     expect(resolveDesktopSidebarScale(320)).toBe(1);
     expect(resolveDesktopSidebarScale(600)).toBe(1);
     expect(resolveDesktopSidebarScale(80)).toBe(0.7);
+  });
+  it("grows the icon row with a wide sidebar but caps it at 1.5x", () => {
+    expect(resolveDesktopSidebarNavScale(140)).toBe(1);
+    expect(resolveDesktopSidebarNavScale(320)).toBe(1);
+    expect(resolveDesktopSidebarNavScale(400)).toBeCloseTo(1.25);
+    expect(resolveDesktopSidebarNavScale(480)).toBe(1.5);
+    expect(resolveDesktopSidebarNavScale(600)).toBe(1.5);
   });
   it("scales the window toggle only when it shares the sidebar without native window controls", () => {
     const input = { contentWidth: 140, sidebarVisible: true, hasTopLeftWindowControls: false };

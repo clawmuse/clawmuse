@@ -1311,6 +1311,7 @@ export const fr: TranslationResources = {
     },
     display: {
       showBackground: "Afficher les espaces en arrière-plan",
+      projectIcon: "Icône de projet",
       trigger: "Préférences d’affichage",
       heading: "Affichage",
       sort: {
@@ -2927,6 +2928,11 @@ export const fr: TranslationResources = {
       },
       appearance: {
         title: "Apparence",
+        visible: {
+          label: "Afficher dans la barre latérale",
+          hint: "Masque cet hôte des sélecteurs et de la barre latérale sans le déconnecter.",
+          accessibilityLabel: "Afficher cet hôte dans la barre latérale",
+        },
         name: {
           label: "Nom",
         },

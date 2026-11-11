@@ -1285,6 +1285,7 @@ export const ko: TranslationResources = {
     },
     display: {
       showBackground: "백그라운드 표시",
+      projectIcon: "프로젝트 아이콘",
       trigger: "표시 설정",
       heading: "표시",
       sort: {
@@ -2874,6 +2875,11 @@ export const ko: TranslationResources = {
       },
       appearance: {
         title: "모양",
+        visible: {
+          label: "사이드바에 표시",
+          hint: "연결을 끊지 않고 이 호스트를 선택기와 사이드바에서 숨깁니다.",
+          accessibilityLabel: "사이드바에 이 호스트 표시",
+        },
         name: {
           label: "이름",
         },

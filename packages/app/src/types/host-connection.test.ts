@@ -140,19 +140,19 @@ describe("normalizeStoredHostProfile", () => {
       ],
     });
 
-    expect(profile?.appearance).toEqual({ color: "none", badgeDisplay: null });
+    expect(profile?.appearance).toEqual({ color: "none", badgeDisplay: null, hidden: false });
   });
 
   it("loads a stored appearance the user chose", () => {
     const profile = normalizeStoredHostProfile({
       serverId: "srv_new",
-      appearance: { color: "teal", badgeDisplay: "icon" },
+      appearance: { color: "teal", badgeDisplay: "icon", hidden: false },
       connections: [
         { id: "socket:/tmp/paseo.sock", type: "directSocket", path: "/tmp/paseo.sock" },
       ],
     });
 
-    expect(profile?.appearance).toEqual({ color: "teal", badgeDisplay: "icon" });
+    expect(profile?.appearance).toEqual({ color: "teal", badgeDisplay: "icon", hidden: false });
   });
 
   it("normalizes stored Remote SSH connection parameters", () => {
@@ -266,13 +266,13 @@ describe("upsertHostConnectionInProfiles", () => {
       connection,
     });
 
-    expect(profile.appearance).toEqual({ color: "none", badgeDisplay: null });
+    expect(profile.appearance).toEqual({ color: "none", badgeDisplay: null, hidden: false });
   });
 
   it("keeps the appearance the user chose when the host reconnects", () => {
     const existing: HostProfile = {
       ...makeHost("srv_known"),
-      appearance: { color: "amber", badgeDisplay: "hidden" },
+      appearance: { color: "amber", badgeDisplay: "hidden", hidden: false },
       connections: [],
     };
 
@@ -282,7 +282,11 @@ describe("upsertHostConnectionInProfiles", () => {
       connection,
     });
 
-    expect(profile.appearance).toEqual({ color: "amber", badgeDisplay: "hidden" });
+    expect(profile.appearance).toEqual({
+      color: "amber",
+      badgeDisplay: "hidden",
+      hidden: false,
+    });
   });
 
   it("replaces a direct connection when its settings change", () => {

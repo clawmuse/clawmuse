@@ -267,10 +267,7 @@ const styles = StyleSheet.create((theme) => ({
     flexWrap: "wrap",
     gap: theme.spacing[2],
   },
-  previewText: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.medium,
-  },
+  previewText: {},
   footer: {
     flex: 1,
     flexDirection: "row",

@@ -4,7 +4,7 @@ import { useShallow } from "zustand/shallow";
 import { useSessionStore } from "@/stores/session-store";
 import type { AgentDirectoryEntry } from "@/types/agent-directory";
 import type { Agent } from "@/stores/session-store";
-import { getHostRuntimeStore, useHosts } from "@/runtime/host-runtime";
+import { getHostRuntimeStore, useVisibleHosts } from "@/runtime/host-runtime";
 
 export interface AggregatedAgent extends AgentDirectoryEntry {
   serverId: string;
@@ -23,7 +23,7 @@ export function useAggregatedAgents(options?: {
   includeArchived?: boolean;
   demand?: boolean;
 }): AggregatedAgentsResult {
-  const daemons = useHosts();
+  const daemons = useVisibleHosts();
   const runtime = getHostRuntimeStore();
   const includeArchived = options?.includeArchived ?? false;
   const demand = options?.demand ?? true;
@@ -69,9 +69,12 @@ export function useAggregatedAgents(options?: {
       daemons.map((daemon) => [daemon.serverId, daemon.label] as const),
     );
 
+    // Hidden hosts stay connected but contribute no agents to the aggregate list.
+    const visibleIds = new Set(daemons.map((daemon) => daemon.serverId));
+
     // Derive agent directory from all sessions
     for (const [serverId, agents] of Object.entries(sessionAgents)) {
-      if (!agents || agents.size === 0) {
+      if (!agents || agents.size === 0 || !visibleIds.has(serverId)) {
         continue;
       }
       const serverLabel = serverLabelById.get(serverId) ?? serverId;

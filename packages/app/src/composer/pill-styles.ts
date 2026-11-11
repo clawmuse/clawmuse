@@ -45,6 +45,22 @@ export const composerPillStyles = StyleSheet.create((theme) => ({
   bodyActive: {
     backgroundColor: theme.colors.surface3,
   },
+  /**
+   * Pill variant for the composer's action rail, matching the rail's icon buttons
+   * (`chatActionButton` in agent-panel.tsx): a borderless solid round ground instead of the
+   * floating-over-transcript frame `body` wears. The shadow comes off too — the icon buttons
+   * read flat at this size, and a wide pill wearing their shadow picks up a blur they don't.
+   */
+  railBody: {
+    minHeight: 28,
+    borderWidth: 0,
+    borderRadius: theme.borderRadius.full,
+    shadowColor: "transparent",
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 0,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   denseBody: {
     paddingHorizontal: { xs: theme.spacing[2], md: theme.spacing[3] },
     paddingVertical: { xs: theme.spacing[0.5], md: theme.spacing[1] },

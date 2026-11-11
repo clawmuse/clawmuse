@@ -87,6 +87,11 @@ export interface ComposerTrackPillProps {
   children: ReactNode;
   /** Pages a row can open in place of the list (`ComposerTrackRow` `opensPage`). */
   pages?: readonly MenuPageDefinition[];
+  /**
+   * Rendered inside the composer's action rail: drop the framed floating-over-transcript ground
+   * for the same borderless round badge the rail's icon buttons wear.
+   */
+  rail?: boolean;
 }
 
 /**
@@ -112,12 +117,14 @@ export function ComposerTrackPill({
   accessibilityLabel,
   children,
   pages,
+  rail = false,
 }: ComposerTrackPillProps): ReactElement {
   return (
     <MenuRoot compactMode="sheet">
       <ComposerTrackPillTrigger
         segments={segments}
         testID={testID}
+        rail={rail}
         accessibilityLabel={accessibilityLabel ?? segments.map((segment) => segment.text).join(" ")}
       />
       <MenuSurface
@@ -141,10 +148,12 @@ export function ComposerTrackPill({
 function ComposerTrackPillTrigger({
   segments,
   testID,
+  rail,
   accessibilityLabel,
 }: {
   segments: readonly ComposerTrackPillSegment[];
   testID: string;
+  rail: boolean;
   accessibilityLabel: string;
 }): ReactElement {
   const { open } = useMenuContext("ComposerTrackPill");
@@ -156,9 +165,10 @@ function ComposerTrackPillTrigger({
     ({ hovered, pressed, open: isOpen }: MenuTriggerState) => [
       composerPillStyles.body,
       composerPillStyles.denseBody,
+      rail && composerPillStyles.railBody,
       (hovered || pressed || isOpen) && composerPillStyles.bodyActive,
     ],
-    [],
+    [rail],
   );
   const labelStyle = useMemo(
     () => [
@@ -390,7 +400,8 @@ const styles = StyleSheet.create((theme) => {
     inlineTrack: {
       minHeight: COMPACT_ACTION_BUTTON_SIZE,
       alignItems: "center",
-      gap: theme.spacing[1],
+      // Same gap the rail puts between its icon buttons, so pills and buttons share the beat.
+      gap: theme.spacing[2],
     },
     wideInlineTrack: {
       flexGrow: 1,

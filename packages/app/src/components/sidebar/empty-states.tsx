@@ -5,7 +5,7 @@ import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useClawMuseDeviceLabel } from "@/clawmuse/device-label";
 import { Button } from "@/components/ui/button";
-import { useHostRuntimeConnectionStatuses, useHosts } from "@/runtime/host-runtime";
+import { useHostRuntimeConnectionStatuses, useVisibleHosts } from "@/runtime/host-runtime";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 
 function SidebarEmptyStateCard({
@@ -124,7 +124,7 @@ interface AwayHost {
  * is not.
  */
 function useAwayPinnedHosts(): AwayHost[] | null {
-  const hosts = useHosts();
+  const hosts = useVisibleHosts();
   const hostFilters = useSidebarViewStore((state) => state.hostFilters);
   const deviceLabel = useClawMuseDeviceLabel();
   const pinned = useMemo(

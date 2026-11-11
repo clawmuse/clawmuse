@@ -10,9 +10,15 @@ interface ComposerDiffStatPillProps {
   additions: number;
   deletions: number;
   onPress: () => void;
+  rail?: boolean;
 }
 
-export function ComposerDiffStatPill({ additions, deletions, onPress }: ComposerDiffStatPillProps) {
+export function ComposerDiffStatPill({
+  additions,
+  deletions,
+  onPress,
+  rail = false,
+}: ComposerDiffStatPillProps) {
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
   const [isHovered, setIsHovered] = useState(false);
@@ -23,9 +29,10 @@ export function ComposerDiffStatPill({ additions, deletions, onPress }: Composer
       composerPillStyles.body,
       composerPillStyles.denseBody,
       composerPillStyles.compactActionBody,
+      rail && composerPillStyles.railBody,
       isHovered && composerPillStyles.bodyActive,
     ],
-    [isHovered],
+    [isHovered, rail],
   );
 
   return (
@@ -47,10 +54,12 @@ export const WorkspaceDiffStatPill = memo(function WorkspaceDiffStatPill({
   serverId,
   workspaceId,
   onPress,
+  rail = false,
 }: {
   serverId: string;
   workspaceId: string;
   onPress: () => void;
+  rail?: boolean;
 }): ReactElement | null {
   const diffStat = useVisibleWorkspaceDiffStat(serverId, workspaceId);
   if (!diffStat) {
@@ -61,6 +70,7 @@ export const WorkspaceDiffStatPill = memo(function WorkspaceDiffStatPill({
       additions={diffStat.additions}
       deletions={diffStat.deletions}
       onPress={onPress}
+      rail={rail}
     />
   );
 });

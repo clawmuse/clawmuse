@@ -133,7 +133,8 @@ export function AttachmentLabel({ icon, title, subtitle }: AttachmentLabelProps)
 
 /** Square image preview pill body. */
 export function AttachmentThumbnail({ metadata }: { metadata: AttachmentMetadata }) {
-  const uri = useAttachmentPreviewUrl(metadata);
+  const previewState = useAttachmentPreviewUrl(metadata);
+  const uri = previewState.status === "ready" ? previewState.url : null;
   const source = useMemo(() => ({ uri: uri ?? "" }), [uri]);
   if (!uri) {
     return <View style={styles.thumbnailPlaceholder} />;

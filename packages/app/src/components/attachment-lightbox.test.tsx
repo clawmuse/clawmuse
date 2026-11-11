@@ -37,9 +37,9 @@ const { theme, imageMetadata, useAttachmentPreviewUrlMock } = vi.hoisted(() => {
   return {
     theme: hoistedTheme,
     imageMetadata: hoistedImageMetadata,
-    useAttachmentPreviewUrlMock: vi.fn<(metadata: AttachmentMetadata | null) => string | null>(
-      () => "blob:preview",
-    ),
+    useAttachmentPreviewUrlMock: vi.fn<
+      (metadata: AttachmentMetadata | null) => { status: string; url?: string }
+    >(() => ({ status: "ready", url: "blob:preview" })),
   };
 });
 const attachmentSource: ImageLightboxSource = { type: "attachment", metadata: imageMetadata };
@@ -150,7 +150,7 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  useAttachmentPreviewUrlMock.mockReturnValue("blob:preview");
+  useAttachmentPreviewUrlMock.mockReturnValue({ status: "ready", url: "blob:preview" });
 });
 
 afterEach(async () => {
@@ -228,12 +228,21 @@ describe("AttachmentLightbox", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows error text when the preview URL resolves to null", () => {
-    useAttachmentPreviewUrlMock.mockReturnValue(null);
+  it("shows error text when the preview resolution fails", () => {
+    useAttachmentPreviewUrlMock.mockReturnValue({ status: "error" });
     render(<AttachmentLightbox source={attachmentSource} onClose={vi.fn()} />);
 
     expect(queryByTestId("attachment-lightbox-image")).toBeNull();
     expect(document.body.textContent ?? "").toContain("Couldn't load image");
+  });
+
+  it("closes itself when the attachment is missing rather than showing an error", () => {
+    useAttachmentPreviewUrlMock.mockReturnValue({ status: "missing" });
+    const onClose = vi.fn();
+    render(<AttachmentLightbox source={attachmentSource} onClose={onClose} />);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent ?? "").not.toContain("Couldn't load image");
   });
 
   it("closes on Escape key on web", () => {

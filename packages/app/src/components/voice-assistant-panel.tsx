@@ -9,7 +9,11 @@ import { useVoice } from "@/contexts/voice-context";
 import { useSessionStore } from "@/stores/session-store";
 import { useLastWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useAssistantPanel } from "@/voice/assistant-panel-store";
-import { useHostRuntimeIsConnected, getHostRuntimeStore, useHosts } from "@/runtime/host-runtime";
+import {
+  useHostRuntimeIsConnected,
+  getHostRuntimeStore,
+  useVisibleHosts,
+} from "@/runtime/host-runtime";
 import { useClawMuseDeviceLabel } from "@/clawmuse/device-label";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { buildSettingsHostSectionRoute, buildSessionsRoute } from "@/utils/host-routes";
@@ -59,7 +63,7 @@ export function VoiceAssistantPanel() {
 
 function AssistantPanelBody({ onClose, voice }: { onClose(): void; voice: PanelState }) {
   const sessions = useSessionStore((s) => s.sessions);
-  const hosts = useHosts();
+  const hosts = useVisibleHosts();
   const last = useLastWorkspaceSelection();
   const pathname = usePathname();
   const settingsHost = useSettingsHostSelection();
@@ -151,7 +155,7 @@ function AssistantPanelBody({ onClose, voice }: { onClose(): void; voice: PanelS
 type PanelState = ReturnType<typeof useVoice>;
 interface PanelContentProps {
   voice: PanelState;
-  hosts: ReturnType<typeof useHosts>;
+  hosts: ReturnType<typeof useVisibleHosts>;
   hostId: string | null;
   connected: boolean;
   assistant: import("@getpaseo/protocol/speech-config").SpeechSettings["assistant"];

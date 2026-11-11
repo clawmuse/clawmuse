@@ -2,10 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { releaseAttachmentPreviewUrl, resolveAttachmentPreviewUrl } from "@/attachments/service";
 
+export type AttachmentPreviewUrlState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; url: string }
+  | { status: "missing" }
+  | { status: "error" };
+
 export function useAttachmentPreviewUrl(
   attachment: AttachmentMetadata | null | undefined,
-): string | null {
-  const [url, setUrl] = useState<string | null>(null);
+): AttachmentPreviewUrlState {
+  const [state, setState] = useState<AttachmentPreviewUrlState>({ status: "idle" });
   const activeAttachmentRef = useRef<AttachmentMetadata | null>(null);
   const attachmentRef = useRef(attachment);
   attachmentRef.current = attachment;
@@ -22,9 +29,10 @@ export function useAttachmentPreviewUrl(
 
     activeAttachmentRef.current = current ?? null;
     if (!current) {
-      setUrl(null);
+      setState({ status: "idle" });
       return;
     }
+    setState({ status: "loading" });
 
     void (async () => {
       try {
@@ -34,14 +42,20 @@ export function useAttachmentPreviewUrl(
           return;
         }
         currentUrl = resolved;
-        setUrl(resolved);
+        setState({ status: "ready", url: resolved });
       } catch (error) {
-        console.error("[attachments] Failed to resolve preview URL", {
-          attachmentId: current.id,
-          error,
-        });
+        // Attachment-gone is a normal outcome — an old message can outlive the blob it
+        // pointed at, and the row just renders without a preview. Anything else is real.
+        const isMissing =
+          error instanceof Error && /was not found|not found in/i.test(error.message);
         if (!disposed) {
-          setUrl(null);
+          setState(isMissing ? { status: "missing" } : { status: "error" });
+        }
+        if (!isMissing) {
+          console.error("[attachments] Failed to resolve preview URL", {
+            attachmentId: current.id,
+            error: error instanceof Error ? { name: error.name, message: error.message } : error,
+          });
         }
       }
     })();
@@ -59,5 +73,5 @@ export function useAttachmentPreviewUrl(
     };
   }, [id, storageType, storageKey, mimeType]);
 
-  return url;
+  return state;
 }

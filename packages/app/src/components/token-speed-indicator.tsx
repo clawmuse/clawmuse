@@ -32,9 +32,11 @@ export function useHasAgentTokenSpeed(serverId: string, agentId: string): boolea
 export function AgentTokenSpeedIndicator({
   serverId,
   agentId,
+  rail = false,
 }: {
   serverId: string;
   agentId: string;
+  rail?: boolean;
 }) {
   const speed = useSessionStore(
     (state) => state.sessions[serverId]?.agents.get(agentId)?.lastUsage?.tokenSpeed ?? null,
@@ -42,7 +44,7 @@ export function AgentTokenSpeedIndicator({
   const isRunning = useSessionStore(
     (state) => selectAgentTurnPresentation(state.sessions[serverId], agentId).isActive,
   );
-  return <TokenSpeedIndicator speed={speed} isRunning={isRunning} />;
+  return <TokenSpeedIndicator speed={speed} isRunning={isRunning} rail={rail} />;
 }
 
 /**
@@ -53,9 +55,11 @@ export function AgentTokenSpeedIndicator({
 export function TokenSpeedIndicator({
   speed,
   isRunning,
+  rail = false,
 }: {
   speed: AgentTokenSpeed | null;
   isRunning: boolean;
+  rail?: boolean;
 }) {
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
@@ -72,12 +76,13 @@ export function TokenSpeedIndicator({
     </Text>
   );
   const accessibilityLabel = t("tokenSpeed.accessibility", { rate });
+  const triggerStyle = rail ? styles.triggerRail : styles.trigger;
 
   if (isCompact) {
     return (
       <>
         <PressHighlight
-          style={styles.trigger}
+          style={triggerStyle}
           highlightStyle={styles.triggerHighlight}
           testID="composer-output-token-rate"
           accessibilityRole="button"
@@ -98,7 +103,7 @@ export function TokenSpeedIndicator({
       <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile>
         <TooltipTrigger asChild triggerRefProp="ref">
           <PressHighlight
-            style={styles.trigger}
+            style={triggerStyle}
             highlightStyle={styles.triggerHighlight}
             testID="composer-output-token-rate"
             accessibilityRole="button"
@@ -117,7 +122,7 @@ export function TokenSpeedIndicator({
   return (
     <HoverCard>
       <HoverCardTrigger focusable accessibilityLabel={accessibilityLabel}>
-        <View style={styles.trigger} testID="composer-output-token-rate">
+        <View style={triggerStyle} testID="composer-output-token-rate">
           {label}
         </View>
       </HoverCardTrigger>
@@ -142,6 +147,19 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
     paddingHorizontal: theme.spacing[1],
     borderRadius: theme.borderRadius.full,
+  },
+  /**
+   * The same readout wearing the action rail's ground: the flat solid round badge the rail's
+   * icon buttons use (`chatActionButton` in agent-panel.tsx), instead of bare text over the
+   * transcript. No shadow — a wide pill wearing the icon buttons' shadow picks up a blur they don't.
+   */
+  triggerRail: {
+    height: 28,
+    flexShrink: 0,
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface2,
   },
   triggerHighlight: {
     backgroundColor: theme.colors.interactionHighlight,

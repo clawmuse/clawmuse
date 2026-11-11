@@ -6,7 +6,7 @@ import {
   useHostRuntimeConnectionStatus,
 } from "@/runtime/host-runtime";
 
-export function HostStatusDot({ serverId }: { serverId: string }) {
+export function HostStatusDot({ serverId, size = 8 }: { serverId: string; size?: number }) {
   const { t } = useTranslation();
   const status = useHostRuntimeConnectionStatus(serverId);
 
@@ -15,7 +15,7 @@ export function HostStatusDot({ serverId }: { serverId: string }) {
       accessible
       accessibilityRole="image"
       accessibilityLabel={t(`common.connectionStatus.${status}`)}
-      style={[styles.dot, statusStyle(status)]}
+      style={[styles.dot, { width: size, height: size }, statusStyle(status)]}
     />
   );
 }
@@ -28,8 +28,6 @@ function statusStyle(status: HostRuntimeConnectionStatus) {
 
 const styles = StyleSheet.create((theme) => ({
   dot: {
-    width: 8,
-    height: 8,
     borderRadius: theme.borderRadius.full,
   },
   dotOnline: {

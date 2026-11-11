@@ -6,7 +6,11 @@ import { useSessionStore } from "@/stores/session-store";
 import { useWorkspaceDirectoryServerIds } from "@/stores/session-store-hooks";
 import { workspaceEqualityFns } from "@/stores/session-store-hooks/selectors";
 import { useWorkspaceStructure } from "@/stores/session-store-hooks";
-import { getHostRuntimeStore, useHostRegistryLoaded, useHosts } from "@/runtime/host-runtime";
+import {
+  getHostRuntimeStore,
+  useHostRegistryLoaded,
+  useVisibleHosts,
+} from "@/runtime/host-runtime";
 import { sortProjectsByLastRun } from "@/projects/workspace-structure";
 import { sidebarGroupModeIncludes, useSidebarViewStore } from "@/stores/sidebar-view-store";
 import {
@@ -99,9 +103,9 @@ export function useSidebarWorkspacesList(options?: {
   enabled?: boolean;
 }): SidebarWorkspacesListResult {
   const runtime = getHostRuntimeStore();
-  const allHosts = useHosts();
   const hostRegistryLoaded = useHostRegistryLoaded();
-  const allServerIds = useMemo(() => allHosts.map((h) => h.serverId), [allHosts]);
+  const visibleHosts = useVisibleHosts();
+  const allServerIds = useMemo(() => visibleHosts.map((h) => h.serverId), [visibleHosts]);
 
   const storeHostFilters = useSidebarViewStore((state) => state.hostFilters);
   const hostFilters = options?.hostFilters ?? storeHostFilters;

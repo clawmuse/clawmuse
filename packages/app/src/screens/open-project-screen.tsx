@@ -1,4 +1,4 @@
-import { useHosts, useHostRuntimeLastError } from "@/runtime/host-runtime";
+import { useVisibleHosts, useHostRuntimeLastError } from "@/runtime/host-runtime";
 import { useCallback, useEffect, useMemo, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import { View, Text, ScrollView } from "react-native";
@@ -41,7 +41,7 @@ type IconComponent = ComponentProps<typeof DensityIcon>["icon"];
 
 export function OpenProjectScreen() {
   const { t } = useTranslation();
-  const hosts = useHosts();
+  const hosts = useVisibleHosts();
   const router = useRouter();
   const openDesktopAgentList = usePanelStore((s) => s.openDesktopAgentList);
   const openProjectPicker = useOpenAddProject();

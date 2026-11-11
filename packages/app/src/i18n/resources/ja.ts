@@ -1294,6 +1294,7 @@ export const ja: TranslationResources = {
     },
     display: {
       showBackground: "バックグラウンドを表示",
+      projectIcon: "プロジェクトアイコン",
       trigger: "表示設定",
       heading: "表示",
       sort: {
@@ -2888,6 +2889,11 @@ export const ja: TranslationResources = {
       },
       appearance: {
         title: "外観",
+        visible: {
+          label: "サイドバーに表示",
+          hint: "接続を切らずに、このホストをピッカーとサイドバーから隠します。",
+          accessibilityLabel: "このホストをサイドバーに表示",
+        },
         name: {
           label: "名前",
         },

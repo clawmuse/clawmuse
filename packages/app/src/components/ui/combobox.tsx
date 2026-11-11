@@ -284,11 +284,55 @@ export function ComboboxItem({
     ],
     [elevated, active, disabled],
   );
+  const itemMainStyle = useCallback(
+    (state: PressableStateCallbackType & { hovered?: boolean }) => [
+      itemPressableStyle(state),
+      styles.comboboxItemMain,
+    ],
+    [itemPressableStyle],
+  );
 
   const itemContentStyle = useMemo(
     () => [styles.comboboxItemContent, description && styles.comboboxItemContentInline],
     [description],
   );
+
+  // The trailing slot may carry its own pressable (a host row's settings gear), so it cannot
+  // live inside the item's button — nested <button> is invalid DOM and React warns. The row
+  // becomes a View; the Pressable shrinks to the label run, and the trailing action sits
+  // beside it as a sibling.
+  if (trailingSlot) {
+    return (
+      <View style={styles.comboboxItemRow}>
+        <Pressable
+          testID={testID}
+          disabled={disabled}
+          onPress={onPress}
+          style={itemMainStyle}
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel ?? label}
+        >
+          {leadingContent}
+          <View style={itemContentStyle}>
+            <Text numberOfLines={1} style={styles.comboboxItemLabel}>
+              {label}
+            </Text>
+            {description ? (
+              <Text numberOfLines={1} style={styles.comboboxItemDescription}>
+                {description}
+              </Text>
+            ) : null}
+          </View>
+          {selected ? (
+            <View style={styles.comboboxItemTrailingSlot}>
+              <Check size={16} color={theme.colors.foregroundMuted} />
+            </View>
+          ) : null}
+        </Pressable>
+        {trailingSlot}
+      </View>
+    );
+  }
 
   return (
     <Pressable
@@ -310,12 +354,11 @@ export function ComboboxItem({
           </Text>
         ) : null}
       </View>
-      {selected || trailingSlot ? (
+      {selected ? (
         <View style={styles.comboboxItemTrailingContainer}>
           <View style={styles.comboboxItemTrailingSlot}>
-            {selected ? <Check size={16} color={theme.colors.foregroundMuted} /> : null}
+            <Check size={16} color={theme.colors.foregroundMuted} />
           </View>
-          {trailingSlot}
         </View>
       ) : null}
     </Pressable>
@@ -1699,6 +1742,24 @@ const styles = StyleSheet.create((theme) => ({
           marginHorizontal: theme.spacing[1],
           marginBottom: theme.spacing[1],
         }),
+  },
+  comboboxItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    // The row's own padding-right lives on the sibling trailing slot, not here: an action that
+    // sits outside the pressable still needs to land inside the visual frame the surface's
+    // horizontal padding draws.
+    paddingRight: theme.spacing[3],
+    ...(IS_WEB
+      ? {}
+      : {
+          marginHorizontal: theme.spacing[1],
+          marginBottom: theme.spacing[1],
+        }),
+  },
+  comboboxItemMain: {
+    flex: 1,
+    minWidth: 0,
   },
   comboboxItemHovered: {
     backgroundColor: theme.colors.surface1,

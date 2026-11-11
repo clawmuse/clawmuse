@@ -142,11 +142,14 @@ export const AgentTracks = memo(function AgentTracks({
 
   return (
     <ComposerTrackBar inline={inline}>
-      {parentAgentId ? <ParentAgentPill serverId={serverId} parentAgentId={parentAgentId} /> : null}
-      <AgentTaskList tasks={tasks} />
+      {parentAgentId ? (
+        <ParentAgentPill serverId={serverId} parentAgentId={parentAgentId} rail={inline} />
+      ) : null}
+      <AgentTaskList tasks={tasks} rail={inline} />
       <SubagentsTrack
         serverId={serverId}
         rows={subagentRows}
+        rail={inline}
         onOpenSubagent={handleOpenSubagent}
         onOpenProviderSubagent={handleOpenProviderSubagent}
         sheetTabFor={sheetTabFor}
@@ -165,8 +168,9 @@ export const AgentTracks = memo(function AgentTracks({
         serverId={serverId}
         workspaceId={workspaceId}
         onPress={handleOpenChanges}
+        rail={inline}
       />
-      <AgentTokenSpeedIndicator serverId={serverId} agentId={agentId} />
+      <AgentTokenSpeedIndicator serverId={serverId} agentId={agentId} rail={inline} />
       {showUsageStrip ? (
         <AgentUsageStrip serverId={serverId} agentId={agentId} totalCostUsd={totalCostUsd} inline />
       ) : null}

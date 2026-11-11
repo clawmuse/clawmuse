@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
 import {
+  resolveDesktopSidebarNavScale,
   resolveDesktopSidebarScale,
   resolveDesktopSidebarWidth,
 } from "@/components/desktop-sidebar-layout";
@@ -803,6 +804,26 @@ function DesktopSidebar({
     };
   });
 
+  const navRowHeight = useSharedValue(0);
+  const handleNavRowLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      navRowHeight.value = event.nativeEvent.layout.height;
+    },
+    [navRowHeight],
+  );
+  const navRowViewportStyle = useAnimatedStyle(() => {
+    // CSS zoom already scales layout; native needs the measured height compensated.
+    if (isWeb) return {};
+    return { height: navRowHeight.value * resolveDesktopSidebarNavScale(resizeWidth.value) };
+  });
+  const scaledNavRowStyle = useAnimatedStyle(() => {
+    const scale = resolveDesktopSidebarNavScale(resizeWidth.value);
+    return {
+      width: (resizeWidth.value - sidebarBorderWidth) / scale,
+      ...(isWeb ? { zoom: scale } : { transform: [{ scale }] }),
+    };
+  });
+
   const desktopSidebarStyle = useMemo(
     () => [
       staticStyles.desktopSidebar,
@@ -857,7 +878,18 @@ function DesktopSidebar({
             style={[staticStyles.scaledSidebarContent, scaledContentStyle]}
             testID="sidebar-scaled-content"
           >
-            <SidebarNavRows style={sidebarHeaderGroupStyle} />
+            <Animated.View
+              style={[staticStyles.scaledNavRowViewport, navRowViewportStyle]}
+              testID="sidebar-scaled-nav-viewport"
+            >
+              <Animated.View
+                onLayout={handleNavRowLayout}
+                style={[staticStyles.scaledNavRow, scaledNavRowStyle]}
+                testID="sidebar-scaled-nav"
+              >
+                <SidebarNavRows style={sidebarHeaderGroupStyle} />
+              </Animated.View>
+            </Animated.View>
             <SidebarHostStrip onOpenHostSettings={handleOpenHostSettings} />
 
             {isInitialLoad && !hasActiveHostFilter ? (
@@ -940,6 +972,12 @@ const staticStyles = RNStyleSheet.create({
     position: "absolute",
     top: 0,
     left: 0,
+    transformOrigin: "top left",
+  },
+  scaledNavRowViewport: {
+    overflow: "hidden",
+  },
+  scaledNavRow: {
     transformOrigin: "top left",
   },
   desktopSidebar: {

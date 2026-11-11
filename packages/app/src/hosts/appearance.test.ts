@@ -17,7 +17,7 @@ function host(
 
 describe("normalizeStoredHostAppearance", () => {
   it("defaults when the stored registry predates the field or holds junk", () => {
-    const expected = { color: "none", badgeDisplay: null };
+    const expected = { color: "none", badgeDisplay: null, hidden: false };
     expect(normalizeStoredHostAppearance(undefined)).toEqual(expected);
     expect(normalizeStoredHostAppearance(null)).toEqual(expected);
     expect(normalizeStoredHostAppearance("x")).toEqual(expected);
@@ -30,6 +30,18 @@ describe("normalizeStoredHostAppearance", () => {
     expect(normalizeStoredHostAppearance({ color: "teal", badgeDisplay: "icon" })).toEqual({
       color: "teal",
       badgeDisplay: "icon",
+      hidden: false,
+    });
+  });
+
+  it("keeps a stored hidden flag and defaults it off for older records", () => {
+    expect(
+      normalizeStoredHostAppearance({ color: "teal", badgeDisplay: "icon", hidden: true }),
+    ).toEqual({ color: "teal", badgeDisplay: "icon", hidden: true });
+    expect(normalizeStoredHostAppearance({ color: "teal", badgeDisplay: "icon" })).toEqual({
+      color: "teal",
+      badgeDisplay: "icon",
+      hidden: false,
     });
   });
 });
@@ -50,13 +62,13 @@ describe("resolveHostBadgeDisplay", () => {
   it("prefers an explicit choice over either default", () => {
     expect(
       resolveHostBadgeDisplay({
-        appearance: { color: "none", badgeDisplay: "icon" },
+        appearance: { color: "none", badgeDisplay: "icon", hidden: false },
         isLocalHost: true,
       }),
     ).toBe("icon");
     expect(
       resolveHostBadgeDisplay({
-        appearance: { color: "none", badgeDisplay: "hidden" },
+        appearance: { color: "none", badgeDisplay: "hidden", hidden: false },
         isLocalHost: false,
       }),
     ).toBe("hidden");
@@ -72,7 +84,7 @@ describe("resolveHostBadgeDisplay", () => {
     ).toBeNull();
     expect(
       resolveHostBadgeDisplay({
-        appearance: { color: "none", badgeDisplay: "icon" },
+        appearance: { color: "none", badgeDisplay: "icon", hidden: false },
         isLocalHost: false,
         localHostResolutionPending: true,
       }),
@@ -93,7 +105,7 @@ describe("selectHostBadges", () => {
   it("omits a host the user hid and keeps its sibling", () => {
     const badges = selectHostBadges({
       hosts: [
-        host("alpha", "Alpha", { color: "none", badgeDisplay: "hidden" }),
+        host("alpha", "Alpha", { color: "none", badgeDisplay: "hidden", hidden: false }),
         host("beta", "Beta"),
       ],
       localServerId: null,
@@ -110,7 +122,7 @@ describe("selectHostBadges", () => {
 
   it("keeps an icon-only host in the map without its label", () => {
     const badges = selectHostBadges({
-      hosts: [host("alpha", "Alpha", { color: "teal", badgeDisplay: "icon" })],
+      hosts: [host("alpha", "Alpha", { color: "teal", badgeDisplay: "icon", hidden: false })],
       localServerId: null,
       enabled: true,
     });

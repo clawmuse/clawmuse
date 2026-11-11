@@ -1517,6 +1517,7 @@ export const zhCN: TranslationResources = {
     },
     display: {
       showBackground: "显示后台工作区",
+      projectIcon: "项目图标",
       trigger: "显示偏好",
       heading: "显示",
       sort: {
@@ -3128,6 +3129,11 @@ export const zhCN: TranslationResources = {
       },
       appearance: {
         title: "外观",
+        visible: {
+          label: "在侧边栏显示",
+          hint: "将此主机从选择器和侧边栏中隐藏，但不断开连接。",
+          accessibilityLabel: "在侧边栏显示此主机",
+        },
         name: {
           label: "名称",
         },

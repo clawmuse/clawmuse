@@ -21,11 +21,9 @@ export const compactPullRequestIcon = (
   <ThemedGitPullRequest size={ICON_SIZE.lg} uniProps={mutedColor} />
 );
 
-// Single uppercase initial inside an iconSize.md (16px) square — below the smallest font-size
-// token, so it stays a literal sized to the box.
-const PROJECT_ICON_FALLBACK_FONT_SIZE = 10;
+// Single uppercase initial inside an iconSize.md (16px) square — the fallback letter's size
+// comes from ProjectIconView's size-derived default, so this file only needs the box size.
 const COMPACT_PROJECT_ICON_SIZE = 24;
-const COMPACT_PROJECT_ICON_FALLBACK_FONT_SIZE = 12;
 
 export function ProjectIcon({
   projectViewKey,
@@ -46,17 +44,12 @@ export function ProjectIcon({
       projectViewKey={projectViewKey}
       size={compact ? COMPACT_PROJECT_ICON_SIZE : ICON_SIZE.md}
       textStyle={compact ? styles.compactFallbackText : styles.fallbackText}
+      // Letter size is inherited — see ProjectIconView.
     />
   );
 }
 
-const styles = StyleSheet.create((theme) => ({
-  fallbackText: {
-    fontSize: PROJECT_ICON_FALLBACK_FONT_SIZE,
-    fontWeight: theme.fontWeight.semibold,
-  },
-  compactFallbackText: {
-    fontSize: COMPACT_PROJECT_ICON_FALLBACK_FONT_SIZE,
-    fontWeight: theme.fontWeight.semibold,
-  },
+const styles = StyleSheet.create(() => ({
+  fallbackText: {},
+  compactFallbackText: {},
 }));

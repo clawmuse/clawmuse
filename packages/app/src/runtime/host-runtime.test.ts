@@ -2318,7 +2318,11 @@ describe("HostRuntimeStore", () => {
     store.boot();
     await registryLoaded;
 
-    expect(store.getHosts()[0]?.appearance).toEqual({ color: "none", badgeDisplay: null });
+    expect(store.getHosts()[0]?.appearance).toEqual({
+      color: "none",
+      badgeDisplay: null,
+      hidden: false,
+    });
 
     store.syncHosts([]);
   });
@@ -2342,13 +2346,14 @@ describe("HostRuntimeStore", () => {
     await hostListChanged;
 
     const updated = store.getHosts()[0];
-    expect(updated?.appearance).toEqual({ color: "teal", badgeDisplay: null });
+    expect(updated?.appearance).toEqual({ color: "teal", badgeDisplay: null, hidden: false });
     expect(updated?.updatedAt).not.toBe(host.updatedAt);
 
     const persisted = await storage.getItem("@paseo:daemon-registry");
     expect(JSON.parse(persisted ?? "[]")[0].appearance).toEqual({
       color: "teal",
       badgeDisplay: null,
+      hidden: false,
     });
 
     store.syncHosts([]);
@@ -2357,7 +2362,7 @@ describe("HostRuntimeStore", () => {
   it("records a chosen badge display without disturbing the color", async () => {
     const host = makeHost({
       serverId: "srv_appearance",
-      appearance: { color: "amber", badgeDisplay: null },
+      appearance: { color: "amber", badgeDisplay: null, hidden: false },
     });
     const storage = createMemoryHostRuntimeStorage();
     await storage.setItem("@paseo:daemon-registry", JSON.stringify([host]));
@@ -2375,12 +2380,17 @@ describe("HostRuntimeStore", () => {
     await store.setHostBadgeDisplay("srv_appearance", "icon");
     await hostListChanged;
 
-    expect(store.getHosts()[0]?.appearance).toEqual({ color: "amber", badgeDisplay: "icon" });
+    expect(store.getHosts()[0]?.appearance).toEqual({
+      color: "amber",
+      badgeDisplay: "icon",
+      hidden: false,
+    });
 
     const persisted = await storage.getItem("@paseo:daemon-registry");
     expect(JSON.parse(persisted ?? "[]")[0].appearance).toEqual({
       color: "amber",
       badgeDisplay: "icon",
+      hidden: false,
     });
 
     store.syncHosts([]);
@@ -2435,9 +2445,17 @@ describe("HostRuntimeStore", () => {
     firstWrite.resolve();
     await Promise.all([color, display]);
 
-    expect(store.getHosts()[0]?.appearance).toEqual({ color: "teal", badgeDisplay: "icon" });
+    expect(store.getHosts()[0]?.appearance).toEqual({
+      color: "teal",
+      badgeDisplay: "icon",
+      hidden: false,
+    });
     const persistedHosts = JSON.parse((await storage.getItem("@paseo:daemon-registry")) ?? "[]");
-    expect(persistedHosts[0]?.appearance).toEqual({ color: "teal", badgeDisplay: "icon" });
+    expect(persistedHosts[0]?.appearance).toEqual({
+      color: "teal",
+      badgeDisplay: "icon",
+      hidden: false,
+    });
     store.syncHosts([]);
   });
 

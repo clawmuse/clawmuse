@@ -4,7 +4,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import {
   getHostRuntimeStore,
   isHostRuntimeDirectoryLoading,
-  useHosts,
+  useVisibleHosts,
   type HostRuntimeSnapshot,
 } from "@/runtime/host-runtime";
 import {
@@ -162,7 +162,7 @@ function useProjectHostRuntimeStates(
 
 export function useProjects(options: UseProjectsOptions = {}): UseProjectsResult {
   const enabled = options.enabled ?? true;
-  const hosts = useHosts();
+  const hosts = useVisibleHosts();
   const runtime = getHostRuntimeStore();
   const serverIds = useMemo(
     () => (enabled ? hosts.map((host) => host.serverId) : []),

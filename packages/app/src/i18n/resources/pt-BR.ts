@@ -1307,6 +1307,7 @@ export const ptBR: TranslationResources = {
     },
     display: {
       showBackground: "Mostrar espaços em segundo plano",
+      projectIcon: "Ícone do projeto",
       trigger: "Preferências de exibição",
       heading: "Exibição",
       sort: {
@@ -2903,6 +2904,11 @@ export const ptBR: TranslationResources = {
       },
       appearance: {
         title: "Aparência",
+        visible: {
+          label: "Mostrar na barra lateral",
+          hint: "Oculta este host dos seletores e da barra lateral sem desconectá-lo.",
+          accessibilityLabel: "Mostrar este host na barra lateral",
+        },
         name: {
           label: "Nome",
         },

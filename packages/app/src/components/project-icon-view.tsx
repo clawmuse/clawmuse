@@ -18,12 +18,23 @@ export function projectIconRadius(size: number): number {
   return Math.round(size * RADIUS_RATIO);
 }
 
+// The initial fills ~60% of the icon height — large enough to read at 16pt, small enough to
+// leave a visible color border at 40pt. Below this the letter was getting lost in the tile.
+const FALLBACK_FONT_RATIO = 0.6;
+
+function fallbackFontSize(size: number): number {
+  return Math.max(Math.round(size * FALLBACK_FONT_RATIO), 8);
+}
+
 /**
  * A project's icon: its chosen image, or a colored square carrying its initial.
  *
  * Geometry lives here, not at the call site. It used to be five copies of the same
  * width/height/radius/centering block, which is how the radius drifted apart in the first
  * place — pass a `size` and the shape follows.
+ *
+ * The fallback letter's size and weight are set here too — a `textStyle` prop can still
+ * override them, but callers that don't care get the same bold, centered look everywhere.
  */
 
 export function ProjectIconView({
@@ -57,7 +68,10 @@ export function ProjectIconView({
     ],
     [box, projectViewKey],
   );
-  const textStyles = useMemo(() => [textStyle, WHITE_TEXT], [textStyle]);
+  const textStyles = useMemo(
+    () => [{ fontSize: fallbackFontSize(size), fontWeight: "600" as const }, textStyle, WHITE_TEXT],
+    [size, textStyle],
+  );
 
   const fallback = useMemo(
     () => (

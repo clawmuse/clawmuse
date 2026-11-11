@@ -470,9 +470,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[2],
   },
-  projectIconFallbackText: {
-    fontSize: 9,
-  },
+  projectIconFallbackText: {},
   projectTitle: {
     fontSize: theme.fontSize.base,
     color: theme.colors.foregroundMuted,

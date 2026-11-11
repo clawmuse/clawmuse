@@ -4,8 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, CircleAlert } from "@/components/icons/app-icons";
 import { ProjectIconView } from "@/components/project-icon-view";
 import { getStatusBucketLabel } from "@/hooks/sidebar-status-view-model";
-import { densityIconBox, densityIconProps, densityIconSize } from "@/styles/density";
-import { isCompactBreakpoint } from "@/constants/layout";
+import { densityIconBox, densityIconProps } from "@/styles/density";
 import type { Theme } from "@/styles/theme";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import {
@@ -39,24 +38,33 @@ const STATUS_BADGE_OFFSET = -4;
 // the passive status dots.
 const DensityProjectIconView = withUnistyles(ProjectIconView);
 const projectIconProps = densityIconProps("md", () => ({}));
-function twoLineIconGeometry(theme: Theme) {
+export function twoLineIconGeometry(theme: Theme) {
   const titleLineHeight = Math.round(theme.fontSize.content * 1.6);
-  const metaLineHeight = 22;
-  const titleInset = (titleLineHeight - theme.fontSize.content) / 2;
-  const metaInset = (metaLineHeight - theme.fontSize.lg) / 2;
-  // Align to the visible text, trimming each line's half-leading. The title's larger
-  // top inset also puts the optical center below the two line boxes' center.
+  // Top-and-bottom flush with the title's letterforms: the tile is exactly the font's glyph
+  // height — the font's body — not its line box. Any bigger and the corners overshoot the
+  // cap and baseline.
+  // Measured in the running app: the title glyph's bbox at fontSize 17 / lineHeight 26 is
+  // ~19.5px tall with its top ~4px below the line's top. size = fontSize*1.15 lands the tile
+  // edge on the cap top and descender bottom at once — smaller leaves the tile floating short
+  // of the baseline, larger overshoots it.
+  const glyphHeight = Math.round(theme.fontSize.content * 1.15);
   return {
-    slotHeight: titleLineHeight + metaLineHeight,
-    size: Math.round(titleLineHeight + metaLineHeight - titleInset - metaInset),
-    offset: (titleInset - metaInset) / 2,
+    slotHeight: titleLineHeight,
+    size: glyphHeight,
+    // The glyph box's cap top sits ~half the line-leading below the line's top — at
+    // fontSize 17 / lineHeight 26 that's ~4px, not the geometric center. offset lands the
+    // tile's top edge exactly on the cap height so it reads flush with the letterforms.
+    // The glyph's cap top sits ~2px above the geometric middle of a 26px line holding a 19.5px
+    // glyph (measured: glyph top ≈ line top + ~3.5px). offset lands the tile's top there.
+    offset: Math.round((titleLineHeight - glyphHeight) / 2) - 1,
   };
 }
 
-const twoLineProjectIconProps = (theme: Theme, rt: { breakpoint?: string }) => ({
-  size: isCompactBreakpoint(rt.breakpoint)
-    ? twoLineIconGeometry(theme).size
-    : densityIconSize(rt, "md"),
+const twoLineProjectIconProps = (theme: Theme) => ({
+  // Match the title line on every layout — the icon is the row's title's leading glyph, not
+  // a summary of the whole row. Letting compact take a different size from desktop was the
+  // split that made the same row read two ways.
+  size: twoLineIconGeometry(theme).size,
 });
 
 const ThemedActivityIndicator = withUnistyles(ActivityIndicator);
@@ -311,25 +319,28 @@ const styles = StyleSheet.create((theme) => {
       width: densityIconBox("md"),
       height: densityIconBox("md"),
     },
-    projectIconFallbackText: {
-      fontSize: 9,
-    },
+    // Font size comes from ProjectIconView's size-derived default; only override where the
+    // row genuinely needs a different scale.
+    projectIconFallbackText: {},
     twoLineLeadingVisualSlot: {
-      width: { xs: twoLineIcon.size, md: densityIconBox("md").md },
-      height: { xs: twoLineIcon.slotHeight, md: Math.round(theme.fontSize.content * 1.6) },
+      width: twoLineIcon.size,
+      height: twoLineIcon.slotHeight,
       flexShrink: 0,
       alignItems: "center",
-      justifyContent: "center",
+      // Push the tile down to the glyph band's top inside the taller line-height box —
+      // position:relative + top doesn't beat flexbox justifyContent, so it has to be padding.
+      justifyContent: "flex-start",
+      paddingTop: twoLineIcon.offset,
     },
     twoLineProjectIconBox: {
       position: "relative",
-      width: { xs: twoLineIcon.size, md: densityIconBox("md").md },
-      height: { xs: twoLineIcon.size, md: densityIconBox("md").md },
-      top: { xs: twoLineIcon.offset, md: 0 },
+      width: twoLineIcon.size,
+      height: twoLineIcon.size,
     },
-    twoLineProjectIconFallbackText: {
-      fontSize: { xs: 18, md: 9 },
-    },
+    // Same — let the icon size set the letter size. `twoLine` used to need an explicit bump
+    // on compact because the tile there was larger than the iconSize token; now the size is
+    // the title line's height on every layout, so the default ratio applies everywhere.
+    twoLineProjectIconFallbackText: {},
     // The shell the alert and dot statuses share. It straddles the icon's bottom-right corner
     // (half in, half out) so the lettered project box stays readable. The shell is a knockout:
     // it is filled with the colour of the row behind it, which is what makes the ring around the

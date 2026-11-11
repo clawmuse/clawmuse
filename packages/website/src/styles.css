@@ -720,11 +720,11 @@
   /* Project identity tiles — the letter-avatar fills the mobile sidebar hashes
      a project name into. Verbatim from the app's identity palette,
      packages/app/src/styles/identity-colors.ts (white letter drawn on top). */
-  --color-mock-tile-red: #b06260;
-  --color-mock-tile-violet: #7a6aa8;
-  --color-mock-tile-amber: #8f7838;
-  --color-mock-tile-teal: #368080;
-  --color-mock-host-teal: #6cacab;
+  --color-mock-tile-red: #b85048;
+  --color-mock-tile-violet: #7a5cc8;
+  --color-mock-tile-amber: #987028;
+  --color-mock-tile-teal: #208890;
+  --color-mock-host-teal: #9ec3c7;
 
   /* Status *dot* band (dark: L=0.72, chroma 90%). Sidebar row state dots only.
      theme.ts:198-204. */

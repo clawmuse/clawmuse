@@ -1543,6 +1543,7 @@ export const en = {
     },
     display: {
       showBackground: "Show background",
+      projectIcon: "Project icon",
       trigger: "Display preferences",
       heading: "Display",
       sort: {
@@ -3245,6 +3246,11 @@ export const en = {
       },
       appearance: {
         title: "Appearance",
+        visible: {
+          label: "Show in sidebar",
+          hint: "Hide this host from pickers and the sidebar without disconnecting it.",
+          accessibilityLabel: "Show this host in the sidebar",
+        },
         name: {
           label: "Name",
         },

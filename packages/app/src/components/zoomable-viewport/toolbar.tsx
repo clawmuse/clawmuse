@@ -14,6 +14,8 @@ interface ViewportToolbarProps {
   onReset: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  /** Overlay anchors itself. Inline sits in a parent that is already pinned to the corner. */
+  placement?: "overlay" | "inline";
   scale: number;
   visible: boolean;
 }
@@ -29,6 +31,7 @@ export const ViewportToolbar = React.memo(function ViewportToolbar({
   onReset,
   onZoomIn,
   onZoomOut,
+  placement = "overlay",
   scale,
   visible,
 }: ViewportToolbarProps) {
@@ -56,13 +59,16 @@ export const ViewportToolbar = React.memo(function ViewportToolbar({
   ];
 
   return (
-    <View style={styles.cluster} testID="zoomable-viewport-toolbar">
+    <View
+      style={placement === "inline" ? styles.inlineCluster : styles.cluster}
+      testID="zoomable-viewport-toolbar"
+    >
       {viewportActions.map((action) => (
         <ViewportToolbarButton
           key={action.label}
           action={action}
           disabled={action.disabled}
-          visible={visible}
+          visible={visible || action.alwaysVisible === true}
         />
       ))}
     </View>
@@ -85,7 +91,9 @@ function ViewportToolbarButton({
       iconButtonChromeStyle({
         size: "small",
         state: { hovered, pressed },
-        disabled,
+        // Disabled chrome sets opacity after the hidden style, so a disabled zoom button
+        // would stay on screen while the enabled close button disappears.
+        disabled: visible && disabled,
         style: [visible ? styles.button : styles.buttonHidden, styles.buttonFrame],
       }),
     [disabled, visible],
@@ -115,6 +123,11 @@ const styles = StyleSheet.create((theme) => ({
     top: theme.spacing[2],
     right: theme.spacing[2],
     zIndex: 1,
+    flexDirection: "row",
+    gap: theme.spacing[2],
+    pointerEvents: "box-none",
+  },
+  inlineCluster: {
     flexDirection: "row",
     gap: theme.spacing[2],
     pointerEvents: "box-none",

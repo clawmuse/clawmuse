@@ -1317,6 +1317,7 @@ export const es: TranslationResources = {
     },
     display: {
       showBackground: "Mostrar espacios en segundo plano",
+      projectIcon: "Icono de proyecto",
       trigger: "Preferencias de visualización",
       heading: "Visualización",
       sort: {
@@ -2923,6 +2924,11 @@ export const es: TranslationResources = {
       },
       appearance: {
         title: "Apariencia",
+        visible: {
+          label: "Mostrar en la barra lateral",
+          hint: "Oculta este host de los selectores y la barra lateral sin desconectarlo.",
+          accessibilityLabel: "Mostrar este host en la barra lateral",
+        },
         name: {
           label: "Nombre",
         },

@@ -1,12 +1,15 @@
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
-import { Text, View, type GestureResponderEvent, type ViewStyle } from "react-native";
+import { Text, View, type GestureResponderEvent } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useReducedMotion } from "react-native-reanimated";
-import { Archive, CircleAlert, Folder, FolderGit2, Monitor } from "@/components/icons/app-icons";
+import { Archive, CircleAlert } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { buttonControlHeight } from "@/components/ui/control-geometry";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ProjectStatusIndicator } from "@/components/sidebar/project-leading-visual";
+import {
+  ProjectStatusIndicator,
+  twoLineIconGeometry,
+} from "@/components/sidebar/project-leading-visual";
 import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import {
   WorkspaceMetaRow,
@@ -28,13 +31,11 @@ import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { getStatusDotColor } from "@/utils/status-dot-color";
 import {
   STATUS_INDICATOR_ALERT_SIZE,
-  STATUS_INDICATOR_DOT_SIZE,
   STATUS_INDICATOR_FILLED_DOT_SIZE,
 } from "@/utils/status-indicator-geometry";
 import { shouldRenderSyncedStatusLoader } from "@/utils/status-loader";
 import { StatusRing } from "@/components/status-ring";
 import { resolveSidebarWorkspacePrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
-import { DensityIcon } from "@/components/ui/density-icon";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
 import { useWorkspaceLabelDefinitions } from "@/workspace-labels";
 import { SidebarActionsMenuContext } from "@/components/sidebar/use-open-kebab-menu-visibility";
@@ -186,51 +187,65 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   children?: ReactNode;
 }) {
   const {
-    settings: { workspaceTitleSource },
+    settings: { workspaceTitleSource, showProjectIcon },
   } = useAppSettings();
   const workspaceLabel = resolveSidebarWorkspacePrimaryLabel({ workspace, workspaceTitleSource });
   // The workspace carries label names; their colors live in its host's catalog, so the row is
   // where the two meet — the meta line is handed finished definitions.
   const labels = useWorkspaceLabelDefinitions(workspace.serverId, workspace.labels);
 
+  // The project icon leading is opt-out. With it off, a hoisted row falls back to the same
+  // status-rail leading a grouped child uses, so no row carries the colored block.
+  const showProjectLeading = Boolean(leadingProjectName) && showProjectIcon;
+
   return (
     <View style={styles.workspaceRowContent}>
       <View style={styles.workspaceRowMain}>
-        {leadingProjectName ? (
-          <ProjectStatusIndicator
-            twoLine
-            iconDataUri={leadingProjectIconDataUri}
-            displayName={leadingProjectName}
-            projectViewKey={workspace.projectViewKey}
-            statusBucket={workspace.statusBucket}
-            backdrop={backdrop}
-            loading={isLoading}
-            testID={`sidebar-row-project-icon-${workspace.workspaceKey}`}
-          />
-        ) : (
-          <WorkspaceStatusIndicator
-            bucket={workspace.statusBucket}
-            workspaceKind={workspace.workspaceKind}
-            loading={isLoading}
-            reserveIdleSpace={reserveIdleStatusIndicatorSpace}
-          />
-        )}
         <View
           style={styles.workspaceContentColumn}
           testID={`sidebar-workspace-text-${workspace.workspaceKey}`}
         >
+          {/* Left-edge status rail: runs the full height of the row's two lines, so the indented
+              child reads as one continuous rail rather than a dot that stops at the title. Only
+              the status-rail leading gets it — a project icon is already a colored block. */}
+          {!showProjectLeading && !isLoading ? (
+            <View
+              pointerEvents="none"
+              style={[styles.workspaceEdgeRail, getStatusRailStyle(workspace.statusBucket)]}
+            />
+          ) : null}
           <View style={styles.workspaceTitleRow}>
+            {showProjectLeading ? (
+              <ProjectStatusIndicator
+                twoLine
+                iconDataUri={leadingProjectIconDataUri}
+                displayName={leadingProjectName ?? ""}
+                projectViewKey={workspace.projectViewKey}
+                statusBucket={workspace.statusBucket}
+                backdrop={backdrop}
+                loading={isLoading}
+                testID={`sidebar-row-project-icon-${workspace.workspaceKey}`}
+              />
+            ) : (
+              <WorkspaceStatusIndicator
+                bucket={workspace.statusBucket}
+                loading={isLoading}
+                reserveIdleSpace={reserveIdleStatusIndicatorSpace}
+              />
+            )}
             <ContentLabel text={workspaceLabel} />
             <View style={sidebarWorkspaceRowStyles.rowRight}>{children}</View>
           </View>
-          <WorkspaceMetaRow
-            currentBranch={workspace.currentBranch}
-            projectName={leadingProjectName}
-            hostBadge={hostBadge ?? null}
-            prHint={workspace.prHint}
-            serviceSummary={serviceSummary}
-            labels={labels}
-          />
+          <View style={showProjectLeading ? styles.metaIndentProject : styles.metaIndentStatus}>
+            <WorkspaceMetaRow
+              currentBranch={workspace.currentBranch}
+              projectName={leadingProjectName}
+              hostBadge={hostBadge ?? null}
+              prHint={workspace.prHint}
+              serviceSummary={serviceSummary}
+              labels={labels}
+            />
+          </View>
         </View>
       </View>
       {showShortcutBadge && shortcutNumber !== null ? (
@@ -244,13 +259,12 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
 
 function WorkspaceStatusIndicator({
   bucket,
-  workspaceKind,
   loading = false,
-  reserveIdleSpace = true,
+  reserveIdleSpace: _reserveIdleSpace = true,
 }: {
   bucket: SidebarWorkspaceEntry["statusBucket"];
-  workspaceKind: SidebarWorkspaceEntry["workspaceKind"];
   loading?: boolean;
+  /** Kept for call-site compatibility; the bar always renders now that it carries the rail. */
   reserveIdleSpace?: boolean;
 }) {
   // Busy is the only status that moves, and it is the ring rather than a dot for the same
@@ -281,6 +295,9 @@ function WorkspaceStatusIndicator({
     );
   }
 
+  // Done and attention rows draw no kind glyph — the kind icon duplicated the host badge's
+  // monitor on the meta line, and the edge rail already marks the row's left edge. `done` keeps
+  // the empty slot so the title's x stays on the same rail as the states that do draw one.
   if (bucket === "attention") {
     return (
       <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-attention">
@@ -289,48 +306,23 @@ function WorkspaceStatusIndicator({
     );
   }
 
-  if (bucket === "done") {
-    // An idle row still gets a dot rather than an empty slot. Nested rows are marked as
-    // workspaces by indentation alone, and with nothing in the leading slot the rail has no
-    // edge to read against — a workspace carrying its own glyph starts looking like a project
-    // header. The dot is muted to half opacity so it holds the rail without reporting status.
-    return reserveIdleSpace ? (
-      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-done">
-        <View style={styles.idleStatusDot} />
-      </View>
-    ) : null;
-  }
-
-  let KindIcon: typeof Monitor;
-  if (workspaceKind === "local_checkout") KindIcon = Monitor;
-  else if (workspaceKind === "worktree") KindIcon = FolderGit2;
-  else KindIcon = Folder;
-
-  const dotColorStyle = getStatusDotColorStyle(bucket);
-  return (
-    <View style={styles.workspaceStatusDot} testID={`workspace-status-indicator-${bucket}`}>
-      <DensityIcon icon={KindIcon} size="sm" color="foregroundMuted" />
-      {dotColorStyle ? <StatusDotOverlay dotColorStyle={dotColorStyle} /> : null}
-    </View>
-  );
+  return <View style={styles.workspaceStatusDot} testID={`workspace-status-indicator-${bucket}`} />;
 }
 
-function StatusDotOverlay({ dotColorStyle }: { dotColorStyle: ViewStyle }) {
-  return <View style={[styles.statusDotOverlay, dotColorStyle]} />;
-}
-
-function getStatusDotColorStyle(bucket: SidebarStateBucket) {
+// The rail's color comes straight from the bucket → statusDot* map: the same single source the
+// old dot and every other status surface read, so the rail can't drift into its own palette.
+function getStatusRailStyle(bucket: SidebarStateBucket) {
   switch (bucket) {
     case "needs_input":
-      return styles.statusDotNeedsInput;
+      return styles.railNeedsInput;
     case "failed":
-      return styles.statusDotFailed;
+      return styles.railFailed;
     case "running":
-      return styles.statusDotRunning;
+      return styles.railRunning;
     case "attention":
-      return styles.statusDotAttention;
-    case "done":
-      return null;
+      return styles.railAttention;
+    default:
+      return styles.railDone;
   }
 }
 
@@ -350,6 +342,9 @@ export const sidebarWorkspaceRowStyles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     flexShrink: 0,
+    // Pushes the trailing cluster to the right edge once the project icon took the leading
+    // slot inside the title row.
+    marginLeft: "auto",
   },
   shortcutBadge: {
     minWidth: 18,
@@ -574,6 +569,24 @@ const styles = StyleSheet.create((theme) => ({
   workspaceRowContent: {
     position: "relative",
   },
+  // The status rail lives on the content column's left edge and spans both of the row's lines,
+  // so a grouped child reads as one rail rather than a dot that stops under the title. Its x sits
+  // inside the leading slot the title row reserves, so it lands on the same rail the leading glyph
+  // above/below it uses.
+  workspaceEdgeRail: {
+    position: "absolute",
+    left: 0,
+    top: 4,
+    bottom: 4,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: theme.colors.border,
+  },
+  railNeedsInput: { backgroundColor: theme.colors.statusDotWarning },
+  railFailed: { backgroundColor: theme.colors.statusDotDanger },
+  railRunning: { backgroundColor: theme.colors.statusDotRunning },
+  railAttention: { backgroundColor: theme.colors.statusDotSuccess },
+  railDone: { backgroundColor: theme.colors.border },
   workspaceRowMain: {
     flexDirection: "row",
     alignItems: "center",
@@ -583,16 +596,31 @@ const styles = StyleSheet.create((theme) => ({
   workspaceContentColumn: {
     flex: 1,
     minWidth: 0,
+    // Anchors the edge rail to the row's leading edge, spanning the title and meta lines.
+    position: "relative",
   },
   workspaceTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 8,
+    // The project icon lives inside the title row now (not in a taller outer slot), so the
+    // row's layout is icon + title + trailing — spread the trailing group with marginLeft
+    // auto on the right side, not justify-content on the row, so the icon can sit flush left.
   },
   shortcutBadgeOverlay: {
     position: "absolute",
     top: 1,
     right: 0,
+  },
+  // The meta line hangs under the title text, not under the row's leading slot — its first item
+  // reads as a continuation of the title, so it indents by the leading slot's width plus the
+  // title row's gap. Two slots exist (project icon vs status bar) with different widths.
+  metaIndentProject: {
+    paddingLeft: twoLineIconGeometry(theme).size + theme.spacing[2],
+  },
+  metaIndentStatus: {
+    // densityIconBox("md") = { xs: 20, md: 16 }; keep the breakpoint so compact stays wider.
+    paddingLeft: { xs: 20 + theme.spacing[2], md: theme.iconSize.md + theme.spacing[2] },
   },
   workspaceStatusDot: {
     position: "relative",
@@ -602,15 +630,9 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
-  },
-  statusDotOverlay: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: STATUS_INDICATOR_DOT_SIZE,
-    height: STATUS_INDICATOR_DOT_SIZE,
-    borderRadius: theme.borderRadius.full,
-    borderWidth: 1,
+    // Clear the 3px edge rail (plus a breath) painted at the column's left edge, so the
+    // centered glyph doesn't sit on top of it.
+    paddingLeft: 5,
   },
   standaloneStatusDot: {
     width: STATUS_INDICATOR_FILLED_DOT_SIZE,
@@ -618,27 +640,17 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.full,
     backgroundColor: getStatusDotColor({ theme, bucket: "attention" }) ?? undefined,
   },
-  idleStatusDot: {
-    width: STATUS_INDICATOR_FILLED_DOT_SIZE,
-    height: STATUS_INDICATOR_FILLED_DOT_SIZE,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.foregroundExtraMuted,
-    opacity: 0.3,
-  },
-  statusDotNeedsInput: {
-    backgroundColor: getStatusDotColor({ theme, bucket: "needs_input" }) ?? undefined,
-    borderColor: theme.colors.surface0,
-  },
-  statusDotFailed: {
-    backgroundColor: getStatusDotColor({ theme, bucket: "failed" }) ?? undefined,
-    borderColor: theme.colors.surface0,
-  },
-  statusDotRunning: {
-    backgroundColor: getStatusDotColor({ theme, bucket: "running" }) ?? undefined,
-    borderColor: theme.colors.surface0,
-  },
-  statusDotAttention: {
-    backgroundColor: getStatusDotColor({ theme, bucket: "attention" }) ?? undefined,
-    borderColor: theme.colors.surface0,
+  // Left-edge status bar: the leading marker's color lives on a thin bar instead of a dot,
+  // so the row's rail reads as an edge rather than a floating circle. Done keeps a muted bar
+  // to hold the rail without the noise of a half-opacity dot.
+  workspaceLeadingBar: {
+    position: "relative",
+    width: densityIconBox("md"),
+    height: Math.round(theme.fontSize.content * 1.6),
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+    paddingLeft: 5,
   },
 }));

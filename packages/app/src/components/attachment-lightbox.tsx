@@ -30,11 +30,26 @@ const LIGHTBOX_FIT = { padding: SPACING[4], maxWidth: 960, maxHeight: 640 };
 export function AttachmentLightbox({ source, onClose }: AttachmentLightboxProps) {
   const { t } = useTranslation();
   const metadata = source?.type === "attachment" ? source.metadata : null;
-  const attachmentUrl = useAttachmentPreviewUrl(metadata);
-  const url = source?.type === "uri" ? source.uri : attachmentUrl;
+  const previewState = useAttachmentPreviewUrl(metadata);
+  let url: string | null;
+  if (source?.type === "uri") {
+    url = source.uri;
+  } else if (previewState.status === "ready") {
+    url = previewState.url;
+  } else {
+    url = null;
+  }
   const contentSize = source?.type === "uri" ? source.contentSize : undefined;
   const [errored, setErrored] = useState(false);
   const modalLayer = useGlobalWebOverlayLayer("modal", isWeb && source !== null);
+
+  // A missing attachment means the blob is gone — close the lightbox rather than showing an
+  // error for content that isn't there. Load failures and missing are different states.
+  useEffect(() => {
+    if (previewState.status === "missing") {
+      onClose();
+    }
+  }, [previewState.status, onClose]);
 
   useEffect(() => {
     setErrored(false);
@@ -63,6 +78,7 @@ export function AttachmentLightbox({ source, onClose }: AttachmentLightboxProps)
         label: t("message.attachments.closeImage"),
         onPress: onClose,
         testID: "attachment-lightbox-close",
+        alwaysVisible: true,
       },
     ],
     [onClose, t],
@@ -74,7 +90,7 @@ export function AttachmentLightbox({ source, onClose }: AttachmentLightboxProps)
     return null;
   }
 
-  const hasError = errored || !url;
+  const hasError = errored || previewState.status === "error";
 
   return (
     <Modal transparent animationType="fade" statusBarTranslucent visible onRequestClose={onClose}>
@@ -92,21 +108,33 @@ export function AttachmentLightbox({ source, onClose }: AttachmentLightboxProps)
                 style={styles.backdrop}
               />
               <LightboxImageArea>
-                {hasError ? (
-                  <Text style={styles.errorText}>{t("message.attachments.imageLoadFailed")}</Text>
-                ) : (
-                  <ZoomableImage
-                    accessibilityLabel={t("composer.attachments.openImage")}
-                    actions={actions}
-                    contentSize={contentSize}
-                    fit={LIGHTBOX_FIT}
-                    onError={handleImageError}
-                    onPressOutsideContent={onClose}
-                    style={styles.imageViewport}
-                    testID="attachment-lightbox"
-                    uri={url}
-                  />
-                )}
+                {(() => {
+                  if (hasError) {
+                    return (
+                      <Text style={styles.errorText}>
+                        {t("message.attachments.imageLoadFailed")}
+                      </Text>
+                    );
+                  }
+                  if (url) {
+                    return (
+                      <ZoomableImage
+                        accessibilityLabel={t("composer.attachments.openImage")}
+                        actions={actions}
+                        contentSize={contentSize}
+                        fit={LIGHTBOX_FIT}
+                        onError={handleImageError}
+                        onPressOutsideContent={onClose}
+                        style={styles.imageViewport}
+                        testID="attachment-lightbox"
+                        uri={url}
+                      />
+                    );
+                  }
+                  // Still resolving — empty area so the lightbox stays open and the backdrop
+                  // shows the image is coming. Don't hand ZoomableImage a null uri.
+                  return <View />;
+                })()}
               </LightboxImageArea>
             </View>
           </WindowChromeRootRegion>

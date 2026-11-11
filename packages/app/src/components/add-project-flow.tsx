@@ -83,7 +83,7 @@ import {
   useWebOverlayRegistration,
 } from "@/lib/overlay-root";
 import {
-  useHosts,
+  useVisibleHosts,
   useHostRuntimeClient,
   useHostRuntimeConnectionStatuses,
 } from "@/runtime/host-runtime";
@@ -327,7 +327,7 @@ function setPageStatus(
 // eslint-disable-next-line complexity
 export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const { i18n } = useTranslation();
-  const hosts = useHosts();
+  const hosts = useVisibleHosts();
   const hostIds = useMemo(() => hosts.map((host) => host.serverId), [hosts]);
   const connectionStatuses = useHostRuntimeConnectionStatuses(hostIds);
   const projectAddByHost = useHostFeatureMap(hostIds, "projectAdd");

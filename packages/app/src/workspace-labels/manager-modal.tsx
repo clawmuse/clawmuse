@@ -21,7 +21,7 @@ import type { FieldControlSize } from "@/components/ui/control-geometry";
 import { Field, FormTextInput } from "@/components/ui/form-field";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
-import { useHosts } from "@/runtime/host-runtime";
+import { useHosts, useVisibleHosts } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import {
@@ -58,6 +58,7 @@ export function WorkspaceLabelManagerModal({
 }): ReactElement {
   const { t } = useTranslation();
   const hosts = useHosts();
+  const visibleHosts = useVisibleHosts();
   const { hosts: labelHosts } = useWorkspaceLabelProjection();
   const snapshots = useMemo(
     () => Object.fromEntries(labelHosts.map((host) => [host.serverId, host])),
@@ -187,9 +188,9 @@ export function WorkspaceLabelManagerModal({
         />
       ) : (
         <>
-          {hosts.length > 1 ? (
+          {visibleHosts.length > 1 ? (
             <HostFilter
-              hosts={hosts}
+              hosts={visibleHosts}
               selectedHost={state.serverId}
               onSelectHost={selectHost}
               includeAllHost={false}

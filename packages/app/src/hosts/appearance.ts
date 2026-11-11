@@ -14,19 +14,25 @@ export const HOST_BADGE_DISPLAYS: readonly HostBadgeDisplay[] = ["name", "icon",
  * Per-device host presentation. `badgeDisplay` is null while the user has not chosen,
  * because the default differs by host (local hides, remote shows) and local-ness is only
  * knowable from a desktop-only async query — never at parse time.
+ *
+ * `hidden` drops the host from pickers and sidebar lists without touching its connection,
+ * workspaces, or settings entry. Read it through `useVisibleHosts`, never `useHosts` —
+ * the registry still has to see every host to keep it connected and manageable.
  */
 export interface HostAppearance {
   color: HostColor;
   badgeDisplay: HostBadgeDisplay | null;
+  hidden: boolean;
 }
 
 export const HostAppearanceSchema: z.ZodType<HostAppearance> = z.strictObject({
   color: z.enum(["none", ...IDENTITY_COLOR_NAMES]),
   badgeDisplay: z.enum(["name", "icon", "hidden"]).nullable(),
+  hidden: z.boolean().default(false),
 });
 
 export function defaultHostAppearance(): HostAppearance {
-  return { color: "none", badgeDisplay: null };
+  return { color: "none", badgeDisplay: null, hidden: false };
 }
 
 export function normalizeStoredHostAppearance(value: unknown): HostAppearance {

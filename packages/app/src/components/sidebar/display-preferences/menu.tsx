@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/menu";
 import { HostStatusDot } from "@/components/host-status-dot";
 import { isWeb } from "@/constants/platform";
-import { useHosts } from "@/runtime/host-runtime";
+import { useVisibleHosts } from "@/runtime/host-runtime";
 import { useSidebarModel } from "@/components/sidebar/sidebar-model";
 import { ProjectIconView } from "@/components/project-icon-view";
 import { useProjectIcons } from "@/projects/icons";
@@ -174,7 +174,7 @@ const TRAILING_LABEL_KEYS: Record<SidebarTrailingChoice, string> = {
 export function SidebarDisplayPreferencesMenu(): ReactElement {
   const { t } = useTranslation();
   const preferences = useSidebarDisplayPreferences();
-  const hosts = useHosts();
+  const hosts = useVisibleHosts();
   // `allProjects`, never `projects`: the model's `projects` is already filtered, so a picker fed
   // from it would lose the row that undoes the filter as soon as the filter narrowed to one.
   const { allProjects, resolvedProjectFilters, workspaceSortSupported } = useSidebarModel();
@@ -384,6 +384,14 @@ export function SidebarDisplayPreferencesMenu(): ReactElement {
             </>
           ) : null}
           <MenuSeparator />
+          <MenuItem
+            selected={preferences.showProjectIcon}
+            closeOnSelect={false}
+            onSelect={preferences.toggleProjectIcon}
+            testID="sidebar-display-project-icon"
+          >
+            {t("sidebar.display.projectIcon")}
+          </MenuItem>
           <MenuItem
             selected={preferences.showBackground}
             closeOnSelect={false}
@@ -784,7 +792,7 @@ function HostFilterPage({
   hosts,
 }: {
   preferences: Preferences;
-  hosts: ReturnType<typeof useHosts>;
+  hosts: ReturnType<typeof useVisibleHosts>;
 }): ReactElement {
   const { t } = useTranslation();
   return (
@@ -858,7 +866,5 @@ const styles = StyleSheet.create((theme) => ({
   },
   // The icon sits in a 14pt menu slot, so the fallback initial is sized down to match rather
   // than reusing the sidebar row's 16pt figure.
-  projectIconText: {
-    fontSize: 8,
-  },
+  projectIconText: {},
 }));

@@ -28,6 +28,9 @@ export interface SidebarDisplayPreferences {
   setWorkspaceSort: (sort: WorkspaceSort) => void;
   titleSource: WorkspaceTitleSource;
   setTitleSource: (source: WorkspaceTitleSource) => void;
+  /** Whether status-grouped workspace rows lead with the project icon. */
+  showProjectIcon: boolean;
+  toggleProjectIcon: () => void;
   rowItems: SidebarRowItems;
   toggleRowItem: (item: SidebarRowItem) => void;
   checksDisplay: SidebarChecksDisplay;
@@ -75,6 +78,7 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
   const {
     settings: {
       workspaceTitleSource,
+      showProjectIcon,
       sidebarWorkspaceTrailing,
       sidebarRowItems,
       sidebarChecksDisplay,
@@ -95,6 +99,10 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
     },
     [updateSettings],
   );
+
+  const toggleProjectIcon = useCallback(() => {
+    void updateSettings({ showProjectIcon: !showProjectIcon });
+  }, [updateSettings, showProjectIcon]);
 
   const toggleRowItem = useCallback(
     (item: SidebarRowItem) => {
@@ -131,6 +139,8 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
       setWorkspaceSort,
       titleSource: workspaceTitleSource,
       setTitleSource,
+      showProjectIcon,
+      toggleProjectIcon,
       rowItems: sidebarRowItems,
       toggleRowItem,
       checksDisplay: sidebarChecksDisplay,
@@ -156,6 +166,8 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
       setWorkspaceSort,
       workspaceTitleSource,
       setTitleSource,
+      showProjectIcon,
+      toggleProjectIcon,
       sidebarRowItems,
       toggleRowItem,
       sidebarChecksDisplay,

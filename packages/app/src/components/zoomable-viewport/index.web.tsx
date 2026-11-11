@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { SPACING } from "@/styles/theme";
 import {
   FIT_TRANSFORM,
   fitContentSize,
@@ -281,42 +282,45 @@ export function ZoomableViewport({
 
   return (
     <View style={[styles.root, style]} testID={testID}>
-      <div
-        aria-label={accessibilityLabel}
-        data-testid={testID ? `${testID}-canvas` : undefined}
-        onClick={handleCanvasClick}
-        onDoubleClick={reset}
-        onFocusCapture={handleFocus}
-        onBlurCapture={handleBlur}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onPointerCancel={endPointer}
-        onPointerDown={beginPointer}
-        onPointerMove={movePointer}
-        onPointerUp={endPointer}
-        ref={canvasRef}
-        role={accessibilityLabel ? "img" : undefined}
-        style={renderedCanvasStyle}
-      >
-        <div style={renderedContentStyle}>{children}</div>
-      </div>
+      {/* One hover region owns controlsVisible for canvas + toolbar. Enter/leave on the
+          individual elements flickers: showing the toolbar flips hidden buttons from
+          pointer-events:none to auto under the cursor, the browser re-hit-tests, and the
+          synthetic leave/enter pair toggles the state back. */}
       <div
         onBlurCapture={handleBlur}
         onFocusCapture={handleFocus}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        style={toolbarDomStyle}
+        style={hoverRegionDomStyle}
       >
-        <ViewportToolbar
-          actions={actions}
-          maxScale={maxScale}
-          minScale={minScale}
-          onReset={reset}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          scale={transform.scale}
-          visible={controlsVisible}
-        />
+        <div
+          aria-label={accessibilityLabel}
+          data-testid={testID ? `${testID}-canvas` : undefined}
+          onClick={handleCanvasClick}
+          onDoubleClick={reset}
+          onPointerCancel={endPointer}
+          onPointerDown={beginPointer}
+          onPointerMove={movePointer}
+          onPointerUp={endPointer}
+          ref={canvasRef}
+          role={accessibilityLabel ? "img" : undefined}
+          style={renderedCanvasStyle}
+        >
+          <div style={renderedContentStyle}>{children}</div>
+        </div>
+        <div style={toolbarDomStyle}>
+          <ViewportToolbar
+            actions={actions}
+            maxScale={maxScale}
+            minScale={minScale}
+            onReset={reset}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+            placement="inline"
+            scale={transform.scale}
+            visible={controlsVisible}
+          />
+        </div>
       </div>
     </View>
   );
@@ -340,11 +344,18 @@ const contentDomStyle: React.CSSProperties = {
   flexShrink: 0,
   transformOrigin: "center center",
 };
+const hoverRegionDomStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+};
 const toolbarDomStyle: React.CSSProperties = {
   position: "absolute",
   top: 0,
   right: 0,
-  width: 200,
-  height: 48,
   zIndex: 1,
+  padding: SPACING[2],
+  // Hover target follows the button row. The old 200×48 box was sized for the
+  // smaller zoom-only controls and could not hold the current targets.
+  width: "max-content",
+  maxWidth: "100%",
 };

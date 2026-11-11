@@ -57,7 +57,7 @@ import {
   useGlobalWebOverlayLayer,
   useWebOverlayRegistration,
 } from "@/lib/overlay-root";
-import { useHosts } from "@/runtime/host-runtime";
+import { useVisibleHosts } from "@/runtime/host-runtime";
 import {
   useKeyboardShortcutsStore,
   type CommandCenterScope,
@@ -148,7 +148,7 @@ function useBuiltInRows(open: boolean): {
   );
   const { agents } = useAggregatedAgents({ demand: open });
   const { projects } = useProjects({ enabled: open });
-  const showHost = useHosts().length > 1;
+  const showHost = useVisibleHosts().length > 1;
   const iconTargets = useMemo(
     () =>
       open

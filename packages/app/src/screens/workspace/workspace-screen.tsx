@@ -140,7 +140,7 @@ import { buildProviderCommand } from "@/utils/provider-command-templates";
 import { generateDraftId } from "@/stores/draft-keys";
 import { resolveWorkspaceRouteId } from "@/utils/workspace-identity";
 import { useOpenAgentTabLabels } from "@/subagents/use-open-agent-tab-labels";
-import { WorkspaceTabPresentationResolver } from "@/screens/workspace/workspace-tab-presentation";
+import { brand } from "@/brand.generated";
 import {
   useWorkspaceTabRename,
   WorkspaceTabRenameModal,
@@ -320,24 +320,13 @@ function useSyncWorkspaceActiveBrowser(input: {
   }, [focusedBrowserId, input.workspaceId]);
 }
 
-function WorkspaceDocumentTitleEffect({
-  label,
-  titleState,
-}: {
-  label: string;
-  titleState: "ready" | "loading";
-}) {
-  const { t } = useTranslation();
+function WorkspaceDocumentTitleEffect() {
   useEffect(() => {
     if (isNative || typeof document === "undefined") {
       return;
     }
-    const resolvedLabel = label.trim();
-    document.title =
-      titleState === "loading"
-        ? t("workspace.tabs.loading")
-        : resolvedLabel || t("workspace.tabs.fallback.workspace");
-  }, [label, titleState, t]);
+    document.title = brand.name;
+  }, []);
 
   return null;
 }
@@ -832,31 +821,12 @@ function renderWorkspaceScreenGateShell(input: {
   );
 }
 
-function WorkspaceDocumentTitleEffectSlot({
-  tab,
-  serverId,
-  workspaceId,
-  isRouteFocused,
-}: {
-  tab: WorkspaceTabDescriptor | null;
-  serverId: string;
-  workspaceId: string;
-  isRouteFocused: boolean;
-}) {
-  if (!isRouteFocused || !isWeb || !tab) {
+function WorkspaceDocumentTitleEffectSlot({ isRouteFocused }: { isRouteFocused: boolean }) {
+  if (!isRouteFocused || !isWeb) {
     return null;
   }
 
-  return (
-    <WorkspaceTabPresentationResolver tab={tab} serverId={serverId} workspaceId={workspaceId}>
-      {(presentation) => (
-        <WorkspaceDocumentTitleEffect
-          label={presentation.label}
-          titleState={presentation.titleState}
-        />
-      )}
-    </WorkspaceTabPresentationResolver>
-  );
+  return <WorkspaceDocumentTitleEffect />;
 }
 
 function floatsHeaderOverContent(activeTab: WorkspaceTabDescriptor | null): boolean {
@@ -2909,11 +2879,11 @@ function WorkspaceScreenContent({
     [isMobile, canRenderDesktopPaneSplits],
   );
   useEffect(() => {
-    if (!isRouteFocused || isNative || typeof document === "undefined" || activeTabDescriptor) {
+    if (!isRouteFocused || isNative || typeof document === "undefined") {
       return;
     }
-    document.title = "Workspace";
-  }, [activeTabDescriptor, isRouteFocused]);
+    document.title = brand.name;
+  }, [isRouteFocused]);
   const buildPaneContentModel = useCallback(
     (input: {
       tab: WorkspaceTabDescriptor;
@@ -3730,12 +3700,7 @@ function WorkspaceScreenContent({
   const renderedWorkspaceScreen = (
     <RenderProfile id="WorkspaceScreenContent">
       <View style={containerStyle}>
-        <WorkspaceDocumentTitleEffectSlot
-          tab={activeTabDescriptor}
-          serverId={normalizedServerId}
-          workspaceId={normalizedWorkspaceId}
-          isRouteFocused={isRouteFocused}
-        />
+        <WorkspaceDocumentTitleEffectSlot isRouteFocused={isRouteFocused} />
         <WorkspacePanelSurface
           onLayout={measureWorkspaceWidth}
           launcher={newTabLauncher}

@@ -1296,6 +1296,7 @@ export const ru: TranslationResources = {
     },
     display: {
       showBackground: "Показать фоновые пространства",
+      projectIcon: "Значок проекта",
       trigger: "Настройки отображения",
       heading: "Отображение",
       sort: {
@@ -2908,6 +2909,11 @@ export const ru: TranslationResources = {
       },
       appearance: {
         title: "Оформление",
+        visible: {
+          label: "Показывать в боковой панели",
+          hint: "Скрывает этот хост из списков выбора и боковой панели, не разрывая соединение.",
+          accessibilityLabel: "Показывать этот хост в боковой панели",
+        },
         name: {
           label: "Имя",
         },

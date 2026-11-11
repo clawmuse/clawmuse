@@ -1277,6 +1277,7 @@ export const ar: TranslationResources = {
     },
     display: {
       showBackground: "إظهار مساحات العمل في الخلفية",
+      projectIcon: "أيقونة المشروع",
       trigger: "تفضيلات العرض",
       heading: "العرض",
       sort: {
@@ -2895,6 +2896,11 @@ export const ar: TranslationResources = {
       },
       appearance: {
         title: "المظهر",
+        visible: {
+          label: "إظهار في الشريط الجانبي",
+          hint: "يخفي هذا المضيف من المحددات والشريط الجانبي دون قطع اتصاله.",
+          accessibilityLabel: "إظهار هذا المضيف في الشريط الجانبي",
+        },
         name: {
           label: "الاسم",
         },

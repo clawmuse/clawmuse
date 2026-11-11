@@ -1821,6 +1821,7 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     height: COMPACT_ACTION_BUTTON_SIZE,
     flexDirection: "row",
+    alignItems: "center",
   },
   chatActionButton: {
     width: buttonControlHeight.xs,

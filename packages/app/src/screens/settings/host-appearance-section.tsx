@@ -5,6 +5,7 @@ import { Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { Pencil } from "@/components/icons/app-icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 import { DropdownTrigger } from "@/components/ui/dropdown-trigger";
 import { AdaptiveRenameModal } from "@/components/rename-modal";
 import { WorkspaceMetaRow } from "@/components/sidebar/workspace-meta-row";
@@ -245,7 +246,7 @@ function BadgePreview({
 export function HostAppearanceSection({ host }: { host: HostProfile }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const { setHostColor, setHostBadgeDisplay } = useHostMutations();
+  const { setHostColor, setHostBadgeDisplay, setHostHidden } = useHostMutations();
   const localDaemon = useLocalDaemonServerIdState();
   const isLocalHost = localDaemon.status === "resolved" && localDaemon.serverId === host.serverId;
   const badgeDisplay = resolveHostBadgeDisplay({
@@ -274,6 +275,16 @@ export function HostAppearanceSection({ host }: { host: HostProfile }) {
     },
     [host.serverId, setHostBadgeDisplay, t, toast],
   );
+  const handleHiddenChange = useCallback(
+    async (visible: boolean) => {
+      try {
+        await setHostHidden(host.serverId, !visible);
+      } catch {
+        toast.error(t("errors.unableToSave"));
+      }
+    },
+    [host.serverId, setHostHidden, t, toast],
+  );
 
   return (
     <SettingsSection title={t("settings.host.appearance.title")}>
@@ -288,6 +299,20 @@ export function HostAppearanceSection({ host }: { host: HostProfile }) {
             </Text>
             <HostRenameButton host={host} />
           </View>
+        </View>
+        <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>
+              {t("settings.host.appearance.visible.label")}
+            </Text>
+            <Text style={settingsStyles.rowHint}>{t("settings.host.appearance.visible.hint")}</Text>
+          </View>
+          <Switch
+            value={!host.appearance.hidden}
+            onValueChange={handleHiddenChange}
+            accessibilityLabel={t("settings.host.appearance.visible.accessibilityLabel")}
+            testID="host-appearance-visible-switch"
+          />
         </View>
         <ColorRow color={host.appearance.color} onChange={handleColorChange} />
         {badgeDisplay === null ? null : (

@@ -2,10 +2,8 @@ import { router } from "expo-router";
 import {
   ChevronDown,
   Eye,
-  Laptop,
   ListMinus,
   ListPlus,
-  Server,
   Settings,
   SquarePen,
 } from "@/components/icons/app-icons";
@@ -34,7 +32,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useClawMuseDeviceLabel } from "@/clawmuse/device-label";
-import { HostStatusDot } from "@/components/host-status-dot";
+import { HostStatusIcon } from "@/components/host-status-icon";
 import { ALL_HOSTS_OPTION_ID, HostPicker } from "@/components/hosts/host-picker";
 import {
   ContextMenu,
@@ -55,8 +53,8 @@ import {
 } from "@/hooks/sidebar-workspaces-view-model";
 import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
 import type { HostColor } from "@/hosts/appearance";
-import { HOST_ICON_MAPPINGS, hostLabelColorStyle } from "@/hosts/host-badge";
-import { getHostRuntimeStore, useHosts } from "@/runtime/host-runtime";
+import { hostLabelColorStyle } from "@/hosts/host-badge";
+import { getHostRuntimeStore, useVisibleHosts } from "@/runtime/host-runtime";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
 import { useSessionStore } from "@/stores/session-store";
 import { workspaceEqualityFns } from "@/stores/session-store-hooks/selectors";
@@ -66,8 +64,6 @@ import type { Theme } from "@/styles/theme";
 import { orderHostsLocalFirst } from "@/types/host-connection";
 import { buildNewWorkspaceRoute } from "@/utils/host-routes";
 
-const ThemedLaptop = withUnistyles(Laptop);
-const ThemedServer = withUnistyles(Server);
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedEye = withUnistyles(Eye);
 const ThemedListPlus = withUnistyles(ListPlus);
@@ -107,7 +103,7 @@ export function SidebarHostStrip({
   panelGestureRef?: MutableRefObject<GestureType | undefined>;
 }): ReactElement | null {
   const { t } = useTranslation();
-  const hosts = useHosts();
+  const hosts = useVisibleHosts();
   const localServerId = useLocalDaemonServerId();
   const deviceLabel = useClawMuseDeviceLabel();
   const hostFilters = useSidebarViewStore((state) => state.hostFilters);
@@ -259,7 +255,6 @@ export function SidebarHostStrip({
                     serverId={host.serverId}
                     label={deviceLabel(host.serverId, host.label)}
                     color={host.appearance.color}
-                    isLocal={host.serverId === localServerId}
                     selected={selectedSet.has(host.serverId)}
                     onSelectOnly={selectOnlyHost}
                     onToggle={toggleHostFilter}
@@ -369,7 +364,6 @@ const HostChip = memo(function HostChip({
   serverId,
   label,
   color,
-  isLocal,
   selected,
   onSelectOnly,
   onToggle,
@@ -380,7 +374,6 @@ const HostChip = memo(function HostChip({
   serverId: string;
   label: string;
   color: HostColor;
-  isLocal: boolean;
   selected: boolean;
   onSelectOnly: (serverId: string) => void;
   onToggle: (serverId: string) => void;
@@ -416,7 +409,6 @@ const HostChip = memo(function HostChip({
     [onOpenSettings, serverId],
   );
 
-  const Icon = isLocal ? ThemedLaptop : ThemedServer;
   const accessibilityLabel = [
     label,
     activity.running > 0
@@ -438,8 +430,7 @@ const HostChip = memo(function HostChip({
           style={style}
           testID={`sidebar-host-strip-chip-${serverId}`}
         >
-          <HostStatusDot serverId={serverId} />
-          <Icon size={CHIP_ICON_SIZE} uniProps={HOST_ICON_MAPPINGS[color]} />
+          <HostStatusIcon serverId={serverId} />
           <Text
             numberOfLines={1}
             style={[

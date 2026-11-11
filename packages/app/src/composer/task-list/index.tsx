@@ -8,14 +8,23 @@ import type { TodoEntry } from "@/types/stream";
 
 export const AgentTaskList = memo(function AgentTaskList({
   tasks,
+  rail = false,
 }: {
   tasks: TodoEntry[] | undefined;
+  /** Inside the composer's action rail — see `ComposerTrackPill`'s `rail`. */
+  rail?: boolean;
 }) {
   if (!tasks?.length) return null;
-  return <TaskListCard tasks={tasks} />;
+  return <TaskListCard tasks={tasks} rail={rail} />;
 });
 
-const TaskListCard = memo(function TaskListCard({ tasks }: { tasks: TodoEntry[] }) {
+const TaskListCard = memo(function TaskListCard({
+  tasks,
+  rail,
+}: {
+  tasks: TodoEntry[];
+  rail: boolean;
+}) {
   const { t } = useTranslation();
   const completed = useMemo(
     () => tasks.filter((task) => task.completed || task.status === "completed").length,
@@ -31,6 +40,7 @@ const TaskListCard = memo(function TaskListCard({ tasks }: { tasks: TodoEntry[] 
       testID="agent-task-list-header"
       segments={segments}
       panelTitle={t("message.todo.title")}
+      rail={rail}
     >
       {tasks.map((task, index) => (
         <ComposerTrackRow key={task.id ?? `${index}:${task.text}`}>

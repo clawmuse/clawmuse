@@ -2572,6 +2572,13 @@ export class HostRuntimeStore {
     }));
   }
 
+  async setHostHidden(serverId: string, hidden: boolean): Promise<void> {
+    await this.updateHostAppearance(serverId, (host) => ({
+      ...host,
+      appearance: { ...host.appearance, hidden },
+    }));
+  }
+
   private updateHostAppearance(
     serverId: string,
     apply: (host: HostProfile) => HostProfile,
@@ -3379,6 +3386,18 @@ export function useHosts(): HostProfile[] {
   );
 }
 
+/**
+ * The hosts a picker or list should offer — the registry minus the ones the user hid.
+ *
+ * Anything that keeps a host alive, opens its settings, or looks a label up by serverId
+ * still reads `useHosts`: hiding is a view choice, not a disconnect, so the connection
+ * and its directory demand are not this hook's business.
+ */
+export function useVisibleHosts(): HostProfile[] {
+  const hosts = useHosts();
+  return useMemo(() => hosts.filter((host) => !host.appearance.hidden), [hosts]);
+}
+
 export function useHostRegistryStatus(): HostRegistryStatus {
   const store = getHostRuntimeStore();
   return useSyncExternalStore(
@@ -3445,6 +3464,7 @@ export interface HostMutations {
   renameHost: (serverId: string, label: string) => Promise<void>;
   setHostColor: (serverId: string, color: HostColor) => Promise<void>;
   setHostBadgeDisplay: (serverId: string, badgeDisplay: HostBadgeDisplay) => Promise<void>;
+  setHostHidden: (serverId: string, hidden: boolean) => Promise<void>;
   removeHost: (serverId: string) => Promise<void>;
   removeConnection: (serverId: string, connectionId: string) => Promise<void>;
 }
@@ -3461,6 +3481,7 @@ export function useHostMutations(): HostMutations {
       setHostColor: (serverId, color) => store.setHostColor(serverId, color),
       setHostBadgeDisplay: (serverId, badgeDisplay) =>
         store.setHostBadgeDisplay(serverId, badgeDisplay),
+      setHostHidden: (serverId, hidden) => store.setHostHidden(serverId, hidden),
       removeHost: (serverId) => store.removeHost(serverId),
       removeConnection: (serverId, connectionId) => store.removeConnection(serverId, connectionId),
     }),

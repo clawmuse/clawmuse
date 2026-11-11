@@ -21,9 +21,12 @@ const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foregrou
 export function ParentAgentPill({
   serverId,
   parentAgentId,
+  rail = false,
 }: {
   serverId: string;
   parentAgentId: string;
+  /** Inside the composer's action rail — see `ComposerTrackPill`'s `rail`. */
+  rail?: boolean;
 }): ReactElement {
   const { t } = useTranslation();
   const parent = useParentAgent(serverId, parentAgentId);
@@ -31,8 +34,13 @@ export function ParentAgentPill({
   const handleHoverIn = useCallback(() => setIsHovered(true), []);
   const handleHoverOut = useCallback(() => setIsHovered(false), []);
   const bodyStyle = useMemo(
-    () => [composerPillStyles.body, styles.body, isHovered && composerPillStyles.bodyActive],
-    [isHovered],
+    () => [
+      composerPillStyles.body,
+      styles.body,
+      rail && composerPillStyles.railBody,
+      isHovered && composerPillStyles.bodyActive,
+    ],
+    [isHovered, rail],
   );
   const labelStyle = useMemo(
     () => [composerPillStyles.label, styles.label, isHovered && composerPillStyles.labelActive],

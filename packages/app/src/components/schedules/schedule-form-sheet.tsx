@@ -44,7 +44,7 @@ import {
 import { useScheduleMutations } from "@/hooks/use-schedule-mutations";
 import { useAggregatedAgents } from "@/hooks/use-aggregated-agents";
 import { useProjects } from "@/hooks/use-projects";
-import { useHosts } from "@/runtime/host-runtime";
+import { useVisibleHosts } from "@/runtime/host-runtime";
 import { useSessionStore } from "@/stores/session-store";
 import { buildScheduleProjectTargets } from "@/schedules/schedule-project-targets";
 import { useScheduleFormModel } from "@/schedules/use-schedule-form-model";
@@ -245,7 +245,7 @@ function OpenScheduleFormSheet({
   const { t } = useTranslation();
   const controlSize: FieldControlSize = useIsCompactFormFactor() ? "md" : "sm";
   const { projects } = useProjects();
-  const hostProfiles = useHosts();
+  const hostProfiles = useVisibleHosts();
   const hosts = useStoreWithEqualityFn(
     useSessionStore,
     useMemo(() => selectScheduleHosts(hostProfiles), [hostProfiles]),

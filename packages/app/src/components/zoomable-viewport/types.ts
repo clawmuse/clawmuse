@@ -7,6 +7,8 @@ export interface ZoomableViewportAction {
   label: string;
   onPress: () => void;
   testID?: string;
+  /** Drawn even when the zoom controls are hidden. Use for dismiss. */
+  alwaysVisible?: boolean;
 }
 
 export interface ZoomableViewportProps {

@@ -59,7 +59,6 @@ import {
   SidebarWorkspaceTrailingActionBase,
   SidebarWorkspaceTrailingActionOverlay,
   SidebarWorkspaceTrailingActionSlot,
-  sidebarWorkspaceRowStyles,
 } from "@/components/sidebar/sidebar-workspace-row-content";
 import { useOpenKebabMenuVisibility } from "@/components/sidebar/use-open-kebab-menu-visibility";
 import { WorkspaceArchiveSwipe } from "./workspace-archive-swipe";
@@ -842,7 +841,6 @@ function StatusWorkspaceRowInnerContent({
   isPinned,
   onTogglePin,
   reserveIdleStatusIndicatorSpace = true,
-  inStatusGroup = true,
   isDragging = false,
   dragHandleProps,
   dragInteraction,
@@ -909,7 +907,6 @@ function StatusWorkspaceRowInnerContent({
           isPressed,
           selected,
           isHovered,
-          inStatusGroup,
           isDragging,
         });
         const backdrop = getSidebarRowBackdrop({ isDragging, isPressed, selected, isHovered });
@@ -1102,18 +1099,18 @@ function getStatusWorkspaceRowStyle({
   isPressed,
   selected,
   isHovered,
-  inStatusGroup,
   isDragging,
 }: {
   isPressed: boolean;
   selected: boolean;
   isHovered: boolean;
-  inStatusGroup: boolean;
   isDragging: boolean;
 }) {
   return [
     styles.workspaceRow,
-    inStatusGroup && sidebarWorkspaceRowStyles.rowIndented,
+    // A status group row leads with the project icon, which is a peer of the group header's
+    // status glyph rather than a child of it — so it keeps the row's base padding and lines up
+    // with the header instead of taking the project grouping's child indent.
     isHovered && styles.workspaceRowHovered,
     selected && styles.sidebarRowSelected,
     isDragging && styles.workspaceRowDragging,

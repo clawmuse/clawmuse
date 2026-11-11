@@ -10,6 +10,13 @@ export function resolveDesktopSidebarScale(contentWidth: number): number {
   return Math.max(0.7, Math.min(1, 0.7 + progress * 0.3));
 }
 
+const MAX_DESKTOP_SIDEBAR_NAV_SCALE = 1.5;
+
+export function resolveDesktopSidebarNavScale(contentWidth: number): number {
+  "worklet";
+  return Math.max(1, Math.min(MAX_DESKTOP_SIDEBAR_NAV_SCALE, contentWidth / DEFAULT_SIDEBAR_WIDTH));
+}
+
 export function resolveDesktopSidebarToggleScale(input: {
   contentWidth: number;
   sidebarVisible: boolean;
