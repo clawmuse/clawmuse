@@ -75,6 +75,41 @@ function pruneSharpLibvips(nodeModules, platform, arch) {
   }
 }
 
+function pruneEsbuild(nodeModules, platform, arch) {
+  const target = `${platform}-${arch}`;
+  pruneChildrenExcept(path.join(nodeModules, "@esbuild"), new Set([target]));
+
+  if (platform !== "win32") {
+    const targetBin = path.join(nodeModules, "@esbuild", target, "bin", "esbuild");
+    const wrapperBin = path.join(nodeModules, "esbuild", "bin", "esbuild");
+    if (fs.existsSync(targetBin) && fs.existsSync(wrapperBin)) {
+      fs.copyFileSync(targetBin, wrapperBin);
+      fs.chmodSync(wrapperBin, 0o755);
+    }
+  }
+}
+
+function pruneSherpaOnnx(nodeModules, platform, arch) {
+  const sherpaPlatform = platform === "win32" ? "win" : platform;
+  const keep = `sherpa-onnx-${sherpaPlatform}-${arch}`;
+  for (const entry of fs.readdirSync(nodeModules)) {
+    if (entry.startsWith("sherpa-onnx-") && entry !== "sherpa-onnx-node" && entry !== keep) {
+      rmSafe(path.join(nodeModules, entry));
+    }
+  }
+}
+
+function pruneMsgpackrExtract(nodeModules, platform, arch) {
+  const scopeDir = path.join(nodeModules, "@msgpackr-extract");
+  if (!fs.existsSync(scopeDir)) return;
+  const prefix = `msgpackr-extract-${platform}-${arch}`;
+  for (const entry of fs.readdirSync(scopeDir)) {
+    if (entry.startsWith("msgpackr-extract-") && !entry.startsWith(prefix)) {
+      rmSafe(path.join(scopeDir, entry));
+    }
+  }
+}
+
 function pruneNativeModules(appOutDir, platform, arch) {
   const resourcesDir =
     platform === "darwin"
@@ -89,6 +124,9 @@ function pruneNativeModules(appOutDir, platform, arch) {
   pruneClaudeAgentSdk(nodeModules, platform, arch);
   pruneNodePty(nodeModules, platform, arch);
   pruneSharpLibvips(nodeModules, platform, arch);
+  pruneEsbuild(nodeModules, platform, arch);
+  pruneSherpaOnnx(nodeModules, platform, arch);
+  pruneMsgpackrExtract(nodeModules, platform, arch);
 
   const after = dirSizeSync(nodeModules);
   const savedMB = ((before - after) / 1024 / 1024).toFixed(1);

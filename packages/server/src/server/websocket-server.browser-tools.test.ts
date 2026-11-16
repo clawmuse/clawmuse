@@ -282,6 +282,7 @@ function createVoiceAssistantWebSocketServer(params: {
   const { httpServer, broker } = params;
   const agentManager = {
     setAgentAttentionCallback() {},
+    setAgentTurnStartedCallback() {},
     subscribe: () => () => {},
     getMetricsSnapshot: () => ({
       total: 0,

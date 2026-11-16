@@ -22,10 +22,18 @@ import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
 import { parseServerInfoStatusPayload } from "@getpaseo/protocol/messages";
 import {
   buildAgentAttentionNotificationPayload,
-  type AgentAttentionReason,
   type AgentAttentionNotificationPayload,
+  type AgentNotificationReason,
   type NotificationPermissionRequest,
 } from "@getpaseo/protocol/agent-attention-notification";
+import { isAgentNotificationsMuted } from "@getpaseo/protocol/agent-labels";
+import { getIsElectron, isNative } from "@/constants/platform";
+import {
+  DEFAULT_DESKTOP_SETTINGS,
+  DESKTOP_SETTINGS_QUERY_KEY,
+  getCachedDesktopSettings,
+  type DesktopSettings,
+} from "@/desktop/settings/desktop-settings";
 
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { AgentPermissionResponse } from "@getpaseo/protocol/agent-types";
@@ -139,31 +147,74 @@ const getLatestPermissionRequest = (
 
 interface AgentAttentionNotificationInput {
   notification?: AgentAttentionNotificationPayload;
-  reason: AgentAttentionReason;
+  reason: AgentNotificationReason;
   serverId: string;
   workspaceId: string | undefined;
   agentId: string;
+  agentTitle: string | null;
   assistantMessage: string | null;
   permissionRequest: NotificationPermissionRequest | null;
+  includePreview: boolean;
 }
 
 function resolveAgentAttentionNotification(
   input: AgentAttentionNotificationInput,
 ): AgentAttentionNotificationPayload | null {
-  if (input.notification) {
+  if (input.notification && input.includePreview) {
     return input.notification.data.workspaceId ? input.notification : null;
   }
-  if (!input.workspaceId) {
+  const workspaceId = input.notification?.data.workspaceId ?? input.workspaceId;
+  if (!workspaceId) {
     return null;
   }
   return buildAgentAttentionNotificationPayload({
     reason: input.reason,
     serverId: input.serverId,
-    workspaceId: input.workspaceId,
+    workspaceId,
     agentId: input.agentId,
+    agentTitle: input.agentTitle,
     assistantMessage: input.reason === "finished" ? input.assistantMessage : null,
     permissionRequest: input.reason === "permission" ? input.permissionRequest : null,
+    includePreview: input.includePreview,
   });
+}
+
+function isDesktopNotificationReasonEnabled(
+  prefs: DesktopSettings["notifications"],
+  reason: AgentNotificationReason,
+): boolean {
+  if (!prefs.enabled) return false;
+  switch (reason) {
+    case "permission":
+      return prefs.permission;
+    case "finished":
+      return prefs.finished;
+    case "error":
+      return prefs.error;
+    case "running":
+      return prefs.running;
+  }
+}
+
+function resolveDesktopNotificationPreferences(
+  cached: DesktopSettings | undefined,
+): DesktopSettings["notifications"] {
+  if (!getIsElectron()) {
+    return DEFAULT_DESKTOP_SETTINGS.notifications;
+  }
+  return cached?.notifications ?? getCachedDesktopSettings().notifications;
+}
+
+function findLatestSessionAssistantMessage(
+  session: SessionState | undefined,
+  agentId: string,
+): string | null {
+  if (!session) {
+    return null;
+  }
+  const head = session.agentStreamHead.get(agentId) ?? [];
+  const tail = session.agentStreamTail.get(agentId) ?? [];
+  return findLatestAssistantMessageText(head) ?? findLatestAssistantMessageText(tail);
 }
 
 function notifyVoiceAbortFailure(
@@ -259,44 +310,50 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   const notifyAgentAttention = useCallback(
     (params: {
       agentId: string;
-      reason: "finished" | "error" | "permission";
+      reason: AgentNotificationReason;
       timestamp: string;
       notification?: AgentAttentionNotificationPayload;
     }) => {
-      const appState = appStateRef.current;
-      const session = useSessionStore.getState().sessions[serverId];
-      const attentionFocusedAgentId = session?.focusedAgentId ?? null;
-      if (params.reason === "error") {
+      if (isNative) {
         return;
       }
-      const isActivelyVisible = getIsAppActivelyVisible(appState);
-      const isAwayFromAgent = !isActivelyVisible || attentionFocusedAgentId !== params.agentId;
-      if (!isAwayFromAgent) {
+      const session = useSessionStore.getState().sessions[serverId];
+      const agent = session?.agents?.get(params.agentId);
+      if (agent && isAgentNotificationsMuted(agent)) {
+        return;
+      }
+      const desktopPrefs = resolveDesktopNotificationPreferences(
+        queryClient.getQueryData<DesktopSettings>(DESKTOP_SETTINGS_QUERY_KEY),
+      );
+      if (!isDesktopNotificationReasonEnabled(desktopPrefs, params.reason)) {
+        return;
+      }
+
+      const isFocusedOnAgent =
+        getIsAppActivelyVisible(appStateRef.current) &&
+        (session?.focusedAgentId ?? null) === params.agentId;
+      if (desktopPrefs.suppressWhenFocused && isFocusedOnAgent) {
         return;
       }
 
       const timestampMs = new Date(params.timestamp).getTime();
-      const lastNotified = attentionNotifiedRef.current.get(params.agentId);
+      const dedupeKey = `${params.agentId}:${params.reason === "running" ? "running" : "attention"}`;
+      const lastNotified = attentionNotifiedRef.current.get(dedupeKey);
       if (lastNotified && lastNotified >= timestampMs) {
         return;
       }
-      attentionNotifiedRef.current.set(params.agentId, timestampMs);
-
-      const head = session?.agentStreamHead.get(params.agentId) ?? [];
-      const tail = session?.agentStreamTail.get(params.agentId) ?? [];
-      const assistantMessage =
-        findLatestAssistantMessageText(head) ?? findLatestAssistantMessageText(tail);
-      const permissionRequest = getLatestPermissionRequest(session, params.agentId);
-      const workspaceId = session?.agents?.get(params.agentId)?.workspaceId;
+      attentionNotifiedRef.current.set(dedupeKey, timestampMs);
 
       const notification = resolveAgentAttentionNotification({
         notification: params.notification,
         reason: params.reason,
         serverId,
-        workspaceId,
+        workspaceId: agent?.workspaceId,
         agentId: params.agentId,
-        assistantMessage,
-        permissionRequest,
+        agentTitle: agent?.title ?? null,
+        assistantMessage: findLatestSessionAssistantMessage(session, params.agentId),
+        permissionRequest: getLatestPermissionRequest(session, params.agentId),
+        includePreview: desktopPrefs.showPreview,
       });
       if (!notification) {
         return;
@@ -308,8 +365,64 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         data: notification.data,
       });
     },
-    [serverId],
+    [queryClient, serverId],
   );
+
+  useEffect(() => {
+    if (isNative || !isConnected) {
+      return;
+    }
+    const previousStatuses = new Map<string, string>();
+    let seeded = false;
+    const syncStatuses = (agents: SessionState["agents"] | undefined, allowNotify: boolean) => {
+      if (!agents) {
+        return;
+      }
+      for (const [agentId, agent] of agents) {
+        const prev = previousStatuses.get(agentId);
+        previousStatuses.set(agentId, agent.status);
+        if (
+          allowNotify &&
+          agent.status === "running" &&
+          !agent.parentAgentId &&
+          !agent.archivedAt &&
+          (prev !== undefined
+            ? prev !== "running"
+            : Date.now() - agent.createdAt.getTime() < 30_000)
+        ) {
+          notifyAgentAttention({
+            agentId,
+            reason: "running",
+            timestamp: new Date(Math.max(agent.lastActivityAt.getTime(), Date.now())).toISOString(),
+          });
+        }
+      }
+      for (const id of previousStatuses.keys()) {
+        if (!agents.has(id)) {
+          previousStatuses.delete(id);
+        }
+      }
+    };
+    const initialAgents = useSessionStore.getState().sessions[serverId]?.agents;
+    if (initialAgents && initialAgents.size > 0) {
+      syncStatuses(initialAgents, false);
+      seeded = true;
+    }
+    return useSessionStore.subscribe((state, prevState) => {
+      const agents = state.sessions[serverId]?.agents;
+      if (agents === prevState.sessions[serverId]?.agents) {
+        return;
+      }
+      if (!seeded) {
+        syncStatuses(agents, false);
+        if (agents && agents.size > 0) {
+          seeded = true;
+        }
+        return;
+      }
+      syncStatuses(agents, true);
+    });
+  }, [isConnected, notifyAgentAttention, serverId]);
 
   useEffect(() => {
     const unregister = voiceRuntime?.registerSession({

@@ -1,26 +1,28 @@
 # ClawMuse Tasks and Goals
 
-Use the task board to collect development work across linked hosts, group tasks under a Goal,
-and review results on the phone. Tasks share the Goals record, execution leases and review state
+Use the task board to collect development work across connected hosts, group tasks under a Goal,
+and review results on the phone or desktop. Tasks share the Goals record, execution runs and review state
 machine. Hosts keep their existing providers, workspaces and permission checks. A Goal can be
 created by the owner or proposed by a planner; neither a completed process nor an agent's report
 accepts the result on the owner's behalf.
 
-Read this with [clawmuse-status.md](clawmuse-status.md), which owns the host session, enrollment,
-and the phone's link to the service. Goals ride that session; nothing here works without it.
+Goals run directly against connected daemons over the `goals.*` WebSocket RPCs (`server_info.features.localGoals`),
+persisting state under `$PASEO_HOME/goals/state.json` with zero cloud enrollment required. When no `localGoals`
+daemon is connected and the client holds an active [ClawMuse Status](clawmuse-status.md) session, the app falls
+back to the hosted status API.
 
 Hosted-service scope, cost assumptions, and paid-user validation live in
 [clawmuse-commercialization.md](clawmuse-commercialization.md).
 
 ## Parts and ownership
 
-| Part                                    | Owning source                                                                                                                |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Service state, leases and relationships | `services/clawmuse-status/src/goals/`                                                                                        |
-| HTTP and database contracts             | `services/clawmuse-status/docs/api-contract.md#goals`, `services/clawmuse-status/docs/database-contract.md#goals`            |
-| Host inventory, runner and tools        | `packages/server/src/server/clawmuse-status/`                                                                                |
-| CLI                                     | `packages/cli/src/commands/task/`; [command reference](../public-docs/cli.md#development-tasks)                              |
-| App                                     | `packages/app/src/clawmuse-status/goals/`, `packages/app/src/components/goals/`, `packages/app/src/screens/goals-screen.tsx` |
+| Part                                   | Owning source                                                                                                                |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Daemon-native store, runner and RPCs   | `packages/server/src/server/goals/`, `packages/protocol/src/goals.ts`                                                        |
+| Hosted status state, leases and schema | `services/clawmuse-status/src/goals/`, `services/clawmuse-status/docs/api-contract.md#goals`                                 |
+| Shared prompts, modes and workspaces   | `packages/server/src/server/clawmuse-status/`                                                                                |
+| CLI                                    | `packages/cli/src/commands/task/`; [command reference](../public-docs/cli.md#development-tasks)                              |
+| App                                    | `packages/app/src/clawmuse-status/goals/`, `packages/app/src/components/goals/`, `packages/app/src/screens/goals-screen.tsx` |
 
 ## The loop
 
@@ -38,7 +40,7 @@ executor agent works on a branch, opens a PR, calls clawmuse_goal_report once
                      progress + budget left ──► next run queued automatically
                      done / blocked / needs_decision / nothing_to_do / failed ──► needs_review
                                         │
-                              phone: approve / continue (with instruction) / discard
+              phone: land (merge PR & close) / approve / continue (with instruction) / discard
 ```
 
 The service decides transitions from the run's last report (`goal-transitions.ts`); the host never
@@ -61,9 +63,10 @@ it does not continue. Round budgets do not cap model charges.
   service holds only card text, the repository identity, and the structured reports. That keeps the
   status service's privacy boundary (`services/clawmuse-status/docs/security-and-privacy.md`)
   mostly intact: tasks add owner-supplied intent, source URLs and selected verification evidence. Schedule ingestion sends the schedule name and execution identity, never its prompt, output or transcript.
-- **Repository identity is the daemon project key.** `remote:github.com/org/repo` is what two hosts
-  have in common; a filesystem path is not. Local-only checkouts are not eligible (`repo-inventory.ts`).
-  The service rejects anything that is not a `remote:` key.
+- **Repository identity adapts to local and multi-host projects.** Remote-backed checkouts use
+  `remote:github.com/org/repo` so multiple hosts share one project filter; local-only git or directory
+  projects on a `localGoals` daemon use `local:<serverId>:<projectId>` so any opened folder can use
+  the board immediately. The hosted status service continues to accept only `remote:` keys.
 - **Leases ride the heartbeat.** The host lists its active run ids in `/v1/host/heartbeat`; the
   reply carries `queuedCount` and `canceledRunIds`. No second timer, no second connection, and a
   host that disappears loses its leases within `GOAL_RUN_LEASE_SECONDS` so the goal is parked as
@@ -74,11 +77,20 @@ it does not continue. Round budgets do not cap model charges.
   workspace on the repository root and archives it afterwards. An execute run creates a Paseo
   worktree (unless `isolation: local`) and leaves it: the owner may want to look at it, and
   auto-archive-on-merge reclaims it once the PR lands.
-- **Execution keeps provider permissions.** Goals use Codex `auto` or Claude `acceptEdits` (falling back to its asking `default`), never
+- **Execution keeps provider permissions, relaxed only inside a verified worktree.** Goals use Codex `auto` or Claude `acceptEdits` (falling back to its asking `default`), never
   `full-access`, `bypassPermissions`, or an unknown unattended mode. Only the goal's own report
-  or proposal tool is preapproved on `clawmuse_goals`; file, shell and other tools retain provider
-  checks. An extra permission request interrupts the run and creates a decision report. A continue
-  instruction does not grant a provider permission. Providers without a supported mode fail closed.
+  or proposal tool is preapproved on `clawmuse_goals`. An extra permission request interrupts the
+  run and creates a decision report. A continue instruction does not grant a provider permission.
+  Providers without a supported mode fail closed.
+- **Verified worktrees earn an unattended profile (`goal-unattended-policy.ts`).** When the execute
+  workspace resolves as a Paseo-owned worktree on a non-default branch, Codex gets
+  `workspace-write` + network + temp-dir writes with `approval_policy: never`, and Claude gets a
+  curated `permissions` allow list (dev toolchain, git branch work, feature-branch pushes,
+  `gh pr create`) plus deny rules that hard-reject `gh pr merge`, `gh repo delete`, `gh secret`,
+  `gh release`, `gh api`, force pushes, pushes to `main`/`master`, `git worktree` and
+  `git config --global`. Anything outside both lists still prompts — and a prompt interrupts the
+  run as before. A directory or unverifiable workspace keeps the strict profile (`isolation:
+local`), so `git push` and tests writing `$TMPDIR` still ask there.
 - **Automatic rounds reuse the goal workspace.** The host records its workspace id under
   `PASEO_HOME/clawmuse-goals/`. A missing or archived workspace requires review instead of starting
   from a fresh checkout and losing previous work. Continuation instructions carry into automatic
@@ -106,18 +118,19 @@ under `goals` so the phone and CLI can show whether a host takes runs.
 
 ## Phone and desktop
 
-The `/goals` route is labelled **Tasks & Goals**. Its Board view shows Suggested / In progress /
-Review / Closed across hosts, with a project filter. Desktop uses columns; compact screens stack
-them. The Board follows the service's pagination. Detail shows the parent, children, dependencies,
-source, reports and execution links. Save a draft before adding subtasks if the parent must not
-start yet. Continue the draft after decomposition; its execution waits for unfinished children.
-"Suggest goals" queues a plan run for one project and toggles its daily automatic pass (off until toggled).
+The `/goals` route is labelled **Tasks & Goals** and opens on the four-column **Board** view
+(Suggested / In progress / Review / Closed) aggregated across all connected `localGoals` daemons,
+updating live on `goals.changed`. Desktop renders columns side by side; compact screens stack
+them. Empty boards display quick-start actions to create a goal (with one-tap acceptance presets)
+or scan a project for planner suggestions. Detail shows the parent, children, dependencies,
+source, reports and direct links to the managed Agent session on its owning `serverId`. Save a draft
+before adding subtasks if the parent must not start yet. Continue the draft after decomposition;
+its execution waits for unfinished children. "Suggest goals" queues a plan run for one project and
+toggles its daily automatic pass (off until toggled).
 
-The screen talks to the status service directly through the one `ClawMuseStatusApiClient` the
-feature root owns (`api-access.ts`), so it needs the client to be enrolled; otherwise it shows the
-not-enrolled empty state. The iOS app and the Electron desktop both enroll (see the mode table in
-[clawmuse-status.md](clawmuse-status.md#app-behaviour-packagesapp)); each is its own installation,
-and both see the same owner-wide goals. The summary the capsule polls carries `goals` counts for the same reason.
+When no `localGoals` daemon is connected, the store falls back to `ClawMuseStatusApiClient`
+(`api-access.ts`) if enrolled, or displays whether connected hosts need a daemon restart to pick up
+`localGoals`.
 
 ## Relationships and sources
 
@@ -209,5 +222,11 @@ not a paid-user acceptance or commercial validation result.
 - Manual creation retries reuse `requestId` (scoped to owner). Only one open execute run per goal
   is allowed by the database. `approve` accepts completed/nothing-to-do reports; failures and budget
   exhaustion cannot be marked accepted through that action.
+- `land` is owner-only like `approve`, and additionally merges the reviewed PR on the owning
+  daemon: `gh pr merge <pr> --match-head-commit <verified sha>` (merge/squash/rebase selectable).
+  It refuses when the PR head moved past the verified commit or the merge fails, keeping the
+  worktree. On success it records the merge commit, pushes it to every extra `origin` pushurl
+  (e.g. GitHub + CNB dual push), archives the worktree, marks the goal done, and starts dependents
+  whose prerequisites all finished. The agent report path cannot reach it.
 - Proposals are deduplicated by title per repository across every status, so a discarded suggestion
   is not re-proposed tomorrow under the same name.

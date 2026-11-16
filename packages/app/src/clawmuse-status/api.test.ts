@@ -461,4 +461,48 @@ describe("ClawMuseStatusApiClient requests", () => {
       ),
     ).toEqual(["all", "suggested", "active", "needs_review", "closed"]);
   });
+
+  it("syncs push preferences and tolerates older status servers without the route", async () => {
+    let return404 = false;
+    const { api, requests } = await enrolledClient((request) => {
+      if (request.path === "/v1/mobile/push-preferences" && return404) {
+        return { status: 404, body: { error: "not_found" } };
+      }
+      if (request.path === "/v1/mobile/push-endpoints/push_to_start") {
+        return { body: { removed: 1 } };
+      }
+      return { body: { updated: true } };
+    });
+
+    await api.updatePushPreferences({
+      taskAlerts: false,
+      runningAlert: true,
+      suppressWhenActive: false,
+    });
+    expect(await api.unregisterAlertPushEndpoint("push_to_start")).toBe(1);
+
+    return404 = true;
+    await expect(api.updatePushPreferences({ taskAlerts: false })).resolves.toBeUndefined();
+
+    expect(requests).toEqual([
+      {
+        path: "/v1/mobile/push-preferences",
+        method: "PUT",
+        bearer: "access-1",
+        body: { taskAlerts: false, runningAlert: true, suppressWhenActive: false },
+      },
+      {
+        path: "/v1/mobile/push-endpoints/push_to_start",
+        method: "DELETE",
+        bearer: "access-1",
+        body: null,
+      },
+      {
+        path: "/v1/mobile/push-preferences",
+        method: "PUT",
+        bearer: "access-1",
+        body: { taskAlerts: false },
+      },
+    ]);
+  });
 });

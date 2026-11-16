@@ -173,14 +173,19 @@ describe("ClawMuse website languages", () => {
 
   it("resolves per-platform installer mirror URLs and SHA-256 checksums", () => {
     const mac = primaryPlatformInstaller("macos");
+    const macIntel = primaryPlatformInstaller("macos", "x64");
     const winX64 = primaryPlatformInstaller("windows", "x64");
     const winArm = primaryPlatformInstaller("windows", "arm64");
     expect(mac).toBeDefined();
+    expect(macIntel).toBeDefined();
     expect(winX64).toBeDefined();
     expect(winArm).toBeDefined();
     expect(platformVersion("macos")).toBe("1.5.8");
     expect(installerMirrorUrl(mac!)).toBe(
       "https://agent-relay.clawmuse.com/updates/installers/v1.5.8/ClawMuse-1.5.8-arm64.dmg",
+    );
+    expect(installerMirrorUrl(macIntel!)).toBe(
+      "https://agent-relay.clawmuse.com/updates/installers/v1.5.10/ClawMuse-1.5.10-x64.dmg",
     );
     expect(installerMirrorUrl(winX64!)).toContain(`/v${release.version}/`);
     expect(winArm!.arch).toBe("arm64");

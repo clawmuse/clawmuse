@@ -1,10 +1,13 @@
 import { describe, expect, test } from "vitest";
 import {
+  agentNotificationsMutedLabels,
   getParentAgentIdFromLabels,
   getOpenAgentTabLabel,
   hasOpenAgentTab,
+  isAgentNotificationsMuted,
   isDelegatedAgent,
   isOpenAgentTabLabel,
+  NOTIFICATIONS_MUTED_LABEL,
   PARENT_AGENT_ID_LABEL,
 } from "./agent-labels.js";
 
@@ -35,5 +38,21 @@ describe("agent label policy", () => {
     expect(isOpenAgentTabLabel(getOpenAgentTabLabel("client-a"))).toBe(true);
     expect(isOpenAgentTabLabel("paseo.open-agent-tab")).toBe(false);
     expect(isOpenAgentTabLabel("custom.open-agent-tab.client-a")).toBe(false);
+  });
+
+  test("marks and clears per-agent notification mute labels", () => {
+    expect(isAgentNotificationsMuted({ labels: {} })).toBe(false);
+    expect(isAgentNotificationsMuted({ labels: agentNotificationsMutedLabels(true) })).toBe(true);
+    expect(
+      isAgentNotificationsMuted({
+        labels: {
+          ...agentNotificationsMutedLabels(true),
+          ...agentNotificationsMutedLabels(false),
+        },
+      }),
+    ).toBe(false);
+    expect(agentNotificationsMutedLabels(false)).toEqual({
+      [NOTIFICATIONS_MUTED_LABEL]: "false",
+    });
   });
 });

@@ -165,12 +165,12 @@ describe("ClawMuseStatusClient", () => {
     },
   );
 
-  it("sends every provider usage to a schema v4 service", async () => {
+  it("sends every provider usage to a schema v4 service and omits v5 suppressAlerts", async () => {
     const { fetch, calls } = recordingFetch([json({ outcome: "accepted", revision: 7 })]);
 
     await new ClawMuseStatusClient(BASE_URL, fetch).publishSnapshot({
       accessToken: "host-access-token",
-      snapshot: SNAPSHOT,
+      snapshot: { ...SNAPSHOT, suppressAlerts: true },
       schemaVersion: 4,
     });
 
@@ -178,6 +178,23 @@ describe("ClawMuseStatusClient", () => {
       revision: 7,
       items: SNAPSHOT.items,
       usages: SNAPSHOT.usages,
+    });
+  });
+
+  it("includes suppressAlerts on a schema v5 service", async () => {
+    const { fetch, calls } = recordingFetch([json({ outcome: "accepted", revision: 7 })]);
+
+    await new ClawMuseStatusClient(BASE_URL, fetch).publishSnapshot({
+      accessToken: "host-access-token",
+      snapshot: { ...SNAPSHOT, suppressAlerts: true },
+      schemaVersion: 5,
+    });
+
+    expect(requestBody(calls[0]!)).toEqual({
+      revision: 7,
+      items: SNAPSHOT.items,
+      usages: SNAPSHOT.usages,
+      suppressAlerts: true,
     });
   });
 

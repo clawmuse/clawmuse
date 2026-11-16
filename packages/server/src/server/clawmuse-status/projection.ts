@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isAgentNotificationsMuted, isDelegatedAgent } from "@getpaseo/protocol/agent-labels";
 
 import type { ManagedAgent } from "../agent/agent-manager.js";
 import type { ClawMuseStatusPhase, ClawMuseStatusSnapshotItem } from "./client.js";
@@ -23,7 +24,9 @@ export type ClawMuseStatusAgentSnapshot = Pick<
   | "activeTurnStartedAt"
   | "lastUserMessageAt"
   | "updatedAt"
->;
+> & {
+  labels?: Record<string, string>;
+};
 
 interface AgentStatus {
   phase: ClawMuseStatusPhase;
@@ -52,7 +55,12 @@ function isTerminalPhase(phase: ClawMuseStatusPhase): boolean {
 }
 
 function describeAgent(agent: ClawMuseStatusAgentSnapshot): AgentStatus | null {
-  if (agent.internal === true || agent.lifecycle === "closed") {
+  if (
+    agent.internal === true ||
+    agent.lifecycle === "closed" ||
+    isDelegatedAgent(agent) ||
+    isAgentNotificationsMuted(agent)
+  ) {
     return null;
   }
   const attention = agent.attention;

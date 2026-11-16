@@ -64,4 +64,51 @@ describe("push notifications", () => {
 
     expect(deliveries).toEqual([]);
   });
+
+  test("filters agent events by per-token event, presence, and preview preferences", async () => {
+    const home = mkdtempSync(path.join(tmpdir(), "paseo-push-notifications-"));
+    homes.push(home);
+    const deliveries: Array<{ tokens: string[]; body: string }> = [];
+    const pushNotifications = createPushNotifications({
+      logger: createLogger(),
+      filePath: path.join(home, "push-tokens.json"),
+      now: () => Date.parse("2026-08-10T00:00:00.000Z"),
+      deliver: async (tokens, payload) => {
+        deliveries.push({ tokens, body: payload.body });
+      },
+    });
+
+    pushNotifications.renew("ExponentPushToken[default]");
+    pushNotifications.renew("ExponentPushToken[running-preview]", {
+      running: true,
+      suppressWhenActive: false,
+      showPreview: true,
+    });
+    pushNotifications.renew("ExponentPushToken[running-private]", {
+      running: true,
+      suppressWhenActive: false,
+      showPreview: false,
+    });
+
+    await pushNotifications.sendAgentEvent({
+      reason: "running",
+      hasPresentClient: true,
+      focusedOnTarget: false,
+      withPreviewPayload: {
+        title: "Agent started",
+        body: "Fix CI pipeline",
+        data: { serverId: "srv", agentId: "a1", reason: "running" },
+      },
+      withoutPreviewPayload: {
+        title: "Agent started",
+        body: "Started working.",
+        data: { serverId: "srv", agentId: "a1", reason: "running" },
+      },
+    });
+
+    expect(deliveries).toEqual([
+      { tokens: ["ExponentPushToken[running-preview]"], body: "Fix CI pipeline" },
+      { tokens: ["ExponentPushToken[running-private]"], body: "Started working." },
+    ]);
+  });
 });

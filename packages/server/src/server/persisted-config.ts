@@ -396,6 +396,11 @@ export const PersistedConfigSchema = z
             enabled: z.boolean().optional(),
             planner: z.string().min(1).optional(),
             executor: z.string().min(1).optional(),
+            verifierAgent: z.string().min(1).optional(),
+            verificationCommands: z
+              .array(z.object({ name: z.string().min(1), command: z.string().min(1) }).strict())
+              .max(10)
+              .optional(),
             isolation: z.enum(["local", "worktree"]).optional(),
             maxConcurrentRuns: z.number().int().min(1).max(8).optional(),
           })

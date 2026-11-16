@@ -1,6 +1,55 @@
 {
   "en": [
     {
+      "version": "1.5.10",
+      "date": "2026-11-16",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Add daemon-owned local goals with concurrent run queueing, worktree-scoped unattended execution profiles, independent SHA-pinned verifier runs, path-scope overlap guards and an owner-only PR merge & land action.",
+            "Add configurable push notification preferences, active-client presence suppression and per-agent notification muting.",
+            "Add signed and notarized Intel (x64) macOS desktop installer support."
+          ]
+        },
+        {
+          "title": "Improved",
+          "items": [
+            "Cache positive Antigravity CLI availability probes, deduplicate in-flight checks and memoize local desktop daemon serverId resolution."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Harden Antigravity daily usage history when transcripts attribute subagent model turns or rotate step logs."
+          ]
+        }
+      ],
+      "notes": []
+    },
+    {
+      "version": "1.5.9",
+      "date": "2026-11-11",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Count Antigravity tokens in the local daily usage history. The daemon now scans ~/.gemini/antigravity (IDE) and ~/.gemini/antigravity-cli (agy CLI) transcripts, summing input, cache and output tokens per planner step and labelling each model by the Model Selection notice; the usage card shows them under the new antigravity harness and each day bar opens a per-model breakdown panel.",
+            "Add an AI archive review with one-click archiving. The sidebar and mobile home headers gain an archive button that reviews idle agents server-side, keeps the ones still owed work and archives the rest after confirmation."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Recover Antigravity turns that report a stale \"stream was interrupted\" error after the answer already completed; the interrupt is treated as recovered when it predates the current user boundary or matches an error seen by the active driver.",
+            "Merge the goals board on status services that predate the unified task board: listGoals(\"all\") now falls back to merging the four status views an older service still serves instead of failing on 422 invalid_request.",
+            "Sync account host visibility across signed-in clients so hiding a host on one device applies everywhere."
+          ]
+        }
+      ],
+      "notes": []
+    },
+    {
       "version": "1.5.8",
       "date": "2026-11-09",
       "sections": [
@@ -63,49 +112,58 @@
       "notes": [
         "This iOS/TestFlight update requires the updated conversation-translation plugin on the connected host for interactive card translations."
       ]
-    },
-    {
-      "version": "1.5.4",
-      "date": "2026-11-05",
-      "sections": [
-        {
-          "title": "Fixed",
-          "items": [
-            "Translate interactive question labels, options and plan confirmations while preserving original submitted answers.",
-            "Preserve Markdown structure and prioritize current questions. Failed translations keep the original text and support retry.",
-            "Verify translated question navigation, option links, text selection and answer retries in the browser regression suite."
-          ]
-        }
-      ],
-      "notes": [
-        "This iOS/TestFlight update requires the updated conversation-translation plugin on the connected host for interactive card translations."
-      ]
-    },
-    {
-      "version": "1.5.3",
-      "date": "2026-11-05",
-      "sections": [
-        {
-          "title": "Fixed",
-          "items": [
-            "Start packaged desktop daemons from a stable, private data directory so quota plugins load when the app inherits an inaccessible working directory. Keep the same behavior after daemon restarts.",
-            "Recover inaccessible Linux desktop launch directories while preserving Node CLI working directories.",
-            "Complete the Chinese documentation for interactive card translation."
-          ]
-        },
-        {
-          "title": "Improved",
-          "items": [
-            "Refine the website's page hierarchy, cards and footer, and place Simplified and Traditional Chinese directly below English in the language menu."
-          ]
-        }
-      ],
-      "notes": [
-        "Includes the interactive question and plan confirmation translations introduced in 1.5.2. Update both the client and the connected host to use them."
-      ]
     }
   ],
   "zh-CN": [
+    {
+      "version": "1.5.10",
+      "date": "2026-11-16",
+      "sections": [
+        {
+          "title": "新增",
+          "items": [
+            "新增守护进程托管的本地目标执行（Local Goals），支持并发运行队列、worktree 隔离的无人值守执行权限配置、绑定精确提交 SHA 的独立验收运行、同仓库路径范围冲突保护，以及仅限所有者触发的 PR 合并落地操作。",
+            "新增可配置的推送通知偏好、活跃前台客户端免打扰抑制及单会话通知静音开关。",
+            "新增经 Developer ID 签名与公证的 Intel（x64）macOS 桌面安装包支持。"
+          ]
+        },
+        {
+          "title": "改进",
+          "items": [
+            "缓存 Antigravity CLI 可用性探测结果并合并并发探测请求，同时记忆化本地桌面守护进程的 serverId 解析。"
+          ]
+        },
+        {
+          "title": "修复",
+          "items": [
+            "修复 Antigravity 会话日志包含子代理模型归属或轮转步骤记录时本地日用量统计的准确性。"
+          ]
+        }
+      ],
+      "notes": []
+    },
+    {
+      "version": "1.5.9",
+      "date": "2026-11-11",
+      "sections": [
+        {
+          "title": "新增",
+          "items": [
+            "近 30 天本地用量历史新增 Antigravity 统计。守护进程现在扫描 ~/.gemini/antigravity（IDE）与 ~/.gemini/antigravity-cli（agy CLI）的会话日志，按 planner 步汇总输入、缓存与输出 token，并以 Model Selection 通知标注所用模型；用量卡片新增 antigravity 分组，每日柱条可点开查看按模型拆分的明细面板。",
+            "新增 AI 归档审查与一键归档。侧边栏与移动端首页头部新增归档按钮，由服务端对空闲 agent 逐个审查，保留还有待办工作的项，确认后归档其余会话。"
+          ]
+        },
+        {
+          "title": "修复",
+          "items": [
+            "修复 Antigravity 会话在回答已完成后仍上报「stream was interrupted」陈旧错误的问题；当中断早于当前用户输入边界或与当前 driver 观察到的错误一致时，判定该中断已恢复。",
+            "修复尚未升级到统一任务看板的旧 status 服务上目标列表拉取失败的问题：listGoals(\"all\") 现在回退为合并旧服务仍支持的四个状态视图，不再直接报 422 invalid_request。",
+            "账号侧主机可见性现在跨已登录客户端同步，在一台设备隐藏的主机会同步到其他设备。"
+          ]
+        }
+      ],
+      "notes": []
+    },
     {
       "version": "1.5.8",
       "date": "2026-11-09",
@@ -167,40 +225,6 @@
         }
       ],
       "notes": ["本次为 iOS/TestFlight 更新，交互卡片翻译还需要连接主机上的新版会话翻译插件。"]
-    },
-    {
-      "version": "1.5.4",
-      "date": "2026-11-05",
-      "sections": [
-        {
-          "title": "修复",
-          "items": [
-            "翻译交互题目的标签、问题、选项和计划确认内容，同时保留原始答案提交值。",
-            "保留 Markdown 结构并优先翻译当前提问；失败时保留原文并支持重试。",
-            "通过浏览器回归用例验证翻译后的题目导航、选项链接、文本选择和答案重试。"
-          ]
-        }
-      ],
-      "notes": ["本次为 iOS/TestFlight 更新，交互卡片翻译还需要连接主机上的新版会话翻译插件。"]
-    },
-    {
-      "version": "1.5.3",
-      "date": "2026-11-05",
-      "sections": [
-        {
-          "title": "修复",
-          "items": [
-            "从稳定且私有的数据目录启动桌面 daemon，让应用继承不可访问的工作目录时仍能加载额度插件，重启 daemon 后保持相同行为。",
-            "恢复 Linux 桌面启动时不可访问的工作目录，同时保留 Node CLI 的工作目录。",
-            "补齐交互卡片翻译的中文文档。"
-          ]
-        },
-        {
-          "title": "改进",
-          "items": ["优化官网页面层级、卡片和页脚，将简体中文和繁体中文紧接英语排列。"]
-        }
-      ],
-      "notes": ["包含 1.5.2 引入的交互题目与计划确认翻译，需要同时更新客户端和连接的主机。"]
     }
   ]
 }

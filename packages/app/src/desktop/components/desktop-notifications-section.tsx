@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { DesktopPermissionRow } from "@/desktop/components/desktop-permission-row";
 import { useDesktopPermissions } from "@/desktop/permissions/use-desktop-permissions";
-import { useDesktopSettings } from "@/desktop/settings/desktop-settings";
+import { useDesktopSettings, type DesktopSettings } from "@/desktop/settings/desktop-settings";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { settingsStyles } from "@/styles/settings";
 
@@ -16,6 +16,44 @@ const ThemedRotateCw = withUnistyles(RotateCw, (theme) => ({
   size: theme.iconSize.md,
   color: theme.colors.foregroundMuted,
 }));
+
+type DesktopNotificationToggleKey = keyof DesktopSettings["notifications"];
+
+interface DesktopToggleRowProps {
+  title: string;
+  hint: string;
+  value: boolean;
+  disabled?: boolean;
+  bordered?: boolean;
+  testID: string;
+  onValueChange: (value: boolean) => void;
+}
+
+function DesktopToggleRow({
+  title,
+  hint,
+  value,
+  disabled = false,
+  bordered = true,
+  testID,
+  onValueChange,
+}: DesktopToggleRowProps) {
+  return (
+    <View style={bordered ? [settingsStyles.row, settingsStyles.rowBorder] : settingsStyles.row}>
+      <View style={settingsStyles.rowContent}>
+        <Text style={settingsStyles.rowTitle}>{title}</Text>
+        <Text style={settingsStyles.rowHint}>{hint}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        accessibilityLabel={title}
+        testID={testID}
+      />
+    </View>
+  );
+}
 
 export function DesktopNotificationsSection() {
   const { t } = useTranslation();
@@ -39,9 +77,9 @@ export function DesktopNotificationsSection() {
     void requestPermission("notifications");
   }, [requestPermission]);
 
-  const handlePlaySoundChange = useCallback(
-    (playSound: boolean) => {
-      void updateSettings({ notifications: { playSound } }).catch(() => {
+  const handleToggleChange = useCallback(
+    (key: DesktopNotificationToggleKey) => (value: boolean) => {
+      void updateSettings({ notifications: { [key]: value } }).catch(() => {
         // useDesktopSettings owns the user-visible IPC error.
       });
     },
@@ -84,69 +122,137 @@ export function DesktopNotificationsSection() {
   }
 
   const notificationsGranted = snapshot?.notifications.state === "granted";
+  const subToggleDisabled = isSaving || !settings.notifications.enabled;
 
   return (
-    <SettingsSection title={t("settings.notifications.title")} trailing={refreshButton}>
-      <View style={settingsStyles.card}>
-        <DesktopPermissionRow
-          title={t("settings.notifications.permission")}
-          status={snapshot?.notifications ?? null}
-          isRequesting={requestingPermission === "notifications"}
-          onRequest={handleRequestNotifications}
-          labels={permissionLabels}
-        />
-        <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>{t("settings.notifications.playSound")}</Text>
-            <Text style={settingsStyles.rowHint}>{t("settings.notifications.playSoundHint")}</Text>
-          </View>
-          <Switch
-            value={settings.notifications.playSound}
-            onValueChange={handlePlaySoundChange}
+    <>
+      <SettingsSection title={t("settings.notifications.title")} trailing={refreshButton}>
+        <View style={settingsStyles.card}>
+          <DesktopPermissionRow
+            title={t("settings.notifications.permission")}
+            status={snapshot?.notifications ?? null}
+            isRequesting={requestingPermission === "notifications"}
+            onRequest={handleRequestNotifications}
+            labels={permissionLabels}
+          />
+          <DesktopToggleRow
+            title={t("notificationSettings.desktopEnabled")}
+            hint={t("notificationSettings.desktopEnabledHint")}
+            value={settings.notifications.enabled}
             disabled={isSaving}
-            accessibilityLabel={t("settings.notifications.playSound")}
+            testID="desktop-notifications-enabled-switch"
+            onValueChange={handleToggleChange("enabled")}
+          />
+          <DesktopToggleRow
+            title={t("settings.notifications.playSound")}
+            hint={t("settings.notifications.playSoundHint")}
+            value={settings.notifications.playSound}
+            disabled={subToggleDisabled}
             testID="desktop-notifications-play-sound-switch"
+            onValueChange={handleToggleChange("playSound")}
+          />
+          <DesktopToggleRow
+            title={t("notificationSettings.suppressWhenFocused")}
+            hint={t("notificationSettings.suppressWhenFocusedHint")}
+            value={settings.notifications.suppressWhenFocused}
+            disabled={subToggleDisabled}
+            testID="desktop-notifications-suppress-focused-switch"
+            onValueChange={handleToggleChange("suppressWhenFocused")}
+          />
+          <DesktopToggleRow
+            title={t("notificationSettings.showPreview")}
+            hint={t("notificationSettings.showPreviewHint")}
+            value={settings.notifications.showPreview}
+            disabled={subToggleDisabled}
+            testID="desktop-notifications-show-preview-switch"
+            onValueChange={handleToggleChange("showPreview")}
+          />
+          <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
+            <View style={settingsStyles.rowContent}>
+              <Text style={settingsStyles.rowTitle}>{t("settings.notifications.test")}</Text>
+              <Text style={settingsStyles.rowHint}>
+                {notificationsGranted
+                  ? t("settings.notifications.testHint")
+                  : t("settings.notifications.permissionRequired")}
+              </Text>
+            </View>
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={handleSendTestNotification}
+              disabled={!notificationsGranted || isPermissionBusy || isSendingTestNotification}
+            >
+              {isSendingTestNotification
+                ? t("settings.notifications.sending")
+                : t("settings.notifications.send")}
+            </Button>
+          </View>
+        </View>
+        {testNotificationState.status === "success" ? (
+          <Alert
+            size="sm"
+            variant="success"
+            title={t("settings.notifications.sentTitle")}
+            description={t("settings.notifications.sentDescription")}
+            testID="desktop-notifications-test-success"
+          />
+        ) : null}
+        {testNotificationState.status === "error" ? (
+          <Alert
+            size="sm"
+            variant="error"
+            title={t("settings.notifications.sendFailedTitle")}
+            description={testNotificationState.message}
+            testID="desktop-notifications-test-error"
+          />
+        ) : null}
+      </SettingsSection>
+
+      <SettingsSection title={t("notificationSettings.eventsTitle")}>
+        <View style={settingsStyles.card}>
+          <DesktopToggleRow
+            bordered={false}
+            title={t("notificationSettings.needsAction")}
+            hint={t("notificationSettings.needsActionHint")}
+            value={settings.notifications.permission}
+            disabled={subToggleDisabled}
+            testID="desktop-notifications-permission-switch"
+            onValueChange={handleToggleChange("permission")}
+          />
+          <DesktopToggleRow
+            title={t("notificationSettings.taskCompleted")}
+            hint={t("notificationSettings.taskCompletedHint")}
+            value={settings.notifications.finished}
+            disabled={subToggleDisabled}
+            testID="desktop-notifications-finished-switch"
+            onValueChange={handleToggleChange("finished")}
+          />
+          <DesktopToggleRow
+            title={t("notificationSettings.taskError")}
+            hint={t("notificationSettings.taskErrorHint")}
+            value={settings.notifications.error}
+            disabled={subToggleDisabled}
+            testID="desktop-notifications-error-switch"
+            onValueChange={handleToggleChange("error")}
+          />
+          <DesktopToggleRow
+            title={t("notificationSettings.taskRunning")}
+            hint={t("notificationSettings.taskRunningHint")}
+            value={settings.notifications.running}
+            disabled={subToggleDisabled}
+            testID="desktop-notifications-running-switch"
+            onValueChange={handleToggleChange("running")}
+          />
+          <DesktopToggleRow
+            title={t("notificationSettings.goalsReview")}
+            hint={t("notificationSettings.goalsReviewHint")}
+            value={settings.notifications.goalsReview}
+            disabled={subToggleDisabled}
+            testID="desktop-notifications-goals-review-switch"
+            onValueChange={handleToggleChange("goalsReview")}
           />
         </View>
-        <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>{t("settings.notifications.test")}</Text>
-            <Text style={settingsStyles.rowHint}>
-              {notificationsGranted
-                ? t("settings.notifications.testHint")
-                : t("settings.notifications.permissionRequired")}
-            </Text>
-          </View>
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={handleSendTestNotification}
-            disabled={!notificationsGranted || isPermissionBusy || isSendingTestNotification}
-          >
-            {isSendingTestNotification
-              ? t("settings.notifications.sending")
-              : t("settings.notifications.send")}
-          </Button>
-        </View>
-      </View>
-      {testNotificationState.status === "success" ? (
-        <Alert
-          size="sm"
-          variant="success"
-          title={t("settings.notifications.sentTitle")}
-          description={t("settings.notifications.sentDescription")}
-          testID="desktop-notifications-test-success"
-        />
-      ) : null}
-      {testNotificationState.status === "error" ? (
-        <Alert
-          size="sm"
-          variant="error"
-          title={t("settings.notifications.sendFailedTitle")}
-          description={testNotificationState.message}
-          testID="desktop-notifications-test-error"
-        />
-      ) : null}
-    </SettingsSection>
+      </SettingsSection>
+    </>
   );
 }

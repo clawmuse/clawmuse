@@ -1,0 +1,6 @@
+Added
+- Add daemon-owned local goals with concurrent run queueing, worktree-scoped unattended execution profiles, independent SHA-pinned verifier runs, path-scope overlap guards and an owner-only PR merge & land action.
+- Add configurable push notification preferences, active-client presence suppression and per-agent notification muting.
+- Add signed and notarized Intel (x64) macOS desktop installer support.
+
+Full notes: https://paseo.sh/changelog

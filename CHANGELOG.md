@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.10 - 2026-11-16
+
+### Added
+
+- Add daemon-owned local goals with concurrent run queueing, worktree-scoped unattended execution profiles, independent SHA-pinned verifier runs, path-scope overlap guards and an owner-only PR merge & land action.
+- Add configurable push notification preferences, active-client presence suppression and per-agent notification muting.
+- Add signed and notarized Intel (`x64`) macOS desktop installer support.
+
+### Improved
+
+- Cache positive Antigravity CLI availability probes, deduplicate in-flight checks and memoize local desktop daemon `serverId` resolution.
+
+### Fixed
+
+- Harden Antigravity daily usage history when transcripts attribute subagent model turns or rotate step logs.
+
 ## 1.5.9 - 2026-11-11
 
 ### Added

@@ -90,6 +90,60 @@ describe("buildAgentAttentionNotificationPayload", () => {
       },
     });
   });
+
+  it("builds running notifications from agent title and falls back when omitted", () => {
+    expect(
+      buildAgentAttentionNotificationPayload({
+        reason: "running",
+        serverId: "srv-4",
+        workspaceId: "workspace-4",
+        agentId: "agent-4",
+        agentTitle: "**Fix** `push` notifications",
+      }),
+    ).toEqual({
+      title: "Agent started",
+      body: "Fix push notifications",
+      data: {
+        serverId: "srv-4",
+        workspaceId: "workspace-4",
+        agentId: "agent-4",
+        reason: "running",
+      },
+    });
+
+    expect(
+      buildAgentAttentionNotificationPayload({
+        reason: "running",
+        serverId: "srv-4",
+        workspaceId: "workspace-4",
+        agentId: "agent-4",
+      }).body,
+    ).toBe("Started working.");
+  });
+
+  it("suppresses message and permission previews when includePreview is false", () => {
+    expect(
+      buildAgentAttentionNotificationPayload({
+        reason: "finished",
+        serverId: "srv-1",
+        workspaceId: "workspace-1",
+        agentId: "agent-1",
+        assistantMessage: "Sensitive reply details",
+        includePreview: false,
+      }).body,
+    ).toBe("Finished working.");
+
+    expect(
+      buildAgentAttentionNotificationPayload({
+        reason: "error",
+        serverId: "srv-1",
+        workspaceId: "workspace-1",
+        agentId: "agent-1",
+        errorMessage: "Database password invalid",
+        includePreview: false,
+      }).body,
+    ).toBe("Encountered an error.");
+  });
 });
 
 describe("findLatestAssistantMessageFromTimeline", () => {

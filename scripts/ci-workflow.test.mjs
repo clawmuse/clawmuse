@@ -1062,6 +1062,17 @@ test("native dependency preflight catches missing target packages and corrupted 
   delete lock.packages["node_modules/sherpa-onnx-linux-arm64"];
   assert.throws(() => nativeDependencyPlan(lock, "linux"), /sherpa-onnx-linux-arm64/);
   assert.deepEqual(
+    nativeDependencyPlan(lock, "macos").map((item) => item.name),
+    [
+      "@esbuild/darwin-x64",
+      "@esbuild/darwin-arm64",
+      "sherpa-onnx-darwin-x64",
+      "sherpa-onnx-darwin-arm64",
+      "@msgpackr-extract/msgpackr-extract-darwin-x64",
+      "@msgpackr-extract/msgpackr-extract-darwin-arm64",
+    ],
+  );
+  assert.deepEqual(
     nativeDependencyPlan(lock, "windows").map((item) => item.name),
     ["@esbuild/win32-x64", "@esbuild/win32-arm64", "sherpa-onnx-win-x64"],
   );

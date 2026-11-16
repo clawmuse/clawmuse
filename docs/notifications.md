@@ -12,8 +12,33 @@ uses the current store record or the agent route to resolve the workspace from
 the host. Terminal payloads name their workspace and use `navigateToWorkspace`.
 
 See [agent targets and deferred opens](expo-router.md#agent-targets) for route
-ownership and workspace recovery. Notification generation, presence, and push
-eligibility remain daemon concerns.
+ownership and workspace recovery.
+
+## Preferences and mute
+
+Do not request OS notification permission on first host connection. Existing
+installs that already hold OS notification permission migrate once to
+`pushEnabled: true`; fresh installs start at `pushEnabled: false` until enabled
+in Settings → Notifications (`packages/app/src/notifications/preferences.ts`).
+Turning `pushEnabled` off while a host is offline records its Expo push token in
+a pending unregister list and flushes `unregister_push_token` when the host
+reconnects.
+
+Mobile preferences sync to two backends so per-task and remote-status channels
+do not double-fire:
+
+- Daemon `register_push_token` carries per-token `preferences` (`permission`,
+  `finished`, `error`, `running`, `showPreview`, `suppressWhenActive`), stored in
+  `PushTokenStore`. Setting `suppressWhenActive: false` delivers pushes even
+  while a desktop or app client has active presence on that daemon.
+- `singleTaskPriority` defaults to `true`: daemon Expo push owns per-agent task
+  alerts while [ClawMuse Status](clawmuse-status.md) sets `suppressTaskAlerts`
+  and keeps `alert`/`fcm_alert` for Goals review notifications.
+
+Per-agent mute is stored on the agent's persisted labels
+(`paseo.notifications-muted: "true"`). Daemon Expo push, desktop/web session
+notifications, and the ClawMuse Status snapshot projection all skip muted
+agents.
 
 ## Native delivery
 
@@ -50,8 +75,10 @@ read by Expo arrives under `userInfo.body`; simulator payloads must match:
 An Android FCM launch intent needs `google.message_id` and a JSON `body` extra.
 An arbitrary Activity launch with data extras does not exercise Expo's FCM path.
 
-Foreground pushes remain in Notification Center without a banner or sound.
-This preserves notifications sent with stale presence information.
+Foreground pushes stay in Notification Center without a banner or sound by
+default, preserving notifications sent with stale presence information. Enabling
+`foregroundBanner` shows banners and plays sound while the app is open unless
+the target agent is already visible on screen.
 
 ## Startup and verification
 

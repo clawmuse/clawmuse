@@ -472,3 +472,34 @@ export class AccountModel {
       { action: "signOut" },
     );
 }
+
+export function createLocalDaemonServerIdResolver(deps: {
+  shouldUseDesktopDaemon: () => boolean;
+  readKnownServerId?: () => string | null;
+  getDesktopDaemonStatus: () => Promise<{ serverId: string }>;
+}): () => Promise<string | null> {
+  let cachedServerId: string | null = null;
+  let inFlight: Promise<string | null> | null = null;
+
+  return async () => {
+    if (!deps.shouldUseDesktopDaemon()) return null;
+    const known = deps.readKnownServerId?.()?.trim();
+    if (known) {
+      cachedServerId = known;
+      return cachedServerId;
+    }
+    if (cachedServerId) return cachedServerId;
+    if (inFlight) return inFlight;
+    inFlight = deps
+      .getDesktopDaemonStatus()
+      .then((status) => {
+        const resolved = status.serverId.trim();
+        if (resolved) cachedServerId = resolved;
+        return resolved || null;
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+    return inFlight;
+  };
+}

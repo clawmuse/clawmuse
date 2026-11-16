@@ -54,6 +54,8 @@ describe("goal settings", () => {
       executor: { provider: "claude", model: null },
       isolation: "worktree",
       maxConcurrentRuns: 1,
+      verificationCommands: [],
+      verifierAgent: null,
     });
   });
 

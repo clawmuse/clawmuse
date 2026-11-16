@@ -13,6 +13,8 @@ import React, {
 import { Pressable, Text, View, type LayoutChangeEvent, type ScrollView } from "react-native";
 import { useFilePanelOpenWithMenu } from "@/file-panels";
 import {
+  Bell,
+  BellOff,
   CopyX,
   ArrowLeftToLine,
   ArrowRightToLine,
@@ -27,6 +29,7 @@ import {
   Plus,
   X,
 } from "@/components/icons/app-icons";
+import { useAgentNotificationMute } from "@/notifications/use-agent-notification-mute";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import Animated from "react-native-reanimated";
 import { useTranslation } from "react-i18next";
@@ -131,6 +134,8 @@ const ThemedArrowLeftToLine = withUnistyles(ArrowLeftToLine);
 const ThemedArrowRightToLine = withUnistyles(ArrowRightToLine);
 const ThemedCopyX = withUnistyles(CopyX);
 const ThemedPencil = withUnistyles(Pencil);
+const ThemedBell = withUnistyles(Bell);
+const ThemedBellOff = withUnistyles(BellOff);
 const ThemedPlus = withUnistyles(Plus);
 const ThemedColumns2 = withUnistyles(Columns2);
 const ThemedRows2 = withUnistyles(Rows2);
@@ -437,6 +442,10 @@ function TabContextMenuItem({
         return <ThemedCopyX size={16} uniProps={mutedColorMapping} />;
       case "pencil":
         return <ThemedPencil size={16} uniProps={mutedColorMapping} />;
+      case "bell":
+        return <ThemedBell size={16} uniProps={mutedColorMapping} />;
+      case "bell-off":
+        return <ThemedBellOff size={16} uniProps={mutedColorMapping} />;
       case "x":
         return <ThemedX size={16} uniProps={mutedColorMapping} />;
       default:
@@ -1133,6 +1142,8 @@ function ResolvedWorkspaceDesktopTabsRow({
       copyTerminalId: t("workspace.tabs.menu.copyTerminalId"),
       copyFilePath: t("workspace.tabs.menu.copyFilePath"),
       rename: t("workspace.tabs.menu.rename"),
+      muteNotifications: t("notificationSettings.muteAgent"),
+      unmuteNotifications: t("notificationSettings.unmuteAgent"),
       closeAbove: t("workspace.tabs.menu.closeAbove"),
       closeBelow: t("workspace.tabs.menu.closeBelow"),
       closeLeft: t("workspace.tabs.menu.closeLeft"),
@@ -1539,6 +1550,10 @@ function ResolvedDesktopTabChip({
   showDropIndicatorAfter: boolean;
 }) {
   const { t } = useTranslation();
+  const { isAgentMuted, toggleAgentMute } = useAgentNotificationMute(
+    serverId,
+    item.tab.target.kind === "agent" ? item.tab.target.agentId : null,
+  );
   const presentation = item.presentation;
   const resolvedTab = useMemo(
     () =>
@@ -1552,6 +1567,8 @@ function ResolvedDesktopTabChip({
         onCopyFilePath,
         onReloadAgent,
         onRenameTab,
+        isAgentMuted,
+        onToggleAgentMute: toggleAgentMute,
         onCloseTab,
         onCloseTabsToLeft,
         onCloseTabsToRight,
@@ -1560,6 +1577,7 @@ function ResolvedDesktopTabChip({
       }),
     [
       index,
+      isAgentMuted,
       item.tab,
       onCloseOtherTabs,
       onCloseTab,
@@ -1573,6 +1591,7 @@ function ResolvedDesktopTabChip({
       onReloadAgent,
       onRenameTab,
       tabCount,
+      toggleAgentMute,
     ],
   );
 

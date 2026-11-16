@@ -360,6 +360,29 @@
               "type": "string",
               "minLength": 1
             },
+            "verifierAgent": {
+              "type": "string",
+              "minLength": 1
+            },
+            "verificationCommands": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["name", "command"],
+                "additionalProperties": false
+              }
+            },
             "isolation": {
               "type": "string",
               "enum": ["local", "worktree"]

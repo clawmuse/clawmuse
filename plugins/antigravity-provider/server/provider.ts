@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   negotiateProviderCapabilities,
   requireProviderCapabilities,
@@ -9,7 +8,7 @@ import {
   type ProviderLaunch,
   type ProviderRegistration,
 } from "@getpaseo/plugin/server/provider";
-import { getCatalog, getStatus } from "./internal/catalog.js";
+import { createStatusProbe, getCatalog, launchCacheKey } from "./internal/catalog.js";
 import { Session } from "./internal/session.js";
 import { AntigravityError } from "./internal/wire.js";
 
@@ -20,7 +19,19 @@ const capabilities = [
   "session.persistence",
 ] as const;
 
-export function createAntigravityProvider(): ProviderRegistration {
+export interface AntigravityProviderOptions {
+  now?: () => number;
+  statusCacheTtlMs?: number;
+}
+
+export function createAntigravityProvider(
+  options: AntigravityProviderOptions = {},
+): ProviderRegistration {
+  const statusProbe = createStatusProbe({
+    now: options.now,
+    ttlMs: options.statusCacheTtlMs,
+  });
+
   return {
     id: "antigravity",
     label: "Antigravity",
@@ -33,14 +44,11 @@ export function createAntigravityProvider(): ProviderRegistration {
           available: false,
           diagnostic: "agy not found on PATH. Install Antigravity, then run `agy` and sign in.",
         };
-      return getStatus(launch);
+      return statusProbe.getStatus(launch);
     },
     async getCatalogCacheKey({ launch }) {
       if (!launch) return undefined;
-      const env = Object.entries(launch.env).sort(([left], [right]) => left.localeCompare(right));
-      return createHash("sha256")
-        .update(JSON.stringify([launch.command, launch.args, env]))
-        .digest("hex");
+      return launchCacheKey(launch);
     },
     async connect(request) {
       if (!request.versions.includes(1))
@@ -48,7 +56,8 @@ export function createAntigravityProvider(): ProviderRegistration {
       if (!request.launch)
         throw new AntigravityError("The daemon must supply the Antigravity launch");
       const negotiated = negotiateProviderCapabilities(request.capabilities, capabilities);
-      return createConnection(request.launch, negotiated);
+      const launch = request.launch;
+      return createConnection(launch, negotiated, () => statusProbe.invalidate(launch));
     },
   };
 }
@@ -56,6 +65,7 @@ export function createAntigravityProvider(): ProviderRegistration {
 function createConnection(
   launch: ProviderLaunch,
   negotiated: readonly string[],
+  onProviderError: () => void,
 ): ProviderConnection {
   const sessions = new Map<string, Session>();
   const listeners = new Set<(event: ProviderEvent) => void>();
@@ -131,6 +141,7 @@ function createConnection(
     emit({ type: "request.completed", requestId: input.requestId });
   }
   function failed(input: ProviderInput, error: unknown): void {
+    if (error instanceof AntigravityError) onProviderError();
     const message = error instanceof Error ? error.message : String(error);
     const code = error instanceof AntigravityError ? error.code : "ANTIGRAVITY_ERROR";
     if (input.type === "session.prompt")

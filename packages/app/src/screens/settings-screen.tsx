@@ -96,6 +96,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/component
 import { DesktopPermissionsSection } from "@/desktop/components/desktop-permissions-section";
 import { ClawMuseStatusSettingsSection } from "@/clawmuse-status/settings-section";
 import { DesktopNotificationsSection } from "@/desktop/components/desktop-notifications-section";
+import { MobileNotificationsSection } from "@/screens/settings/notifications/mobile-notifications-section";
 import { BrowserDataSection } from "@/desktop/browser/settings/browser-data-section";
 import { IntegrationsSection } from "@/desktop/components/integrations-section";
 import { isElectronRuntime } from "@/desktop/host";
@@ -155,7 +156,7 @@ import {
   useSettingsSidebarScroll,
 } from "@/navigation/settings-presentation";
 import { returnFromSettings, type SettingsView } from "@/navigation/settings-navigation";
-import { isWeb } from "@/constants/platform";
+import { isNative, isWeb } from "@/constants/platform";
 
 // ---------------------------------------------------------------------------
 // View model
@@ -168,8 +169,8 @@ interface SidebarSectionItem {
   desktopOnly?: boolean;
   webOnly?: boolean;
   iosOnly?: boolean;
-  /** A desktop-only section that also has content on iOS. */
-  alsoOnIos?: boolean;
+  /** A desktop-only section that also has content on iOS and Android. */
+  alsoOnNative?: boolean;
   /** The page body, for pages that need nothing from the settings screen. */
   Content?: ComponentType;
 }
@@ -236,7 +237,7 @@ const SIDEBAR_SECTION_ITEMS: SidebarSectionItem[] = [
     labelKey: "settings.sections.notifications",
     icon: Bell,
     desktopOnly: true,
-    alsoOnIos: true,
+    alsoOnNative: true,
   },
   {
     id: "permissions",
@@ -251,7 +252,7 @@ const SIDEBAR_SECTION_ITEMS: SidebarSectionItem[] = [
 
 function isSectionAvailable(item: SidebarSectionItem, isDesktopApp: boolean): boolean {
   return (
-    (!item.desktopOnly || isDesktopApp || (item.alsoOnIos === true && Platform.OS === "ios")) &&
+    (!item.desktopOnly || isDesktopApp || (item.alsoOnNative === true && isNative)) &&
     (!item.webOnly || isWeb) &&
     (!item.iosOnly || Platform.OS === "ios")
   );
@@ -1419,6 +1420,7 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
           return (
             <>
               {isDesktopApp ? <DesktopNotificationsSection /> : null}
+              {!isDesktopApp && isNative ? <MobileNotificationsSection /> : null}
               <ClawMuseStatusSettingsSection />
             </>
           );

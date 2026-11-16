@@ -167,6 +167,7 @@ import {
 import { CheckoutDiffManager } from "./checkout-diff-manager.js";
 import { ScheduleService } from "./schedule/service.js";
 import { ClawMuseGoalRunner } from "./clawmuse-status/goal-runner.js";
+import { LocalGoalService } from "./goals/service.js";
 import { DaemonConfigStore, type MutableDaemonConfig } from "./daemon-config-store.js";
 import { createOrchestrationSkills } from "./orchestration-skills/index.js";
 import {
@@ -1493,6 +1494,43 @@ export async function createPaseoDaemon(
     listProviderModes: (provider, cwd) =>
       providerSnapshotManager.listModes({ provider, cwd, wait: true }),
   });
+  const localGoalService = new LocalGoalService({
+    paseoHome: config.paseoHome,
+    serverId,
+    logger,
+    agentManager,
+    createAgent,
+    createDirectoryWorkspace: createScheduleLocalWorkspaceExternal,
+    createPaseoWorktreeWorkspace: createSchedulePaseoWorktreeExternal,
+    archiveWorkspace: archiveScheduleWorkspaceExternal,
+    listProjects: () => projectRegistry.list(),
+    getWorkspace: (workspaceId) => workspaceRegistry.get(workspaceId),
+    getGoalMcpServer: (agentId) => {
+      if (!agentMcpBaseUrl) throw new Error("Goals require the daemon Agent MCP endpoint");
+      return {
+        type: "http",
+        url: `${agentMcpBaseUrl}?callerAgentId=${agentId}`,
+        headers: { Authorization: `Bearer ${agentMcpAuthToken}` },
+      };
+    },
+    listProviderModes: (provider, cwd) =>
+      providerSnapshotManager.listModes({ provider, cwd, wait: true }),
+    listReadyProviders: async (cwd) => {
+      let snapshot = providerSnapshotManager.getSnapshot(cwd);
+      if (snapshot.records.length === 0) {
+        await providerSnapshotManager.refreshSnapshotForCwd({ cwd }).catch(() => {});
+        snapshot = providerSnapshotManager.getSnapshot(cwd);
+      }
+      return snapshot.records
+        .filter((r) => r.entry.status === "ready" && r.entry.enabled !== false)
+        .map((r) => r.entry.provider);
+    },
+    fallbackBridge: clawmuseGoalRunner,
+    onChanged: (goalId) => {
+      wsServer?.broadcast(wrapSessionMessage({ type: "goals.changed", payload: { goalId } }));
+    },
+  });
+  await localGoalService.start();
   agentManager.setAgentArchivedCallback(async (agentId) => {
     try {
       await scheduleService.completeForAgent(agentId);
@@ -1624,7 +1662,7 @@ export async function createPaseoDaemon(
     paseoHome: config.paseoHome,
     worktreesRoot: config.worktreesRoot,
     callerAgentId: runtime.callerAgentId,
-    clawmuseGoals: clawmuseGoalRunner,
+    clawmuseGoals: localGoalService,
     enableVoiceTools: runtime.enableVoiceTools,
     voiceOnly: runtime.voiceOnly,
     resolveSpeakHandler: (agentId) => wsServer?.resolveVoiceSpeakHandler(agentId) ?? null,
@@ -1930,6 +1968,7 @@ export async function createPaseoDaemon(
               orchestrationSkills,
               workspaceLabelService,
               clawmuseGoalRunner,
+              localGoalService,
             );
             pluginRuntime.bindPaseoSessionHost(wsServer);
             await pluginRuntime.start();
@@ -2055,6 +2094,7 @@ export async function createPaseoDaemon(
       logger.error({ err: error }, "Terminal shutdown failed");
     }
     await speechService.stop();
+    await localGoalService.stop().catch(() => undefined);
     await scheduleService.stop().catch(() => undefined);
     await relayRuntime?.stop().catch(() => undefined);
     if (wsServer) {

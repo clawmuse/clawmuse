@@ -37,6 +37,49 @@ import {
   HostsRouteFrameSchema,
   HostsRouteClosedSchema,
 } from "./hosts.js";
+import {
+  GoalsListRequestSchema,
+  GoalsGetRequestSchema,
+  GoalsCreateRequestSchema,
+  GoalsActRequestSchema,
+  GoalsPlanRequestSchema,
+  GoalsSetRepoPlanRequestSchema,
+  GoalsSubmitReviewRequestSchema,
+  GoalsListResponseSchema,
+  GoalsGetResponseSchema,
+  GoalsCreateResponseSchema,
+  GoalsActResponseSchema,
+  GoalsPlanResponseSchema,
+  GoalsSetRepoPlanResponseSchema,
+  GoalsSubmitReviewResponseSchema,
+  GoalsChangedMessageSchema,
+} from "./goals.js";
+export {
+  GoalsListRequestSchema,
+  GoalsGetRequestSchema,
+  GoalsCreateRequestSchema,
+  GoalsActRequestSchema,
+  GoalsPlanRequestSchema,
+  GoalsSetRepoPlanRequestSchema,
+  GoalsSubmitReviewRequestSchema,
+  GoalsListResponseSchema,
+  GoalsGetResponseSchema,
+  GoalsCreateResponseSchema,
+  GoalsActResponseSchema,
+  GoalsPlanResponseSchema,
+  GoalsSetRepoPlanResponseSchema,
+  GoalsSubmitReviewResponseSchema,
+  GoalsChangedMessageSchema,
+  type GoalWire,
+  type GoalDetailWire,
+  type GoalRepoWire,
+  type GoalRun,
+  type GoalReport,
+  type GoalEvidence,
+  type GoalActionId,
+  type GoalMergeMethod,
+  type GoalListFilter,
+} from "./goals.js";
 import { PluginRegistryIdentitySchema } from "./plugin-registry.js";
 import { AgentProfileSchema, AgentSkillSelectionSchema } from "./agent-profile.js";
 export {
@@ -3135,9 +3178,19 @@ export const ListCommandsRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const PushNotificationPreferencesSchema = z.object({
+  permission: z.boolean().optional(),
+  finished: z.boolean().optional(),
+  error: z.boolean().optional(),
+  running: z.boolean().optional(),
+  showPreview: z.boolean().optional(),
+  suppressWhenActive: z.boolean().optional(),
+});
+
 export const RegisterPushTokenMessageSchema = z.object({
   type: z.literal("register_push_token"),
   token: z.string(),
+  preferences: PushNotificationPreferencesSchema.optional(),
 });
 
 export const PushUnregisterRequestSchema = z.object({
@@ -3481,6 +3534,13 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   DaemonConfigReloadRequestSchema,
   ClawMuseStatusGetRequestSchema,
   ClawMuseStatusCreateMobileEnrollmentRequestSchema,
+  GoalsListRequestSchema,
+  GoalsGetRequestSchema,
+  GoalsCreateRequestSchema,
+  GoalsActRequestSchema,
+  GoalsPlanRequestSchema,
+  GoalsSetRepoPlanRequestSchema,
+  GoalsSubmitReviewRequestSchema,
   HubManagementDaemonConnectRequestSchema,
   HubManagementDaemonGetStatusRequestSchema,
   HubManagementDaemonDisconnectRequestSchema,
@@ -3916,10 +3976,16 @@ export const ServerInfoStatusPayloadSchema = z
         daemonConfigReload: z.boolean().optional(),
         // COMPAT(clawmuseStatus): added in v0.8.0, remove gate after 2027-09-11.
         clawmuseStatus: z.boolean().optional(),
+        // COMPAT(localGoals): added in v1.5.10, remove gate after 2027-11-12.
+        localGoals: z.boolean().optional(),
         // COMPAT(relayConfig): added in v0.2.6, remove gate after 2027-01-31.
         relayConfig: z.boolean().optional(),
         // COMPAT(pushTokenRevocation): added in v0.3.2, remove gate after 2027-02-10.
         pushTokenRevocation: z.boolean().optional(),
+        // COMPAT(pushNotificationPreferences): added in v1.5.11, remove gate after 2027-11-13.
+        pushNotificationPreferences: z.boolean().optional(),
+        // COMPAT(agentNotificationMute): added in v1.5.11, remove gate after 2027-11-13.
+        agentNotificationMute: z.boolean().optional(),
         // COMPAT(plugins): added in v0.3.0, remove gate after 2027-08-07.
         plugins: z.boolean().optional(),
         // COMPAT(pluginManagement): added in v0.4.0, remove gate after 2027-08-14.
@@ -7411,6 +7477,14 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   DaemonConfigReloadResponseSchema,
   ClawMuseStatusGetResponseSchema,
   ClawMuseStatusCreateMobileEnrollmentResponseSchema,
+  GoalsListResponseSchema,
+  GoalsGetResponseSchema,
+  GoalsCreateResponseSchema,
+  GoalsActResponseSchema,
+  GoalsPlanResponseSchema,
+  GoalsSetRepoPlanResponseSchema,
+  GoalsSubmitReviewResponseSchema,
+  GoalsChangedMessageSchema,
   HubManagementDaemonConnectResponseSchema,
   HubManagementDaemonGetStatusResponseSchema,
   HubManagementDaemonDisconnectResponseSchema,
@@ -7965,6 +8039,7 @@ export type ClearAgentAttentionResponseMessage = z.infer<
 export type ClientHeartbeatMessage = z.infer<typeof ClientHeartbeatMessageSchema>;
 export type ListCommandsRequest = z.infer<typeof ListCommandsRequestSchema>;
 export type ListCommandsResponse = z.infer<typeof ListCommandsResponseSchema>;
+export type PushNotificationPreferences = z.infer<typeof PushNotificationPreferencesSchema>;
 export type RegisterPushTokenMessage = z.infer<typeof RegisterPushTokenMessageSchema>;
 export type PushUnregisterRequest = z.infer<typeof PushUnregisterRequestSchema>;
 export type PushUnregisterResponse = z.infer<typeof PushUnregisterResponseSchema>;

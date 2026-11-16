@@ -11,14 +11,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useMemo, useState, type ReactElement } from "react";
-import { StyleSheet, useUnistyles } from "react-native-unistyles";
+import { StyleSheet, useUnistyles, withUnistyles } from "react-native-unistyles";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
+import { isAgentNotificationsMuted } from "@getpaseo/protocol/agent-labels";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useTimeAgo } from "@/hooks/use-time-ago";
 import { type AggregatedAgent } from "@/hooks/use-aggregated-agents";
 import { useSessionStore } from "@/stores/session-store";
-import { Archive, ChevronRight } from "@/components/icons/app-icons";
+import { Archive, BellOff, ChevronRight } from "@/components/icons/app-icons";
 import { useProviderIcon } from "@/components/provider-icons";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { useArchiveAgent } from "@/hooks/use-archive-agent";
@@ -98,6 +99,12 @@ function formatDateSectionLabel(t: TFunction, section: DateSectionKey): string {
   }
 }
 
+const ThemedBellOff = withUnistyles(BellOff, (theme) => ({
+  size: theme.fontSize.sm,
+  color: theme.colors.foregroundMuted,
+}));
+const mutedBadgeIcon = <ThemedBellOff />;
+
 function SessionBadge({
   label,
   icon,
@@ -129,6 +136,9 @@ function SessionRowBadges({
     <>
       {agent.archivedAt ? (
         <SessionBadge label={t("agentList.badges.archived")} icon={archivedIcon} />
+      ) : null}
+      {isAgentNotificationsMuted(agent) ? (
+        <SessionBadge label={t("notificationSettings.mutedBadge")} icon={mutedBadgeIcon} />
       ) : null}
       {pendingPermissionCount > 0 ? (
         <SessionBadge

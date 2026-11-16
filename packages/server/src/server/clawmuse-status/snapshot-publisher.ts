@@ -25,6 +25,8 @@ export interface ClawMuseStatusPublisherOptions {
   listAgents: () => ClawMuseStatusAgentSnapshot[];
   listUsage: () => Promise<readonly UsageReportEntry[]>;
   logger: pino.Logger;
+  /** True while a user is actively interacting with a client on this host. */
+  hasActiveClient?: () => boolean;
   /** Bound to the session once the server advertises goals; absent on hosts without a runner. */
   goals?: ClawMuseGoalRunner;
   projection?: ClawMuseStatusProjection;
@@ -42,6 +44,7 @@ interface PendingSnapshot {
   signature: string;
   items: readonly ClawMuseStatusSnapshotItem[];
   usages: readonly ClawMuseStatusUsage[];
+  suppressAlerts?: boolean;
 }
 
 export class ClawMuseStatusNotConnectedError extends Error {
@@ -303,6 +306,7 @@ export class ClawMuseStatusPublisher {
         signature: this.desiredSignature,
         items: this.items,
         usages: this.usages,
+        ...(this.options.hasActiveClient?.() ? { suppressAlerts: true } : {}),
       };
     }
     const pending = this.pending;

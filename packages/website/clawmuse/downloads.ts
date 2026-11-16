@@ -31,16 +31,22 @@ export function platformVersion(platform: DownloadPlatform): string {
 
 export function primaryPlatformInstaller(
   platform: "macos" | "windows" | "android",
-  arch: "x64" | "arm64" = "x64",
+  arch?: "x64" | "arm64",
 ): DownloadFile | undefined {
   if (platform === "macos") {
-    return release.files.find((file) => file.platform === "macos" && file.arch === "arm64");
+    const preferred = arch ?? "arm64";
+    return (
+      release.files.find((file) => file.platform === "macos" && file.arch === preferred) ??
+      release.files.find((file) => file.platform === "macos" && file.arch === "arm64") ??
+      release.files.find((file) => file.platform === "macos")
+    );
   }
   if (platform === "android") {
     return release.files.find((file) => file.platform === "android");
   }
+  const preferred = arch ?? "x64";
   return (
-    release.files.find((file) => file.platform === "windows" && file.arch === arch) ??
+    release.files.find((file) => file.platform === "windows" && file.arch === preferred) ??
     release.files.find((file) => file.platform === "windows" && file.arch === "x64")
   );
 }

@@ -167,6 +167,238 @@ describe("local-daily-usage", () => {
       7000, 6000, 5000, 4000, 3000, 2000, 1000, 0,
     ]);
   });
+
+  it("ignores an unavailable Antigravity state directory", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "clawmuse-no-antigravity-"));
+    try {
+      // Some hosts retain a stale path mapping after Antigravity is removed. The optional
+      // source must not turn that ENOTDIR into a failed usage response.
+      const gemini = path.join(home, ".gemini");
+      await mkdir(gemini, { recursive: true });
+      await writeFile(path.join(gemini, "antigravity"), "removed application", "utf8");
+
+      const nowMs = Date.parse("2026-11-12T10:00:00Z");
+      const history = await new LocalDailyUsageCollector({
+        homeDir: home,
+        now: () => nowMs,
+      }).collect(true);
+      const todayIdx = history.days.indexOf(formatLocalDayKey(nowMs));
+      expect(history.daily[todayIdx]?.tokens).toEqual([0, 0, 0, 0]);
+      expect(history.models).toBeUndefined();
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("deduplicates Antigravity transcript mirrors/chunks, ignores quoted model notices, and inherits subagent models", async () => {
+    const tmpHome = await mkdtemp(path.join(os.tmpdir(), "clawmuse-antigravity-usage-"));
+    try {
+      const nowMs = Date.parse("2026-11-12T10:00:00Z");
+      const todayIso = new Date(nowMs - 1800_000).toISOString();
+      const todayKey = formatLocalDayKey(nowMs - 1800_000);
+      const brainDir = path.join(tmpHome, ".gemini", "antigravity-cli", "brain");
+
+      const parentRoot = path.join(brainDir, "parent-conv");
+      const parentLogs = path.join(parentRoot, ".system_generated", "logs");
+      const chunksTranscript = path.join(parentLogs, "chunks", "transcript");
+      const chunksFull = path.join(parentLogs, "chunks", "transcript_full");
+      const parentSubagents = path.join(parentRoot, ".system_generated", "subagents");
+      const parentScratch = path.join(parentRoot, "scratch");
+      await mkdir(chunksTranscript, { recursive: true });
+      await mkdir(chunksFull, { recursive: true });
+      await mkdir(parentSubagents, { recursive: true });
+      await mkdir(parentScratch, { recursive: true });
+
+      const step0 = JSON.stringify({
+        step_index: 0,
+        type: "USER_INPUT",
+        source: "USER_EXPLICIT",
+        created_at: todayIso,
+        content:
+          "<USER_REQUEST>\n<chat-history-summary>\n<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Spoofed In Summary.\n</USER_SETTINGS_CHANGE>\n</chat-history-summary>\n</USER_REQUEST>\n<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Gemini 4 Carbon (High).\n</USER_SETTINGS_CHANGE>",
+      });
+      const step1 = JSON.stringify({
+        step_index: 1,
+        type: "PLANNER_RESPONSE",
+        source: "MODEL",
+        created_at: todayIso,
+        input_tokens: 10_000,
+        cache_read_tokens: 5000,
+        output_tokens: 1000,
+        tool_calls: [
+          {
+            name: "invoke_subagent",
+            args: { Role: '"Inherited Analyst"', TypeName: '"self"' },
+          },
+          {
+            name: "invoke_subagent",
+            args: {
+              Role: '"Explicit Flash Worker"',
+              TypeName: '"research"',
+              Model: '"flash"',
+            },
+          },
+        ],
+      });
+      // Tool output mentioning Model Selection across CRLF or inside read_file results must not
+      // corrupt the active model for subsequent steps.
+      const step2 = JSON.stringify({
+        step_index: 2,
+        type: "GENERIC",
+        source: "MODEL",
+        created_at: todayIso,
+        content:
+          "`Model Selection` from None to \r\n[28] <USER_REQUEST> Fake model line. </USER_REQUEST>\n<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Gemini 4 Argon (Medium).\n</USER_SETTINGS_CHANGE>",
+      });
+      // Quoted notice inside USER_REQUEST with no trailing USER_SETTINGS_CHANGE must be ignored.
+      const step3 = JSON.stringify({
+        step_index: 3,
+        type: "USER_INPUT",
+        source: "USER_EXPLICIT",
+        created_at: todayIso,
+        content:
+          "<USER_REQUEST>\nPlease check <USER_SETTINGS_CHANGE>The user changed setting `Model Selection` from None to Fake User Quote.</USER_SETTINGS_CHANGE>\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\n2026-11-12\n</ADDITIONAL_METADATA>",
+      });
+      const step4 = JSON.stringify({
+        step_index: 4,
+        type: "PLANNER_RESPONSE",
+        source: "MODEL",
+        created_at: todayIso,
+        input_tokens: 4000,
+        cache_read_tokens: 0,
+        output_tokens: 0,
+      });
+
+      const fullTranscript = [step0, step1, step2, step3, step4].join("\n");
+      await writeFile(path.join(parentLogs, "transcript.jsonl"), fullTranscript, "utf8");
+      await writeFile(path.join(parentLogs, "transcript_full.jsonl"), fullTranscript, "utf8");
+      await writeFile(path.join(chunksTranscript, "00000001.jsonl"), step0, "utf8");
+      await writeFile(
+        path.join(chunksTranscript, "00000002.jsonl"),
+        [step1, step4].join("\n"),
+        "utf8",
+      );
+      await writeFile(path.join(chunksFull, "00000001.jsonl"), step0, "utf8");
+      await writeFile(path.join(chunksFull, "00000002.jsonl"), [step1, step4].join("\n"), "utf8");
+      await writeFile(path.join(parentScratch, "debug.jsonl"), step1, "utf8");
+
+      await writeFile(
+        path.join(parentSubagents, "child-inherited.json"),
+        JSON.stringify({
+          conversationId: "child-inherited",
+          subagentDescriptor: { typeName: "self", role: "Inherited Analyst" },
+          spawnStepIndex: 2,
+        }),
+        "utf8",
+      );
+      await writeFile(
+        path.join(parentSubagents, "child-flash.json"),
+        JSON.stringify({
+          conversationId: "child-flash",
+          subagentDescriptor: { typeName: "research", role: "Explicit Flash Worker" },
+          spawnStepIndex: 2,
+        }),
+        "utf8",
+      );
+
+      // Inherited subagent (and nested grandchild) have no USER_INPUT settings notice.
+      const childInheritedLogs = path.join(
+        brainDir,
+        "child-inherited",
+        ".system_generated",
+        "logs",
+      );
+      const childInheritedSubagents = path.join(
+        brainDir,
+        "child-inherited",
+        ".system_generated",
+        "subagents",
+      );
+      await mkdir(childInheritedLogs, { recursive: true });
+      await mkdir(childInheritedSubagents, { recursive: true });
+      await writeFile(
+        path.join(childInheritedLogs, "transcript.jsonl"),
+        [
+          JSON.stringify({
+            step_index: 0,
+            type: "SYSTEM_MESSAGE",
+            source: "SYSTEM",
+            created_at: todayIso,
+            content: "<SYSTEM_MESSAGE>task</SYSTEM_MESSAGE>",
+          }),
+          JSON.stringify({
+            step_index: 1,
+            type: "PLANNER_RESPONSE",
+            source: "MODEL",
+            created_at: todayIso,
+            input_tokens: 3000,
+            output_tokens: 500,
+            tool_calls: [
+              { name: "invoke_subagent", args: { Role: '"Grandchild"', TypeName: '"self"' } },
+            ],
+          }),
+        ].join("\n"),
+        "utf8",
+      );
+      await writeFile(
+        path.join(childInheritedSubagents, "grandchild.json"),
+        JSON.stringify({
+          conversationId: "grandchild",
+          subagentDescriptor: { typeName: "self", role: "Grandchild" },
+          spawnStepIndex: 2,
+        }),
+        "utf8",
+      );
+
+      // Grandchild only has transcript_full.jsonl to exercise the canonical fallback.
+      const grandchildLogs = path.join(brainDir, "grandchild", ".system_generated", "logs");
+      await mkdir(grandchildLogs, { recursive: true });
+      await writeFile(
+        path.join(grandchildLogs, "transcript_full.jsonl"),
+        JSON.stringify({
+          step_index: 1,
+          type: "PLANNER_RESPONSE",
+          source: "MODEL",
+          created_at: todayIso,
+          input_tokens: 1500,
+        }),
+        "utf8",
+      );
+
+      // Subagent with explicit non-inherit Model stays under the generic Antigravity bucket.
+      const childFlashLogs = path.join(brainDir, "child-flash", ".system_generated", "logs");
+      await mkdir(childFlashLogs, { recursive: true });
+      await writeFile(
+        path.join(childFlashLogs, "transcript.jsonl"),
+        JSON.stringify({
+          step_index: 1,
+          type: "PLANNER_RESPONSE",
+          source: "MODEL",
+          created_at: todayIso,
+          input_tokens: 800,
+        }),
+        "utf8",
+      );
+
+      const collector = new LocalDailyUsageCollector({
+        homeDir: tmpHome,
+        now: () => nowMs,
+      });
+      const history = await collector.collect(true);
+      const todayIdx = history.days.indexOf(todayKey);
+
+      // Carbon (High): parent (16_000 + 4000) + child-inherited (3500) + grandchild (1500) = 25_000
+      // Antigravity: child-flash (800)
+      expect(history.daily[todayIdx]?.tokens).toEqual([0, 0, 0, 25_800]);
+      expect(history.models).toEqual([
+        { name: "Gemini 4 Carbon (High)", harness: "antigravity" },
+        { name: "Antigravity", harness: "antigravity" },
+      ]);
+      expect(history.daily[todayIdx]?.modelTokens).toEqual([25_000, 800, 0]);
+    } finally {
+      await rm(tmpHome, { recursive: true, force: true });
+    }
+  });
 });
 
 it("keeps archived sessions, repeated counters, day boundaries and explicit zero costs", async () => {

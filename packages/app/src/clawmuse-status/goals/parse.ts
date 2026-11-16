@@ -115,9 +115,17 @@ const evidenceSchema = z.object({
       name: z.string(),
       result: z.enum(["passed", "failed", "not_run"]),
       detail: z.string().optional(),
+      exitCode: z.number().int().optional(),
+      durationMs: z.number().int().nonnegative().optional(),
     }),
   ),
   artifacts: z.array(z.object({ label: z.string(), url: z.string().url() })),
+  source: z.enum(["executor", "verifier", "owner"]).optional(),
+  verifiedByRunId: z.string().optional(),
+  headSha: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/i)
+    .optional(),
 });
 const taskRelationsSchema = z.object({
   parentGoalId: z.string().nullable().optional(),
@@ -164,7 +172,7 @@ export function parseGoalReport(value: unknown): GoalReport {
 export function parseGoalRun(value: unknown): GoalRun {
   const source = record(value, "run");
   const kind = text(source, "kind");
-  if (kind !== "plan" && kind !== "execute") {
+  if (kind !== "plan" && kind !== "execute" && kind !== "verify") {
     throw new Error("Invalid status service response: run kind");
   }
   return {

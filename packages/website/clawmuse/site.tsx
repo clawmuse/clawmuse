@@ -293,7 +293,7 @@ function Header({ language, page }: SiteProps) {
 
 type DetectedClientPlatform =
   | { kind: "ios" }
-  | { kind: "macos" }
+  | { kind: "macos"; arch: "x64" | "arm64" }
   | { kind: "windows"; arch: "x64" | "arm64" }
   | { kind: "android" }
   | null;
@@ -328,8 +328,11 @@ function useDetectedPlatform(): DetectedClientPlatform {
         if (kind === "windows" && values.architecture === "arm") {
           setDetected({ kind: "windows", arch: "arm64" });
         } else if (kind === "macos" && values.architecture === "x86") {
-          // Intel Macs do not run the arm64 DMG; send them to /download (Web workspace + Linux/other).
-          setDetected(null);
+          const hasIntelDmg = release.files.some(
+            (file) => file.platform === "macos" && file.arch === "x64",
+          );
+          // Intel Macs do not run the arm64 DMG; serve the x64 DMG when published, otherwise /download.
+          setDetected(hasIntelDmg ? { kind: "macos", arch: "x64" } : null);
         }
       } catch {
         /* Architecture hint unavailable. */
@@ -344,7 +347,7 @@ function useDetectedPlatform(): DetectedClientPlatform {
       };
     }
     if (/mac/i.test(platform) || /macintosh|mac os x/i.test(ua)) {
-      setDetected({ kind: "macos" });
+      setDetected({ kind: "macos", arch: "arm64" });
       void refineArchitecture("macos");
       return () => {
         cancelled = true;
@@ -379,7 +382,7 @@ export function DownloadButton({
   }
 
   if (detected?.kind === "macos") {
-    const macFile = primaryPlatformInstaller("macos");
+    const macFile = primaryPlatformInstaller("macos", detected.arch);
     if (macFile) {
       return (
         <span className="smart-download-group">

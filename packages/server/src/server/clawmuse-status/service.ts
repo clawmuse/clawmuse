@@ -19,6 +19,7 @@ export interface ClawMuseStatusServiceOptions {
   logger: pino.Logger;
   listAgents: () => ClawMuseStatusAgentSnapshot[];
   listUsage: () => Promise<readonly UsageReportEntry[]>;
+  hasActiveClient?: () => boolean;
   /** Present when this daemon can execute goal runs. */
   goals?: ClawMuseGoalRunner;
   env?: NodeJS.ProcessEnv;
@@ -175,6 +176,7 @@ export class ClawMuseStatusService {
       hostToken: next.hostToken,
       listAgents: this.options.listAgents,
       listUsage: this.options.listUsage,
+      ...(this.options.hasActiveClient ? { hasActiveClient: this.options.hasActiveClient } : {}),
       ...(this.options.goals ? { goals: this.options.goals } : {}),
       logger: this.logger,
     });

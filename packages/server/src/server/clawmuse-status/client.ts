@@ -32,6 +32,8 @@ export interface ClawMuseStatusSnapshot {
   revision: number;
   items: readonly ClawMuseStatusSnapshotItem[];
   usages: readonly ClawMuseStatusUsage[];
+  /** Schema v5: host reports active user presence so mobile can suppress alert chimes. */
+  suppressAlerts?: boolean;
 }
 
 export interface ClawMuseStatusHostSession {
@@ -122,6 +124,8 @@ export class ClawMuseStatusRequestError extends Error {
 
 export type ClawMuseStatusFetch = (url: string, init: RequestInit) => Promise<Response>;
 
+/** Snapshot schema that accepts host presence `suppressAlerts`. */
+export const CLAWMUSE_STATUS_SUPPRESS_ALERTS_SCHEMA_VERSION = 5;
 /** Snapshot schema that introduced `usages: HostUsage[]`; older servers take a single `usage`. */
 export const CLAWMUSE_STATUS_MULTI_USAGE_SCHEMA_VERSION = 4;
 const CLAWMUSE_STATUS_USAGE_SCHEMA_VERSION = 3;
@@ -244,6 +248,9 @@ function snapshotBody(snapshot: ClawMuseStatusSnapshot, schemaVersion: number): 
   const base = {
     revision: snapshot.revision,
     items: snapshot.items,
+    ...(schemaVersion >= CLAWMUSE_STATUS_SUPPRESS_ALERTS_SCHEMA_VERSION && snapshot.suppressAlerts
+      ? { suppressAlerts: true }
+      : {}),
   };
   if (schemaVersion >= CLAWMUSE_STATUS_MULTI_USAGE_SCHEMA_VERSION) {
     return snapshot.usages.length > 0 ? { ...base, usages: snapshot.usages } : base;

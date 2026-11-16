@@ -25,6 +25,8 @@ import {
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { hostSupportsFeature } from "@/runtime/host-features";
 import { getIsElectron } from "@/constants/platform";
+import { getCachedDesktopSettings } from "@/desktop/settings/desktop-settings";
+import { notificationPreferencesStore, toStatusPushPreferences } from "@/notifications/preferences";
 import { parseNotificationOpenTarget } from "@/notification-open";
 import { sendOsNotification } from "@/utils/os-notifications";
 import { usePanelStore } from "@/stores/panel-store";
@@ -109,12 +111,9 @@ function addActivityToken(state: TokenState, event: AgentLiveActivityPushToken):
 }
 
 /**
- * The APNs alert token, gated on the app's notification permission.
- *
- * Paseo has no separate in-app push toggle on iOS: the OS permission is the
- * preference, and it is the same one the per-agent Expo push registration
- * already asks for. Turning notifications off in iOS Settings therefore
- * unregisters the aggregate alert endpoint too.
+ * Reads the APNs alert token when OS notification permission is granted.
+ * Synchronization combines this with the in-app notification preferences to
+ * register or unregister the status alert endpoint.
  */
 async function readAlertToken(current: string | undefined): Promise<string | null> {
   const permission = await Notifications.getPermissionsAsync();
@@ -306,12 +305,18 @@ function ClawMuseStatusSynchronizer({
       if (!devicePush) {
         return;
       }
+      const { preferences } = notificationPreferencesStore.getSnapshot();
+      if (!preferences.liveActivityEnabled) {
+        liveActivityId = undefined;
+        tokens.pushToStart = undefined;
+        tokens.activities.clear();
+        return;
+      }
       const snapshot = await getAgentLiveActivityPushTokenSnapshot();
       liveActivityId = snapshot.activityId;
       const pushToStart = normalizeHexToken(snapshot.pushToStartToken);
-      if (pushToStart) {
-        tokens.pushToStart = pushToStart;
-      }
+      tokens.pushToStart =
+        preferences.liveActivityPushToStart && pushToStart ? pushToStart : undefined;
       tokens.activities.clear();
       for (const activity of snapshot.activities) {
         addActivityToken(tokens, activity);
@@ -413,6 +418,61 @@ function ClawMuseStatusSynchronizer({
       });
     }
 
+    function collectDesiredPushEndpoints(
+      alertKind: "alert" | "fcm_alert",
+      preferences: ReturnType<typeof notificationPreferencesStore.getSnapshot>["preferences"],
+    ): ClawMuseStatusPushEndpoint[] {
+      const endpoints: ClawMuseStatusPushEndpoint[] = [];
+      if (tokens.alert) {
+        endpoints.push({ kind: alertKind, token: tokens.alert });
+      }
+      if (
+        tokens.pushToStart &&
+        preferences.liveActivityEnabled &&
+        preferences.liveActivityPushToStart
+      ) {
+        endpoints.push({ kind: "push_to_start", token: tokens.pushToStart });
+      }
+      if (preferences.liveActivityEnabled) {
+        for (const activity of tokens.activities.values()) {
+          endpoints.push({
+            kind: "activity_update",
+            token: activity.pushToken,
+            activityId: activity.activityId,
+            generation: activity.generation,
+          });
+        }
+      }
+      return endpoints;
+    }
+
+    async function syncDisabledPushEndpoints(
+      client: ClawMuseStatusApiClient,
+      installationId: string,
+      alertKind: "alert" | "fcm_alert",
+      preferences: ReturnType<typeof notificationPreferencesStore.getSnapshot>["preferences"],
+    ): Promise<void> {
+      if (!tokens.alert && pushSyncState.shouldUnregisterAlert(installationId)) {
+        await client.unregisterAlertPushEndpoint(alertKind);
+        pushSyncState.markAlertUnregistered(installationId);
+      }
+      const pushToStartDisabled =
+        !preferences.liveActivityEnabled || !preferences.liveActivityPushToStart;
+      if (
+        devicePush &&
+        !tokens.pushToStart &&
+        pushToStartDisabled &&
+        pushSyncState.shouldUnregisterPushToStart(installationId)
+      ) {
+        await client.unregisterAlertPushEndpoint("push_to_start").catch(() => 0);
+        if (!preferences.liveActivityEnabled) {
+          await resetAgentLiveActivityRemoteStatusSession(usesLocalActivity).catch(() => undefined);
+          await client.resetLiveActivity().catch(() => 0);
+        }
+        pushSyncState.markPushToStartUnregistered(installationId);
+      }
+    }
+
     async function registerEndpoints(): Promise<void> {
       if (!devicePush && !androidPush) {
         return;
@@ -422,28 +482,26 @@ function ClawMuseStatusSynchronizer({
       if (!client || !installationId) {
         return;
       }
-      if (androidPush) tokens.alert = (await readAndroidGoalPushToken()) ?? undefined;
+      const { preferences } = notificationPreferencesStore.getSnapshot();
+      const allowStatusAlerts =
+        preferences.pushEnabled &&
+        (preferences.goalsReview || !preferences.singleTaskChannelPriority);
+      if (androidPush) {
+        tokens.alert = allowStatusAlerts
+          ? ((await readAndroidGoalPushToken()) ?? undefined)
+          : undefined;
+      } else if (!allowStatusAlerts) {
+        tokens.alert = undefined;
+      }
       const alertKind = androidPush ? "fcm_alert" : "alert";
-      if (!tokens.alert && pushSyncState.shouldUnregisterAlert(installationId)) {
-        await client.unregisterAlertPushEndpoint(alertKind);
-        pushSyncState.markAlertUnregistered(installationId);
+      await syncDisabledPushEndpoints(client, installationId, alertKind, preferences);
+      const statusPrefs = toStatusPushPreferences(preferences);
+      const serializedPrefs = JSON.stringify(statusPrefs);
+      if (pushSyncState.shouldSyncPreferences(installationId, serializedPrefs)) {
+        await client.updatePushPreferences(statusPrefs);
+        pushSyncState.markPreferencesSynced(installationId, serializedPrefs);
       }
-      const endpoints: ClawMuseStatusPushEndpoint[] = [];
-      if (tokens.alert) {
-        endpoints.push({ kind: alertKind, token: tokens.alert });
-      }
-      if (tokens.pushToStart) {
-        endpoints.push({ kind: "push_to_start", token: tokens.pushToStart });
-      }
-      for (const activity of tokens.activities.values()) {
-        endpoints.push({
-          kind: "activity_update",
-          token: activity.pushToken,
-          activityId: activity.activityId,
-          generation: activity.generation,
-        });
-      }
-      for (const endpoint of endpoints) {
+      for (const endpoint of collectDesiredPushEndpoints(alertKind, preferences)) {
         const key = endpointKey(installationId, endpoint);
         if (pushSyncState.shouldRegister(key)) {
           await client.registerPushEndpoint(endpoint);
@@ -475,8 +533,42 @@ function ClawMuseStatusSynchronizer({
       }
     }
 
+    function isLocalGoalReviewNotificationAllowed(): boolean {
+      if (getIsElectron()) {
+        const desktopNotifs = getCachedDesktopSettings().notifications;
+        return desktopNotifs.enabled && desktopNotifs.goalsReview;
+      }
+      if (Platform.OS === "android") {
+        const mobileNotifs = notificationPreferencesStore.getSnapshot().preferences;
+        return mobileNotifs.pushEnabled && mobileNotifs.goalsReview;
+      }
+      return true;
+    }
+
+    async function deliverLocalGoalReviewNotification(
+      body: string,
+      data: Record<string, unknown>,
+    ): Promise<boolean> {
+      if (getIsElectron()) {
+        return sendOsNotification({ title: "ClawMuse", body, data });
+      }
+      if (Platform.OS === "android") {
+        const permission = await Notifications.getPermissionsAsync();
+        if (permission.status !== Notifications.PermissionStatus.GRANTED) {
+          return false;
+        }
+        await Notifications.scheduleNotificationAsync({
+          content: { title: "ClawMuse", body, data },
+          trigger: null,
+        });
+        return true;
+      }
+      return false;
+    }
+
     async function notifyGoalReviews(): Promise<void> {
       if (devicePush || (androidPush && tokens.alert) || !api || disposed) return;
+      if (!isLocalGoalReviewNotificationAllowed()) return;
       const client = api;
       const installationId = await client.getInstallationId();
       if (!installationId || disposed) return;
@@ -500,24 +592,9 @@ function ClawMuseStatusSynchronizer({
             ...(goal.reviewEventVersion ? { eventVersion: goal.reviewEventVersion } : {}),
           },
         };
-        let accepted = false;
-        if (getIsElectron()) {
-          accepted = await sendOsNotification({
-            title: "ClawMuse",
-            body: i18n.t(goalStatusLabelKey(goal)),
-            data,
-          });
-        } else if (Platform.OS === "android") {
-          const permission = await Notifications.getPermissionsAsync();
-          if (permission.status === Notifications.PermissionStatus.GRANTED) {
-            await Notifications.scheduleNotificationAsync({
-              content: { title: "ClawMuse", body: i18n.t(goalStatusLabelKey(goal)), data },
-              trigger: null,
-            });
-            accepted = true;
-          }
+        if (await deliverLocalGoalReviewNotification(i18n.t(goalStatusLabelKey(goal)), data)) {
+          seen.add(eventKey);
         }
-        if (accepted) seen.add(eventKey);
       }
       if (!disposed) await AsyncStorage.setItem(key, JSON.stringify([...seen].slice(-500)));
     }
@@ -544,7 +621,10 @@ function ClawMuseStatusSynchronizer({
     // running; if this device no longer has one, nothing is visible until the
     // service is told to plan a fresh start.
     async function reportMissingLiveActivity(installationId: string | null): Promise<void> {
-      if (!devicePush) {
+      if (
+        !devicePush ||
+        !notificationPreferencesStore.getSnapshot().preferences.liveActivityEnabled
+      ) {
         return;
       }
       const client = api;
@@ -618,12 +698,20 @@ function ClawMuseStatusSynchronizer({
 
     async function synchronize(): Promise<void> {
       if (disposed) return;
+      await notificationPreferencesStore.ensureLoaded();
       await ensureApiFromStoredSession();
       const installationBefore = api ? await api.getInstallationId() : null;
       await flushClawMuseStatusHostUnbinds();
       await applyPendingActivityReset(installationBefore);
       await replaceActivitySnapshot();
-      tokens.alert = devicePush ? ((await readAlertToken(tokens.alert)) ?? undefined) : undefined;
+      const { preferences } = notificationPreferencesStore.getSnapshot();
+      const allowStatusAlerts =
+        preferences.pushEnabled &&
+        (preferences.goalsReview || !preferences.singleTaskChannelPriority);
+      tokens.alert =
+        devicePush && allowStatusAlerts
+          ? ((await readAlertToken(tokens.alert)) ?? undefined)
+          : undefined;
       let synchronizationError: unknown;
       try {
         await synchronizeClawMuseStatus({
@@ -793,6 +881,7 @@ function ClawMuseStatusSynchronizer({
       triggerOnHostChange,
     );
     const unsubscribeUnbindIntents = subscribeClawMuseStatusHostUnbindIntents(trigger);
+    const unsubscribeNotificationPrefs = notificationPreferencesStore.subscribe(trigger);
     const summaryPollTimer = setInterval(() => {
       if (AppState.currentState === "active") {
         trigger();
@@ -873,6 +962,7 @@ function ClawMuseStatusSynchronizer({
       unsubscribeHostList();
       unsubscribeFeatures();
       unsubscribeUnbindIntents();
+      unsubscribeNotificationPrefs();
       appStateSubscription.remove();
       for (const subscription of deviceSubscriptions) {
         subscription?.remove();

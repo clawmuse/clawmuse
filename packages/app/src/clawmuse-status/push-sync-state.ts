@@ -6,6 +6,8 @@
 export class ClawMuseStatusPushSyncState {
   private readonly registered = new Set<string>();
   private readonly clearedAlertInstallations = new Set<string>();
+  private readonly clearedPushToStartInstallations = new Set<string>();
+  private readonly syncedPreferences = new Map<string, string>();
 
   shouldRegister(key: string): boolean {
     return !this.registered.has(key);
@@ -15,6 +17,8 @@ export class ClawMuseStatusPushSyncState {
     this.registered.add(key);
     if (kind === "alert" || kind === "fcm_alert") {
       this.clearedAlertInstallations.delete(installationId);
+    } else if (kind === "push_to_start") {
+      this.clearedPushToStartInstallations.delete(installationId);
     }
   }
 
@@ -32,7 +36,30 @@ export class ClawMuseStatusPushSyncState {
     this.clearedAlertInstallations.add(installationId);
   }
 
+  shouldUnregisterPushToStart(installationId: string): boolean {
+    return !this.clearedPushToStartInstallations.has(installationId);
+  }
+
+  markPushToStartUnregistered(installationId: string): void {
+    const prefix = `${installationId}:push_to_start:`;
+    for (const key of this.registered) {
+      if (key.startsWith(prefix)) {
+        this.registered.delete(key);
+      }
+    }
+    this.clearedPushToStartInstallations.add(installationId);
+  }
+
+  shouldSyncPreferences(installationId: string, serialized: string): boolean {
+    return this.syncedPreferences.get(installationId) !== serialized;
+  }
+
+  markPreferencesSynced(installationId: string, serialized: string): void {
+    this.syncedPreferences.set(installationId, serialized);
+  }
+
   invalidateRegistrations(): void {
     this.registered.clear();
+    this.syncedPreferences.clear();
   }
 }

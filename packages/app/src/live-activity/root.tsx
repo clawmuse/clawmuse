@@ -1,6 +1,7 @@
 import {
   endLegacyAgentLiveActivities,
   getAgentLiveActivityRemoteStatusCapability,
+  resetAgentLiveActivityRemoteStatusSession,
   syncAgentLiveActivity,
   updateAgentWidgetSnapshot,
 } from "@clawmuse/expo-agent-live-activity";
@@ -14,6 +15,7 @@ import {
   getClawMuseStatusBindingSnapshot,
   subscribeClawMuseStatusBindings,
 } from "@/clawmuse-status/binding-state";
+import { useNotificationPreferences } from "@/notifications/preferences";
 import type { AgentLiveActivityPhase } from "./agent-live-activity";
 import {
   supportsClawMuseLiveActivity,
@@ -69,6 +71,8 @@ export function ClawMuseLiveActivityRoot() {
 
 function EnabledLiveActivityRoot({ remoteDriven }: { remoteDriven: boolean }) {
   const { t } = useTranslation();
+  const { preferences } = useNotificationPreferences();
+  const capsuleEnabled = preferences.liveActivityEnabled;
   const { summary } = useClawMuseLiveActivityFeed();
   const status = useClawMuseStatusSummary();
   const hostPlans = useHostUsagePlans();
@@ -90,7 +94,7 @@ function EnabledLiveActivityRoot({ remoteDriven }: { remoteDriven: boolean }) {
   const mountedRef = useRef(false);
 
   useEffect(() => {
-    if (remoteDriven) {
+    if (remoteDriven || !capsuleEnabled) {
       return;
     }
     // Local activities have no background producer. Renew while foregrounded,
@@ -109,11 +113,15 @@ function EnabledLiveActivityRoot({ remoteDriven }: { remoteDriven: boolean }) {
       clearInterval(timer);
       subscription.remove();
     };
-  }, [remoteDriven]);
+  }, [capsuleEnabled, remoteDriven]);
 
   useEffect(() => {
     mountedRef.current = true;
-    if (remoteDriven) {
+    if (!capsuleEnabled) {
+      coordinationRef.current = INITIAL_CLAWMUSE_LIVE_ACTIVITY_STATE;
+      void endLegacyAgentLiveActivities().catch(() => undefined);
+      void resetAgentLiveActivityRemoteStatusSession(!remoteDriven).catch(() => undefined);
+    } else if (remoteDriven) {
       // A capsule this device started locally would fight the pushed one.
       void endLegacyAgentLiveActivities().catch(() => undefined);
     }
@@ -123,10 +131,10 @@ function EnabledLiveActivityRoot({ remoteDriven }: { remoteDriven: boolean }) {
         clearTimeout(retryTimerRef.current);
       }
     };
-  }, [remoteDriven]);
+  }, [capsuleEnabled, remoteDriven]);
 
   useEffect(() => {
-    if (remoteDriven) {
+    if (remoteDriven || !capsuleEnabled) {
       return;
     }
     if (retryTimerRef.current) {
@@ -167,7 +175,7 @@ function EnabledLiveActivityRoot({ remoteDriven }: { remoteDriven: boolean }) {
           requestRetry();
         }, NATIVE_RETRY_DELAY_MS);
       });
-  }, [remoteDriven, retryRevision, summary, t, usages]);
+  }, [capsuleEnabled, remoteDriven, retryRevision, summary, t, usages]);
 
   return (
     <>

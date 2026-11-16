@@ -7,6 +7,11 @@ export interface ClawMuseGoalsProviderTarget {
   model: string | null;
 }
 
+export interface ClawMuseGoalsVerificationCommand {
+  name: string;
+  command: string;
+}
+
 export interface ClawMuseGoalsSettings {
   /** Off by default: a host only runs goals once its owner has chosen the models. */
   enabled: boolean;
@@ -14,6 +19,10 @@ export interface ClawMuseGoalsSettings {
   planner: ClawMuseGoalsProviderTarget;
   /** Advances an accepted goal. Meant for the strongest model available. */
   executor: ClawMuseGoalsProviderTarget;
+  /** Optional independent verifier target. It should differ from the executor when possible. */
+  verifierAgent: ClawMuseGoalsProviderTarget | null;
+  /** Explicit checks that run in an isolated checkout of the reported commit. */
+  verificationCommands: ClawMuseGoalsVerificationCommand[];
   /** Execute runs get their own worktree unless the owner wants them in the checkout. */
   isolation: ClawMuseGoalsIsolation;
   maxConcurrentRuns: number;
@@ -23,6 +32,8 @@ export interface ClawMuseGoalsSettingsPatch {
   enabled?: boolean;
   planner?: string;
   executor?: string;
+  verifierAgent?: string | null;
+  verificationCommands?: ClawMuseGoalsVerificationCommand[];
   isolation?: ClawMuseGoalsIsolation;
   maxConcurrentRuns?: number;
 }
@@ -63,6 +74,10 @@ export function readClawMuseGoalsSettings(paseoHome: string): ClawMuseGoalsSetti
     executor: persisted?.executor
       ? parseClawMuseGoalsProviderTarget(persisted.executor)
       : DEFAULT_TARGET,
+    verifierAgent: persisted?.verifierAgent
+      ? parseClawMuseGoalsProviderTarget(persisted.verifierAgent)
+      : null,
+    verificationCommands: persisted?.verificationCommands ?? [],
     isolation: persisted?.isolation ?? "worktree",
     maxConcurrentRuns: persisted?.maxConcurrentRuns ?? 1,
   };
@@ -73,6 +88,37 @@ export function readClawMuseGoalsSettings(paseoHome: string): ClawMuseGoalsSetti
  * Saving them before `clawmuse status connect` is allowed; they take effect once
  * the relationship exists.
  */
+function validateVerifierPatch(patch: ClawMuseGoalsSettingsPatch): void {
+  if (patch.verifierAgent !== undefined && patch.verifierAgent !== null) {
+    parseClawMuseGoalsProviderTarget(patch.verifierAgent);
+  }
+  if (patch.verificationCommands === undefined) return;
+  if (patch.verificationCommands.length > 10) {
+    throw new Error("verificationCommands must include at most 10 commands");
+  }
+  for (const check of patch.verificationCommands) {
+    if (!check.name.trim() || !check.command.trim()) {
+      throw new Error("Every verification command needs a name and command");
+    }
+  }
+}
+
+function normalizedVerifierPatch(patch: ClawMuseGoalsSettingsPatch) {
+  return {
+    ...(patch.verifierAgent !== undefined
+      ? { verifierAgent: patch.verifierAgent?.trim() || undefined }
+      : {}),
+    ...(patch.verificationCommands !== undefined
+      ? {
+          verificationCommands: patch.verificationCommands.map((check) => ({
+            name: check.name.trim(),
+            command: check.command.trim(),
+          })),
+        }
+      : {}),
+  };
+}
+
 export function saveClawMuseGoalsSettings(
   paseoHome: string,
   patch: ClawMuseGoalsSettingsPatch,
@@ -83,6 +129,7 @@ export function saveClawMuseGoalsSettings(
   if (patch.executor !== undefined) {
     parseClawMuseGoalsProviderTarget(patch.executor);
   }
+  validateVerifierPatch(patch);
   if (
     patch.maxConcurrentRuns !== undefined &&
     (!Number.isInteger(patch.maxConcurrentRuns) ||
@@ -100,6 +147,7 @@ export function saveClawMuseGoalsSettings(
     ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
     ...(patch.planner !== undefined ? { planner: patch.planner.trim() } : {}),
     ...(patch.executor !== undefined ? { executor: patch.executor.trim() } : {}),
+    ...normalizedVerifierPatch(patch),
     ...(patch.isolation !== undefined ? { isolation: patch.isolation } : {}),
     ...(patch.maxConcurrentRuns !== undefined
       ? { maxConcurrentRuns: patch.maxConcurrentRuns }

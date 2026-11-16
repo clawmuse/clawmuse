@@ -2,6 +2,7 @@ import { cloudSpace } from "./cloud-space";
 import { usageMonitoring } from "./usage-monitoring";
 import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
+import { notificationSettings } from "./notification-settings";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
 import { openProjectOnboarding } from "./open-project-onboarding";
@@ -22,6 +23,7 @@ export const ja: TranslationResources = {
   usageMonitoring: usageMonitoring["ja"],
   remoteAccess: remoteAccess.en,
   mobileUpdates: mobileUpdates["ja"],
+  notificationSettings: notificationSettings["ja"],
   speechSettings: speechSettings["ja"],
   connectionResilience: connectionResilience["ja"],
   clawmuseAccount: {
@@ -3430,6 +3432,7 @@ export const ja: TranslationResources = {
         accept: "承認",
         discard: "破棄",
         approve: "OK",
+        land: "マージして完了",
         continue: "続ける",
         pause: "一時停止",
         cancel: "キャンセル",
@@ -3458,6 +3461,7 @@ export const ja: TranslationResources = {
         instruction: "指示",
         openExecution: "View execution and files",
         openPr: "プルリクエストを開く",
+        mergeCommit: "マージコミット {{sha}}",
       },
       continue: {
         submit: "続ける",
@@ -3468,6 +3472,11 @@ export const ja: TranslationResources = {
       confirmDiscard: {
         title: "このゴールを破棄しますか？",
         message: "待機中と実行中の作業は停止します。レポートは残ります。",
+      },
+      confirmLand: {
+        title: "このゴールをマージして完了しますか？",
+        message:
+          "検証済みのプルリクエストをベースブランチにマージし、ワークツリーをアーカイブして、ゴールを完了にします。",
       },
       create: {
         title: "新しいゴール",

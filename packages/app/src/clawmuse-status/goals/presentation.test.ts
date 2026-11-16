@@ -26,6 +26,10 @@ it("opens execution only through the matching host bound to the current installa
   expect(
     goalExecutionTarget(run, { server: { kind: "bound", relayHostId: run.relayHostId } }),
   ).toEqual({ serverId: "server", agentId: "agent-id" });
+  expect(goalExecutionTarget({ agentRef: "agent-local", serverId: "srv-local" }, {})).toEqual({
+    serverId: "srv-local",
+    agentId: "agent-local",
+  });
 });
 
 function goal(overrides: Partial<Goal>): Goal {
@@ -90,6 +94,31 @@ describe("goal presentation", () => {
         (action) => action.id,
       ),
     ).toEqual(["approve", "continue", "discard"]);
+    const landed = goal({
+      status: "needs_review",
+      reviewReason: "completed",
+      serverId: "srv-local",
+      latestReport: {
+        id: "r1",
+        runId: "run1",
+        seq: 1,
+        kind: "done",
+        message: "done",
+        prUrl: "https://github.com/acme/app/pull/7",
+        createdAt: 1,
+      },
+    });
+    expect(goalActions(landed).map((action) => action.id)).toEqual([
+      "land",
+      "approve",
+      "continue",
+      "discard",
+    ]);
+    expect(goalActions({ ...landed, serverId: null }).map((action) => action.id)).toEqual([
+      "approve",
+      "continue",
+      "discard",
+    ]);
   });
 
   it("maps every status to the filter that lists it", () => {

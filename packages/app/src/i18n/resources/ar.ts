@@ -2,6 +2,7 @@ import { cloudSpace } from "./cloud-space";
 import { usageMonitoring } from "./usage-monitoring";
 import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
+import { notificationSettings } from "./notification-settings";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
 import { openProjectOnboarding } from "./open-project-onboarding";
@@ -22,6 +23,7 @@ export const ar: TranslationResources = {
   usageMonitoring: usageMonitoring["ar"],
   remoteAccess: remoteAccess.en,
   mobileUpdates: mobileUpdates["ar"],
+  notificationSettings: notificationSettings["ar"],
   speechSettings: speechSettings["ar"],
   connectionResilience: connectionResilience["ar"],
   clawmuseAccount: {
@@ -3430,6 +3432,7 @@ export const ar: TranslationResources = {
         accept: "قبول",
         discard: "رفض",
         approve: "اعتماد",
+        land: "دمج وإغلاق",
         continue: "متابعة",
         pause: "إيقاف مؤقت",
         cancel: "إلغاء",
@@ -3458,6 +3461,7 @@ export const ar: TranslationResources = {
         instruction: "توجيه",
         openExecution: "View execution and files",
         openPr: "فتح طلب السحب",
+        mergeCommit: "التزام الدمج {{sha}}",
       },
       continue: {
         submit: "متابعة",
@@ -3468,6 +3472,10 @@ export const ar: TranslationResources = {
       confirmDiscard: {
         title: "رفض هذا الهدف؟",
         message: "يتوقف العمل المنتظر والجاري. تبقى التقارير محفوظة.",
+      },
+      confirmLand: {
+        title: "دمج هذا الهدف وإغلاقه؟",
+        message: "سيتم دمج طلب السحب المُتحقق منه في الفرع الأساسي، وأرشفة نسخة العمل، وإغلاق الهدف.",
       },
       create: {
         title: "هدف جديد",

@@ -37,6 +37,7 @@ import type {
   GoalEvidence,
   GoalDetail,
   GoalListFilter,
+  GoalMergeMethod,
   GoalRepo,
   GoalTarget,
 } from "./goals/types";
@@ -45,6 +46,7 @@ import {
   type ClawMuseStatusAccessToken,
   type ClawMuseStatusPushEndpoint,
 } from "./types";
+import type { StatusInstallationPushPreferences } from "@/notifications/preferences";
 
 const ACCESS_TOKEN_SKEW_MS = 30_000;
 
@@ -130,10 +132,31 @@ export class ClawMuseStatusApiClient {
     await this.authorizedRequest("/v1/mobile/push-endpoints", { method: "POST", body: endpoint });
   }
 
-  async unregisterAlertPushEndpoint(kind: "alert" | "fcm_alert" = "alert"): Promise<number> {
+  async unregisterAlertPushEndpoint(
+    kind: "alert" | "fcm_alert" | "push_to_start" = "alert",
+  ): Promise<number> {
     return parseRemovedPushEndpoints(
       await this.authorizedRequest(`/v1/mobile/push-endpoints/${kind}`, { method: "DELETE" }),
     );
+  }
+
+  async updatePushPreferences(
+    preferences: Partial<StatusInstallationPushPreferences>,
+  ): Promise<void> {
+    try {
+      await this.authorizedRequest("/v1/mobile/push-preferences", {
+        method: "PUT",
+        body: preferences,
+      });
+    } catch (error) {
+      if (
+        error instanceof ClawMuseStatusHttpError &&
+        (error.status === 404 || error.status === 405)
+      ) {
+        return;
+      }
+      throw error;
+    }
   }
 
   async unbindHost(relayHostId: string, serverId: string): Promise<number> {
@@ -290,6 +313,10 @@ export class ClawMuseStatusApiClient {
 
   async approveGoal(goalId: string): Promise<Goal> {
     return this.goalAction(goalId, "approve", {});
+  }
+
+  async landGoal(goalId: string, input: { mergeMethod?: GoalMergeMethod } = {}): Promise<Goal> {
+    return this.goalAction(goalId, "land", { mergeMethod: input.mergeMethod });
   }
 
   async continueGoal(

@@ -3,10 +3,14 @@ import type { Goal, GoalListFilter, GoalReviewReason, GoalRun, GoalStatus } from
 import type { ClawMuseStatusHostBinding } from "../binding-state";
 
 export function goalExecutionTarget(
-  run: Pick<GoalRun, "agentRef" | "relayHostId">,
+  run: Pick<GoalRun, "agentRef" | "relayHostId" | "serverId">,
   hosts: Readonly<Record<string, ClawMuseStatusHostBinding>>,
 ): { serverId: string; agentId: string } | null {
-  if (!run.agentRef || !run.relayHostId) return null;
+  if (!run.agentRef) return null;
+  if (run.serverId) {
+    return { serverId: run.serverId, agentId: run.agentRef };
+  }
+  if (!run.relayHostId) return null;
   const serverId = Object.entries(hosts).find(
     ([, binding]) => binding.kind === "bound" && binding.relayHostId === run.relayHostId,
   )?.[0];
@@ -124,7 +128,7 @@ export function mergeGoalIntoList(
 }
 
 export interface GoalAction {
-  id: "accept" | "discard" | "approve" | "continue" | "pause";
+  id: "accept" | "discard" | "approve" | "continue" | "pause" | "land";
   /** The one accent button per surface; everything else is secondary/outline. */
   primary: boolean;
   destructive: boolean;
@@ -137,7 +141,8 @@ export interface GoalAction {
 
 /** The actions a goal offers from its current state, in display order. */
 export function goalActions(
-  goal: Pick<Goal, "status"> & Partial<Pick<Goal, "reviewReason" | "runsUsed">>,
+  goal: Pick<Goal, "status"> &
+    Partial<Pick<Goal, "reviewReason" | "runsUsed" | "latestReport" | "serverId">>,
 ): GoalAction[] {
   switch (goal.status) {
     case "suggested":
@@ -154,15 +159,7 @@ export function goalActions(
         { id: "discard", primary: false, destructive: true, setup: null },
       ];
     case "needs_review":
-      return [
-        ...(goal.reviewReason === "completed" || goal.reviewReason === "nothing_to_do"
-          ? [{ id: "approve", primary: true, destructive: false, setup: null } as const]
-          : []),
-        ...(goal.runsUsed === undefined || goal.runsUsed < 50
-          ? [{ id: "continue", primary: false, destructive: false, setup: "continue" } as const]
-          : []),
-        { id: "discard", primary: false, destructive: true, setup: null },
-      ];
+      return needsReviewActions(goal);
     case "paused":
       return [
         ...(goal.runsUsed === undefined || goal.runsUsed < 50
@@ -174,6 +171,33 @@ export function goalActions(
     case "discarded":
       return [];
   }
+}
+
+function needsReviewActions(
+  goal: Partial<Pick<Goal, "reviewReason" | "runsUsed" | "latestReport" | "serverId">>,
+): GoalAction[] {
+  const completable = goal.reviewReason === "completed" || goal.reviewReason === "nothing_to_do";
+  // Land runs gh/git on the owning daemon, so hosted goals never offer it.
+  const landable = completable && Boolean(goal.latestReport?.prUrl) && Boolean(goal.serverId);
+  return [
+    ...(completable
+      ? [
+          {
+            id: landable ? ("land" as const) : ("approve" as const),
+            primary: true,
+            destructive: false,
+            setup: null,
+          },
+          ...(landable
+            ? [{ id: "approve" as const, primary: false, destructive: false, setup: null }]
+            : []),
+        ]
+      : []),
+    ...(goal.runsUsed === undefined || goal.runsUsed < 50
+      ? [{ id: "continue", primary: false, destructive: false, setup: "continue" } as const]
+      : []),
+    { id: "discard", primary: false, destructive: true, setup: null },
+  ];
 }
 
 /** Progress line for a card: "2 / 3 runs" style, driven by the caller's t(). */

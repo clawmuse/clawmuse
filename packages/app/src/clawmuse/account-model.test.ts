@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { resetAccountActivity, subscribeAccountChange } from "./account-activity";
-import { AccountModel, type AccountDependencies } from "./account-model";
+import {
+  AccountModel,
+  createLocalDaemonServerIdResolver,
+  type AccountDependencies,
+} from "./account-model";
 import { AccountAuthFormModel } from "./account-auth-form-model";
 import { brand } from "@/brand.generated";
 
@@ -965,4 +969,91 @@ it("checks device ownership before binding a local account and republishes the m
   await sample.model.connectLocal();
   expect(calls).toEqual([]);
   expect(sample.model.getState().error).toContain("其他账号");
+});
+
+it("resolves local desktop daemon serverId once across repeated multi-device background refreshes", async () => {
+  let statusCalls = 0;
+  let daemonServerId = "";
+  let knownServerId: string | null = null;
+  const resolveLocalServerId = createLocalDaemonServerIdResolver({
+    shouldUseDesktopDaemon: () => true,
+    readKnownServerId: () => knownServerId,
+    getDesktopDaemonStatus: async () => {
+      statusCalls += 1;
+      return { serverId: daemonServerId };
+    },
+  });
+
+  // Before the local daemon has started for the first time, empty serverId is not sticky.
+  expect(await Promise.all([resolveLocalServerId(), resolveLocalServerId()])).toEqual([null, null]);
+  expect(statusCalls).toBe(1);
+
+  // Once resolved, repeated background discovery across multiple devices never re-probes status.
+  daemonServerId = "srv_local_mac";
+  const sample = fixture(async (path) => {
+    if (path === "/get-session") return { status: 200, data: { user: { id: "alice" } } };
+    if (path === "/clawmuse/devices") {
+      return {
+        status: 200,
+        data: {
+          account: { id: "alice", email: "alice@example.test", name: "Alice" },
+          devices: [
+            {
+              serverId: "srv_local_mac",
+              label: "MacbookPro",
+              hidden: false,
+              accountAuthorization: true,
+              offer: {
+                v: 2 as const,
+                serverId: "srv_local_mac",
+                daemonPublicKeyB64: "local-key",
+                relay: { endpoint: "agent-relay.ppb.cn:443", useTls: true },
+              },
+            },
+            {
+              serverId: "srv_remote_linux",
+              label: "Linux",
+              hidden: false,
+              accountAuthorization: true,
+              offer: {
+                v: 2 as const,
+                serverId: "srv_remote_linux",
+                daemonPublicKeyB64: "remote-key",
+                relay: { endpoint: "agent-relay.ppb.cn:443", useTls: true },
+              },
+            },
+          ],
+        },
+      };
+    }
+    return { status: 200, data: { authorization: "signed-proof" } };
+  });
+  sample.deps.authorizeHost = async (device, label) => {
+    const localId = await resolveLocalServerId();
+    if (localId && localId === device.serverId) {
+      sample.hosts.add(device.serverId);
+      sample.labels.set(device.serverId, label);
+      return;
+    }
+    sample.hosts.add(device.serverId);
+    sample.labels.set(device.serverId, label);
+  };
+
+  await sample.model.refreshInBackground();
+  await sample.model.refreshInBackground();
+  expect(statusCalls).toBe(2);
+
+  // And if useLocalDaemonServerId already populated knownServerId, zero status probes run.
+  let postKnownCalls = 0;
+  knownServerId = "srv_known";
+  const resolveWithKnown = createLocalDaemonServerIdResolver({
+    shouldUseDesktopDaemon: () => true,
+    readKnownServerId: () => knownServerId,
+    getDesktopDaemonStatus: async () => {
+      postKnownCalls += 1;
+      return { serverId: "srv_known" };
+    },
+  });
+  expect(await resolveWithKnown()).toBe("srv_known");
+  expect(postKnownCalls).toBe(0);
 });

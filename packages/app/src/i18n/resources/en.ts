@@ -3,6 +3,7 @@ import { pluginMarketplace } from "./plugin-marketplace";
 import { usageMonitoring } from "./usage-monitoring";
 import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
+import { notificationSettings } from "./notification-settings";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
 import { openProjectOnboarding } from "./open-project-onboarding";
@@ -314,6 +315,7 @@ export const en = {
   usageMonitoring: usageMonitoring["en"],
   remoteAccess: remoteAccess.en,
   mobileUpdates: mobileUpdates["en"],
+  notificationSettings: notificationSettings["en"],
   speechSettings: speechSettings["en"],
   connectionResilience: connectionResilience["en"],
   clawmuseAccount: {
@@ -3743,6 +3745,7 @@ export const en = {
         saveDraft: "Save draft",
         draftHint: "Save without running; add subtasks before starting",
         evidenceSaved: "Evidence saved. Review the result before accepting.",
+        landDone: "Pull request merged. The task is done.",
         attachedHint:
           "This task observes the original session. Continue checks it again without sending a prompt. Open that session to give instructions; pausing a running observation also interrupts the session.",
         reviewRevision: "Commit SHA or artifact version",
@@ -3759,8 +3762,35 @@ export const en = {
         openSource: "Open source",
         addTask: "Add task",
         revision: "Evidence for {{revision}}",
-        source: { github: "GitHub issue", schedule: "Scheduled task", session: "Linked session" },
+        source: {
+          github: "GitHub issue",
+          schedule: "Scheduled task",
+          session: "Linked session",
+          manual: "Manual goal",
+          planner: "Suggested goal",
+        },
         check: { passed: "Passed", failed: "Failed", not_run: "Not run" },
+        onboardingTitle: "Hand off goals to an agent and review finished work here",
+        onboardingSteps:
+          "1. Create a goal or scan a project for suggestions · 2. An agent works in an isolated workspace and posts progress · 3. Review checks and approve or continue",
+        noReposHint:
+          "No projects registered on connected hosts yet. Open any project folder or start a session in the sidebar first.",
+        noHostsTitle: "No connected host available",
+        noHostsHint:
+          "Start the local background daemon or connect a paired computer to manage tasks and goals.",
+        hostNeedsUpdateTitle: "Connected host needs a daemon restart or update",
+        hostNeedsUpdateHint:
+          "The running background daemon predates local Tasks & Goals support. Restart the desktop app or daemon to enable it.",
+        subtasksProgress: "{{done}} / {{total}} subtasks done",
+        acceptancePresetsLabel: "Quick fill",
+        presetTestsPassLabel: "Tests & typecheck pass",
+        presetTestsPassValue: "Relevant tests and typechecks pass, and changes are reviewed",
+        presetBuildCleanLabel: "Clean build & flow verified",
+        presetBuildCleanValue: "Project builds cleanly and core user flow is verified",
+        presetReportOnlyLabel: "Investigation report",
+        presetReportOnlyValue:
+          "Deliver a clear root-cause report and proposed fix without breaking changes",
+        quickVerifyFill: "Fill local verification",
       },
       executionUnconfirmed:
         "The host connection changed. Before continuing, stop the previous execution on the original host and verify it has ended. If work is still queued, pause it first.",
@@ -3849,6 +3879,7 @@ export const en = {
         accept: "Accept",
         discard: "Discard",
         approve: "Approve",
+        land: "Merge & land",
         continue: "Continue",
         pause: "Pause",
         cancel: "Cancel",
@@ -3877,6 +3908,7 @@ export const en = {
         instruction: "Instruction",
         openExecution: "View execution and files",
         openPr: "Open pull request",
+        mergeCommit: "Merge commit {{sha}}",
       },
       continue: {
         submit: "Continue",
@@ -3887,6 +3919,11 @@ export const en = {
       confirmDiscard: {
         title: "Discard this goal?",
         message: "Queued and running work stops. Reports are kept.",
+      },
+      confirmLand: {
+        title: "Merge & land this goal?",
+        message:
+          "The verified pull request merges into the base branch, the worktree is archived, and the goal closes.",
       },
       create: {
         title: "New goal",

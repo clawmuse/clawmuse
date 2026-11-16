@@ -4,7 +4,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 export type ClawMuseStatusFetch = typeof fetch;
 
 export interface ClawMuseStatusRequestInput {
-  method: "DELETE" | "GET" | "PATCH" | "POST";
+  method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
   bearer: string | null;
   body?: unknown;
 }

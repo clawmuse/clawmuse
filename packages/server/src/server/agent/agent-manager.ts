@@ -303,6 +303,11 @@ export type AgentAttentionCallback = (params: {
   reason: "finished" | "error" | "permission";
 }) => void;
 
+export type AgentTurnStartedCallback = (params: {
+  agentId: string;
+  provider: AgentProvider;
+}) => void;
+
 export type AgentArchivedCallback = (agentId: string) => Promise<void> | void;
 
 export interface ProviderAvailability {
@@ -346,6 +351,7 @@ export interface AgentManagerOptions {
   idFactory?: () => string;
   registry?: AgentStorage;
   onAgentAttention?: AgentAttentionCallback;
+  onAgentTurnStarted?: AgentTurnStartedCallback;
   onWorkspaceStateMayHaveChanged?: (params: { cwd: string }) => void;
   timelineStore?: InMemoryAgentTimelineStore;
   durableTimelineStore?: AgentTimelineStore;
@@ -807,6 +813,7 @@ export class AgentManager {
   ) => ProviderPaseoToolsPolicy | undefined;
   private appendSystemPrompt: string;
   private onAgentAttention?: AgentAttentionCallback;
+  private onAgentTurnStarted?: AgentTurnStartedCallback;
   private onAgentArchived?: AgentArchivedCallback;
   private onWorkspaceStateMayHaveChanged?: (params: { cwd: string }) => void;
   private logger: Logger;
@@ -819,12 +826,13 @@ export class AgentManager {
     this.pluginAgentTools = options.pluginAgentTools;
     this.timelineStore = options.timelineStore ?? new InMemoryAgentTimelineStore();
     this.idFactory = options.idFactory ?? (() => randomUUID());
-    this.registry = options?.registry;
-    this.durableTimelineStore = options?.durableTimelineStore;
-    this.onAgentAttention = options?.onAgentAttention;
-    this.onWorkspaceStateMayHaveChanged = options?.onWorkspaceStateMayHaveChanged;
-    this.mcpBaseUrl = options?.mcpBaseUrl ?? null;
-    this.mcpAuthToken = options?.mcpAuthToken ?? null;
+    this.registry = options.registry;
+    this.durableTimelineStore = options.durableTimelineStore;
+    this.onAgentAttention = options.onAgentAttention;
+    this.onAgentTurnStarted = options.onAgentTurnStarted;
+    this.onWorkspaceStateMayHaveChanged = options.onWorkspaceStateMayHaveChanged;
+    this.mcpBaseUrl = options.mcpBaseUrl ?? null;
+    this.mcpAuthToken = options.mcpAuthToken ?? null;
     this.configurePaseoTools(options);
     this.resolvePaseoToolPolicy = options.resolvePaseoToolPolicy ?? (() => undefined);
     this.appendSystemPrompt = options.appendSystemPrompt ?? "";
@@ -899,6 +907,10 @@ export class AgentManager {
 
   setAgentAttentionCallback(callback: AgentAttentionCallback): void {
     this.onAgentAttention = callback;
+  }
+
+  setAgentTurnStartedCallback(callback: AgentTurnStartedCallback): void {
+    this.onAgentTurnStarted = callback;
   }
 
   setAgentArchivedCallback(callback: AgentArchivedCallback): void {
@@ -3041,6 +3053,9 @@ export class AgentManager {
       this.openActiveTurn(agent, turnId, turnStartedAt);
       agent.lifecycle = "running";
       this.touchUpdatedAt(agent);
+      if (!isReplacement) {
+        this.broadcastAgentTurnStarted(agent);
+      }
       // AgentManager owns the accepted-turn boundary. Publish liveness before the canonical
       // prompt so clients can retire optimistic activity without painting an idle frame.
       // The provider's duplicate start for this turn is suppressed at the ingestion boundary.
@@ -5195,6 +5210,7 @@ export class AgentManager {
       flags.shouldNotifyWaiters = false;
       return;
     }
+    const wasRunning = agent.lifecycle === "running" || agent.activeTurnId !== null;
     this.runs.trackAutonomousRun(agent.id, eventTurnId ?? null);
     agent.lastRunAt = new Date();
     if (eventTurnId) {
@@ -5202,6 +5218,9 @@ export class AgentManager {
     }
     agent.lifecycle = "running";
     this.emitState(agent);
+    if (!wasRunning) {
+      this.broadcastAgentTurnStarted(agent);
+    }
   }
 
   private onStreamPermissionRequested(
@@ -5608,6 +5627,17 @@ export class AgentManager {
       agentId: agent.id,
       provider: agent.provider,
       reason,
+    });
+  }
+
+  private broadcastAgentTurnStarted(agent: ManagedAgent): void {
+    if (agent.internal || isDelegatedAgent(agent)) {
+      return;
+    }
+
+    this.onAgentTurnStarted?.({
+      agentId: agent.id,
+      provider: agent.provider,
     });
   }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NOTIFICATIONS_MUTED_LABEL, PARENT_AGENT_ID_LABEL } from "@getpaseo/protocol/agent-labels";
 
 import type { AgentPermissionRequest } from "../agent/agent-sdk-types.js";
 import {
@@ -283,11 +284,23 @@ describe("ClawMuseStatusProjection", () => {
     expect(finished.items[0]?.itemId).toBe(first.items[0]?.itemId);
   });
 
-  it("has no item for an idle, internal, or closed agent", () => {
+  it("has no item for an idle, internal, delegated, muted, or closed agent", () => {
     const result = projection().project(
       [
         agent(),
         agent({ id: "internal", internal: true, lifecycle: "running", activeTurnId: "turn-1" }),
+        agent({
+          id: "delegated",
+          labels: { [PARENT_AGENT_ID_LABEL]: "parent-1" },
+          lifecycle: "running",
+          activeTurnId: "turn-1",
+        }),
+        agent({
+          id: "muted",
+          labels: { [NOTIFICATIONS_MUTED_LABEL]: "true" },
+          lifecycle: "running",
+          activeTurnId: "turn-1",
+        }),
         agent({
           id: "closed",
           lifecycle: "closed",

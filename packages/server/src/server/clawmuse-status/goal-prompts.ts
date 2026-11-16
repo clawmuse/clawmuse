@@ -84,6 +84,7 @@ export function buildClawMuseGoalExecutePrompt(run: ClawMuseGoalRun): string {
     bullet([
       "授权范围仅限这个目标的仓库改动、分支提交和本地检查；轮数不是金额预算。",
       "不授权部署、合并、采购、扣款、发信、删除用户数据或绕过权限。需要额外权限时报告 needs_decision 并停止。",
+      "以下命令被硬性拦截，不要尝试：`gh pr merge`、`gh repo delete`、`gh secret`、`gh release`、`gh api`、`git push` 任何 `--force`/`-f`/`--delete`/`--mirror`/`+` 前缀形式、向 `main`/`master` 的任何推送、`git config --global`、`git worktree`；不要读写当前工作目录和系统临时目录以外的路径。",
       "在分支上做，绝不直接改默认分支。按目标要求提交；未要求提交时可保留工作区改动供主人审查。",
       "有可供审查的成果时记录分支和改动；只有主人明确授权发布 PR 时才创建或更新 PR。不要合并。",
       "宣布完成之前先跑项目自己的检查（typecheck、lint、测试）。",

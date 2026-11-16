@@ -1,6 +1,7 @@
 import pino from "pino";
 import type { StoredSchedule } from "@getpaseo/protocol/schedule/types";
-import { mkdtempSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import nodePath from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +20,7 @@ import {
   type ClawMuseGoalTransport,
 } from "./goal-runner.js";
 import type { ClawMuseGoalsSettings } from "./goals-config.js";
+import { deriveWorktreeProjectHash, resolvePaseoWorktreesBaseRoot } from "../../utils/worktree.js";
 
 const logger = pino({ level: "silent" });
 const testHomes: string[] = [];
@@ -81,6 +83,7 @@ interface Harness {
   archiveWorkspace: ReturnType<typeof vi.fn>;
   createDirectoryWorkspace: ReturnType<typeof vi.fn>;
   createPaseoWorktreeWorkspace: ReturnType<typeof vi.fn>;
+  paseoHome: string;
   queue: ClawMuseGoalRun[];
   /** What runIdForAgent answered while each agent was still being created (tool catalog time). */
   runIdsAtLaunch: Array<string | null>;
@@ -239,9 +242,34 @@ function harness(options: {
     archiveWorkspace,
     createDirectoryWorkspace,
     createPaseoWorktreeWorkspace,
+    paseoHome,
     queue,
     runIdsAtLaunch,
   };
+}
+
+/**
+ * A real repo plus a real git worktree laid out under the harness paseoHome's
+ * worktrees root, so the isolation probe verifies it end to end.
+ */
+async function makeRealPaseoWorktree(paseoHome: string): Promise<string> {
+  const tempDir = realpathSync(mkdtempSync(nodePath.join(tmpdir(), "goal-runner-wt-")));
+  testHomes.push(tempDir);
+  const repoDir = nodePath.join(tempDir, "repo");
+  mkdirSync(repoDir, { recursive: true });
+  execFileSync("git", ["init", "-b", "main"], { cwd: repoDir });
+  execFileSync("git", ["config", "user.email", "test@test.com"], { cwd: repoDir });
+  execFileSync("git", ["config", "user.name", "Test"], { cwd: repoDir });
+  writeFileSync(nodePath.join(repoDir, "file.txt"), "hello\n");
+  execFileSync("git", ["add", "."], { cwd: repoDir });
+  execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "initial"], { cwd: repoDir });
+  const worktreePath = nodePath.join(
+    resolvePaseoWorktreesBaseRoot({ paseoHome }),
+    await deriveWorktreeProjectHash(repoDir),
+    "goal-test",
+  );
+  execFileSync("git", ["worktree", "add", "-b", "goal/fix-tests", worktreePath], { cwd: repoDir });
+  return worktreePath;
 }
 
 /** The pump is fire-and-forget, so wait for the leased run to be reported finished. */
@@ -389,6 +417,76 @@ describe("ClawMuseGoalRunner", () => {
     );
     // Executor worktrees stay for review; auto-archive-on-merge reclaims them later.
     expect(h.archiveWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("keeps the strict provider profile when the execute workspace is not a verified worktree", async () => {
+    const h = harness({
+      queue: [executeRun()],
+      settings: { executor: { provider: "codex", model: null } },
+    });
+    // The default worktree mock is a directory record: no unattended profile.
+    h.runner.onHeartbeat({ queuedCount: 1, canceledRunIds: [] });
+    await settled(h);
+
+    const input = h.createAgent.mock.calls[0]?.[0] as CreateAgentCommandInput;
+    expect(input.config.providerOptions).toMatchObject({
+      approval_policy: "on-request",
+      sandbox_mode: "workspace-write",
+      sandbox_workspace_write: {
+        network_access: false,
+        exclude_slash_tmp: true,
+        exclude_tmpdir_env_var: true,
+      },
+    });
+  });
+
+  it("applies the worktree unattended profile to a verified worktree executor", async () => {
+    const h = harness({ queue: [executeRun()] });
+    const worktreePath = await makeRealPaseoWorktree(h.paseoHome);
+    h.createPaseoWorktreeWorkspace.mockImplementation(
+      async () =>
+        ({
+          workspace: {
+            workspaceId: "ws-wt",
+            cwd: worktreePath,
+            projectId: "p1",
+            kind: "worktree",
+            branch: "goal/fix-tests",
+            worktreeRoot: worktreePath,
+          },
+        }) as unknown as CreatePaseoWorktreeWorkflowResult,
+    );
+    h.runner.onHeartbeat({ queuedCount: 1, canceledRunIds: [] });
+    await settled(h);
+
+    const input = h.createAgent.mock.calls[0]?.[0] as CreateAgentCommandInput;
+    const options = input.config.providerOptions as {
+      additionalDirectories?: string[];
+      disallowedTools?: string[];
+      settings?: { permissions?: { allow?: string[]; deny?: string[] } };
+    };
+    expect(options.additionalDirectories).toEqual([tmpdir()]);
+    expect(options.settings?.permissions?.allow).toEqual(
+      expect.arrayContaining([
+        "Bash(npm:*)",
+        "Bash(git commit:*)",
+        "Bash(git push origin HEAD)",
+        "Bash(gh pr create:*)",
+      ]),
+    );
+    expect(options.settings?.permissions?.deny).toEqual(
+      expect.arrayContaining([
+        "Bash(gh pr merge:*)",
+        "Bash(gh repo delete:*)",
+        "Bash(git push origin main:*)",
+        "Bash(git push --force:*)",
+      ]),
+    );
+    expect(options.disallowedTools).toEqual(expect.arrayContaining(["Bash(gh pr merge:*)"]));
+    expect(h.requests.find((request) => request.path.endsWith("/finish"))?.body).toEqual({
+      status: "succeeded",
+      outcome: "All done, PR #7 open.",
+    });
   });
 
   it("runs a plan lease in the checkout with the planner model and archives the workspace", async () => {

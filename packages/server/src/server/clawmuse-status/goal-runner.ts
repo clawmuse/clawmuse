@@ -17,6 +17,7 @@ import type {
 import { ClawMuseStatusRequestError } from "./client.js";
 import { readGoalWorkspace, saveGoalWorkspace } from "./goal-workspaces.js";
 import { goalRunProviderOptions, resolveGoalRunModeId } from "./goal-modes.js";
+import { paseoOwnedWorktreeProbe, resolveGoalRunIsolation } from "./goal-unattended-policy.js";
 import {
   buildClawMuseGoalExecutePrompt,
   buildClawMuseGoalPlanPrompt,
@@ -629,6 +630,10 @@ export class ClawMuseGoalRunner {
     const modeId = resolveGoalRunModeId(
       await this.options.listProviderModes(target.provider, workspace.cwd),
     );
+    const isolation =
+      run.kind === "execute"
+        ? await resolveGoalRunIsolation(workspace, paseoOwnedWorktreeProbe(this.options.paseoHome))
+        : undefined;
     const created = await this.options.createAgent({
       kind: "mcp",
       agentId,
@@ -637,7 +642,7 @@ export class ClawMuseGoalRunner {
         provider: target.provider,
         cwd: workspace.cwd,
         model: target.model ?? undefined,
-        providerOptions: goalRunProviderOptions(modeId, run.kind),
+        providerOptions: goalRunProviderOptions(target.provider, modeId, run.kind, isolation),
         mcpServers: { clawmuse_goals: this.options.getGoalMcpServer(agentId) },
         toolPolicy: {
           preapproved: [

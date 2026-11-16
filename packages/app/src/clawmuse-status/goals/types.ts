@@ -23,7 +23,7 @@ export type GoalReviewReason =
 
 export type GoalReportKind = "progress" | "blocked" | "needs_decision" | "done" | "nothing_to_do";
 
-export type GoalRunKind = "plan" | "execute";
+export type GoalRunKind = "plan" | "execute" | "verify";
 
 export type GoalRunStatus =
   | "queued"
@@ -36,10 +36,21 @@ export type GoalRunStatus =
 
 export type GoalListFilter = "all" | "suggested" | "active" | "needs_review" | "closed";
 
+export type GoalMergeMethod = "merge" | "squash" | "rebase";
+
 export interface GoalEvidence {
   revision: string;
-  checks: Array<{ name: string; result: "passed" | "failed" | "not_run"; detail?: string }>;
+  checks: Array<{
+    name: string;
+    result: "passed" | "failed" | "not_run";
+    detail?: string;
+    exitCode?: number;
+    durationMs?: number;
+  }>;
   artifacts: Array<{ label: string; url: string }>;
+  source?: "executor" | "verifier" | "owner";
+  verifiedByRunId?: string;
+  headSha?: string;
 }
 
 export interface GoalReport {
@@ -66,6 +77,7 @@ export interface GoalTarget {
 export interface GoalRun {
   agentRef?: string | null;
   relayHostId?: string | null;
+  serverId?: string | null;
   id: string;
   kind: GoalRunKind;
   status: GoalRunStatus;
@@ -82,6 +94,7 @@ export interface GoalRun {
 }
 
 export interface Goal {
+  serverId?: string | null;
   parentGoalId?: string | null;
   parentGoalTitle?: string | null;
   dependsOn?: string[];
@@ -90,6 +103,7 @@ export interface Goal {
   source?: { kind: string; key: string | null; url: string | null };
   attachedAgentRef?: string | null;
   executionUnconfirmed?: boolean;
+  mergeCommitSha?: string | null;
   reviewEventVersion?: number;
   id: string;
   repoKey: string;
@@ -121,6 +135,7 @@ export interface GoalDetail extends Goal {
 
 export interface GoalRepoHost {
   hostId: string;
+  serverId?: string;
   relayHostId: string;
   displayName: string;
   connectivity: "live" | "unverifiable";

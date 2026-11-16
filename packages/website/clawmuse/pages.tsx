@@ -364,7 +364,10 @@ function WebDownloadCard({ language }: Localized) {
 
 function partitionPlatformFiles(id: string, files: DownloadFile[]) {
   let primaryFiles = files;
-  if (id === "windows") {
+  if (id === "macos") {
+    const armFiles = files.filter((file) => file.arch === "arm64");
+    if (armFiles.length > 0) primaryFiles = armFiles;
+  } else if (id === "windows") {
     primaryFiles = files.filter((file) => file.arch === "x64");
   } else if (id === "linux") {
     primaryFiles = files.filter((file) => file.format === "DEB" && file.arch === "x64");

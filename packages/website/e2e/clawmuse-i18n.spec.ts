@@ -1126,6 +1126,10 @@ test("downloads secondary formats, checksums, product demo and showcase images",
     "href",
     "https://agent-relay.clawmuse.com/updates/installers/v1.5.8/ClawMuse-1.5.8-arm64.dmg",
   );
+  await expect(macos.locator(".arm-download-trigger")).toHaveAttribute(
+    "href",
+    "https://agent-relay.clawmuse.com/updates/installers/v1.5.10/ClawMuse-1.5.10-x64.dmg",
+  );
 
   const windows = page
     .locator(".download-card")
@@ -1142,7 +1146,7 @@ test("downloads secondary formats, checksums, product demo and showcase images",
 
   await page.locator(".checksums-jump").click();
   await expect(page.locator(".checksums-panel")).toHaveAttribute("open", "");
-  await expect(page.locator(".checksum-row")).toHaveCount(12);
+  await expect(page.locator(".checksum-row")).toHaveCount(13);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
   await page.setViewportSize({ width: 1440, height: 900 });

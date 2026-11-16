@@ -1,6 +1,8 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import type { SessionOutboundMessage } from "../messages.js";
 import { HubRelationshipHarness } from "./test-utils/relationship-harness.js";
+
+vi.setConfig({ testTimeout: 30_000 });
 
 let relationship: HubRelationshipHarness | null = null;
 

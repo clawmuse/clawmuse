@@ -1400,6 +1400,81 @@ describe("discovery", () => {
       }),
     ).not.toBe(key);
   });
+  it("deduplicates concurrent status checks, caches available launches within TTL, and never caches failures", async () => {
+    let clock = 1_000;
+    const cached = createAntigravityProvider({
+      now: () => clock,
+      statusCacheTtlMs: 300_000,
+    });
+    const h = await harness();
+
+    // Concurrent calls share one in-flight probe; subsequent calls within TTL hit cache.
+    const [first, second] = await Promise.all([
+      cached.status?.({ launch: h.launch }),
+      cached.status?.({ launch: h.launch }),
+    ]);
+    clock += 30_000;
+    const third = await cached.status?.({ launch: h.launch });
+    expect([first, second, third]).toEqual([
+      { available: true },
+      { available: true },
+      { available: true },
+    ]);
+    expect(await h.records()).toHaveLength(2);
+
+    // Expired TTL triggers a fresh probe.
+    clock += 300_000;
+    expect(await cached.status?.({ launch: h.launch })).toEqual({ available: true });
+    expect(await h.records()).toHaveLength(4);
+
+    // Different launch env uses an isolated cache entry.
+    expect(
+      await cached.status?.({
+        launch: { ...h.launch, env: { ...h.launch.env, AGY_EXTRA_ENV: "isolated" } },
+      }),
+    ).toEqual({ available: true });
+    expect(await h.records()).toHaveLength(6);
+
+    // Failed/unauthenticated status is never cached so sign-in recovers immediately.
+    const unauthenticated = await harness({ AGY_TEST_AUTH: "missing" });
+    expect(await cached.status?.({ launch: unauthenticated.launch })).toMatchObject({
+      available: false,
+    });
+    expect(await cached.status?.({ launch: unauthenticated.launch })).toMatchObject({
+      available: false,
+    });
+    expect(await unauthenticated.records()).toHaveLength(4);
+
+    // Runtime AntigravityError on a connection invalidates the positive status cache.
+    const revoked = await harness({ AGY_TEST_STARTUP: "auth" });
+    expect(await cached.status?.({ launch: revoked.launch })).toEqual({ available: true });
+    expect(await revoked.records()).toHaveLength(2);
+    const conn = await cached.connect({
+      versions: [1],
+      capabilities: PROVIDER_CAPABILITIES,
+      launch: revoked.launch,
+    });
+    connections.push(conn);
+    const failedTypes: string[] = [];
+    conn.onEvent((event) => failedTypes.push(event.type));
+    await conn.send({
+      type: "session.open",
+      requestId: "open-revoked",
+      sessionId: "revoked",
+      history: "skip",
+      config: {
+        cwd: revoked.cwd,
+        env: {},
+        settings: {},
+        mcpServers: {},
+        persist: true,
+      },
+    });
+    await expect.poll(() => failedTypes).toContain("request.failed");
+    const countAfterFailure = (await revoked.records()).length;
+    expect(await cached.status?.({ launch: revoked.launch })).toEqual({ available: true });
+    expect(await revoked.records()).toHaveLength(countAfterFailure + 2);
+  });
 });
 
 describe("process signal plans", () => {

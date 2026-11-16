@@ -366,4 +366,65 @@ describe("buildWorkspaceTabMenuEntries", () => {
     expect(agentSeparator?.key).toBe("rename-separator");
     expect(terminalSeparator?.key).toBe("rename-separator");
   });
+
+  it("includes per-agent mute/unmute action for agent tabs when provided", () => {
+    const onToggleAgentMute = vi.fn();
+    const unmutedEntries = buildWorkspaceTabMenuEntries({
+      surface: "mobile",
+      tab: createAgentTab(),
+      index: 0,
+      tabCount: 1,
+      menuTestIDBase: "workspace-tab-menu-agent_123",
+      isAgentMuted: false,
+      onCopyResumeCommand: vi.fn(),
+      onCopyAgentId: vi.fn(),
+      onCopyTerminalId: vi.fn(),
+      onCopyFilePath: vi.fn(),
+      onReloadAgent: vi.fn(),
+      onToggleAgentMute,
+      onRenameTab: vi.fn(),
+      onCloseTab: vi.fn(),
+      onCloseTabsBefore: vi.fn(),
+      onCloseTabsAfter: vi.fn(),
+      onCloseOtherTabs: vi.fn(),
+    });
+    const muteItem = unmutedEntries.find(
+      (entry) => entry.kind === "item" && entry.key === "toggle-agent-mute",
+    );
+    if (!muteItem || muteItem.kind !== "item") {
+      throw new Error("toggle-agent-mute missing");
+    }
+    expect(muteItem.label).toBe("Mute notifications");
+    expect(muteItem.icon).toBe("bell-off");
+    muteItem.onSelect();
+    expect(onToggleAgentMute).toHaveBeenCalledWith("agent-123");
+
+    const mutedEntries = buildWorkspaceTabMenuEntries({
+      surface: "desktop",
+      tab: createAgentTab(),
+      index: 0,
+      tabCount: 1,
+      menuTestIDBase: "workspace-tab-context-agent_123",
+      isAgentMuted: true,
+      onCopyResumeCommand: vi.fn(),
+      onCopyAgentId: vi.fn(),
+      onCopyTerminalId: vi.fn(),
+      onCopyFilePath: vi.fn(),
+      onReloadAgent: vi.fn(),
+      onToggleAgentMute,
+      onRenameTab: vi.fn(),
+      onCloseTab: vi.fn(),
+      onCloseTabsBefore: vi.fn(),
+      onCloseTabsAfter: vi.fn(),
+      onCloseOtherTabs: vi.fn(),
+    });
+    const unmuteItem = mutedEntries.find(
+      (entry) => entry.kind === "item" && entry.key === "toggle-agent-mute",
+    );
+    if (!unmuteItem || unmuteItem.kind !== "item") {
+      throw new Error("toggle-agent-mute missing");
+    }
+    expect(unmuteItem.label).toBe("Unmute notifications");
+    expect(unmuteItem.icon).toBe("bell");
+  });
 });

@@ -1,4 +1,7 @@
-import type { DesktopSettings } from "@/desktop/settings/desktop-settings";
+import {
+  DEFAULT_DESKTOP_SETTINGS,
+  type DesktopSettings,
+} from "@/desktop/settings/desktop-settings";
 import type { DesktopSettingsBridge, KeyValueStorage, ReleaseChannel } from "./storage";
 
 export interface InMemoryKeyValueStorage extends KeyValueStorage {
@@ -31,14 +34,9 @@ export interface FakeDesktopBridge extends DesktopSettingsBridge {
 }
 
 const DEFAULT_DESKTOP: DesktopSettings = {
-  releaseChannel: "stable",
-  notifications: {
-    playSound: true,
-  },
-  daemon: {
-    manageBuiltInDaemon: true,
-    keepRunningAfterQuit: false,
-  },
+  ...DEFAULT_DESKTOP_SETTINGS,
+  notifications: { ...DEFAULT_DESKTOP_SETTINGS.notifications },
+  daemon: { ...DEFAULT_DESKTOP_SETTINGS.daemon },
 };
 
 export function createFakeDesktopBridge(

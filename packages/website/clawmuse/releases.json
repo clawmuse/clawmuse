@@ -50,6 +50,16 @@
       "sha256": "9e87bd42305e65e1bff5b4df0b12fe26c28c316e955ba8478c115f471b959409"
     },
     {
+      "platform": "macos",
+      "arch": "x64",
+      "format": "DMG",
+      "version": "1.5.10",
+      "filename": "ClawMuse-1.5.10-x64.dmg",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.10/ClawMuse-1.5.10-x64.dmg",
+      "size": 197511697,
+      "sha256": "2bcf35791e5d5a92cf2231b5137809c2cc3e2ec2566d5b180ad8fad60b01e987"
+    },
+    {
       "platform": "linux",
       "arch": "arm64",
       "format": "TAR.GZ",

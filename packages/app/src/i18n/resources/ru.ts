@@ -2,6 +2,7 @@ import { cloudSpace } from "./cloud-space";
 import { usageMonitoring } from "./usage-monitoring";
 import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
+import { notificationSettings } from "./notification-settings";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
 import { openProjectOnboarding } from "./open-project-onboarding";
@@ -22,6 +23,7 @@ export const ru: TranslationResources = {
   usageMonitoring: usageMonitoring["ru"],
   remoteAccess: remoteAccess.en,
   mobileUpdates: mobileUpdates["ru"],
+  notificationSettings: notificationSettings["ru"],
   speechSettings: speechSettings["ru"],
   connectionResilience: connectionResilience["ru"],
   clawmuseAccount: {
@@ -3457,6 +3459,7 @@ export const ru: TranslationResources = {
         accept: "Принять",
         discard: "Отклонить",
         approve: "Одобрить",
+        land: "Слить и закрыть",
         continue: "Продолжить",
         pause: "Пауза",
         cancel: "Отмена",
@@ -3485,6 +3488,7 @@ export const ru: TranslationResources = {
         instruction: "Указание",
         openExecution: "View execution and files",
         openPr: "Открыть pull request",
+        mergeCommit: "Коммит слияния {{sha}}",
       },
       continue: {
         submit: "Продолжить",
@@ -3495,6 +3499,11 @@ export const ru: TranslationResources = {
       confirmDiscard: {
         title: "Отклонить эту цель?",
         message: "Работа в очереди и выполняющаяся работа остановятся. Отчёты сохранятся.",
+      },
+      confirmLand: {
+        title: "Слить и закрыть эту цель?",
+        message:
+          "Проверенный pull request будет влит в базовую ветку, worktree заархивирован, а цель закрыта.",
       },
       create: {
         title: "Новая цель",

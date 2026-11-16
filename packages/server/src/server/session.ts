@@ -213,6 +213,8 @@ import type { DaemonWebSocketRuntimeDiagnosticSnapshot } from "./session/daemon/
 import type { HubRelationshipManagement } from "./hub/relationship-controller.js";
 import type { ClawMuseStatusService } from "./clawmuse-status/service.js";
 import { handleClawMuseStatusRequest } from "./clawmuse-status/session.js";
+import type { LocalGoalService } from "./goals/service.js";
+import { handleLocalGoalsRequest, isLocalGoalsInboundMessage } from "./goals/session.js";
 import { HubExecutionController } from "./hub/execution-controller.js";
 import type { HubExecutionAgents } from "./hub/daemon-executions.js";
 import { DownloadTokenStore } from "./file-download/token-store.js";
@@ -562,6 +564,7 @@ export interface SessionOptions {
   hubExecutionAgents?: HubExecutionAgents;
   hubRelationships?: HubRelationshipManagement;
   clawmuseStatus?: ClawMuseStatusService;
+  localGoals?: LocalGoalService;
   onAgentFocused?: (agentId: string, atMs: number) => void;
   serviceProxy?: ServiceProxySubsystem;
   scriptRuntimeStore?: WorkspaceScriptRuntimeStore;
@@ -855,6 +858,7 @@ export class Session {
   private readonly daemonSession: DaemonSession;
   private readonly hubExecutionController: HubExecutionController | null;
   private readonly clawmuseStatus: ClawMuseStatusService | undefined;
+  private readonly localGoals: LocalGoalService | undefined;
   private readonly onAgentFocused: ((agentId: string, atMs: number) => void) | undefined;
   private readonly workspaceScripts: WorkspaceScriptsService;
   private readonly messageReceipts: Pick<MessageReceipts, "send">;
@@ -1156,6 +1160,7 @@ export class Session {
       reloadConfig: () => daemonConfigStore.reload(),
     });
     this.clawmuseStatus = options.clawmuseStatus;
+    this.localGoals = options.localGoals;
     this.onAgentFocused = options.onAgentFocused;
     this.hubExecutionController = options.hubExecutionAgents
       ? new HubExecutionController({
@@ -2623,6 +2628,7 @@ export class Session {
       this.dispatchAgentLifecycleMessage(msg) ??
       this.dispatchAgentConfigMessage(msg) ??
       this.dispatchClawMuseStatusMessage(msg) ??
+      this.dispatchLocalGoalsMessage(msg) ??
       this.dispatchCheckoutMessage(msg) ??
       this.dispatchWorkspaceLifecycleMessage(msg) ??
       this.dispatchWorkspaceFileMessage(msg, source) ??
@@ -3139,6 +3145,20 @@ export class Session {
     );
   }
 
+  private dispatchLocalGoalsMessage(msg: SessionInboundMessage): Promise<void> | undefined {
+    if (!isLocalGoalsInboundMessage(msg)) {
+      return undefined;
+    }
+    return handleLocalGoalsRequest(
+      {
+        service: this.localGoals ?? null,
+        emit: (message) => this.emit(message),
+        logger: this.sessionLogger,
+      },
+      msg,
+    );
+  }
+
   private dispatchAgentConfigMessage(msg: SessionInboundMessage): Promise<void> | undefined {
     switch (msg.type) {
       case "set_agent_mode_request":
@@ -3452,7 +3472,7 @@ export class Session {
         await this.handleListCommandsRequest(msg);
         return;
       case "register_push_token":
-        this.handleRegisterPushToken(msg.token);
+        this.handleRegisterPushToken(msg.token, msg.preferences);
         return;
       case "push.unregister.request":
         this.pushNotifications.revoke(msg.token);
@@ -5343,9 +5363,12 @@ export class Session {
   /**
    * Handle push token registration
    */
-  private handleRegisterPushToken(token: string): void {
+  private handleRegisterPushToken(
+    token: string,
+    preferences?: Extract<SessionInboundMessage, { type: "register_push_token" }>["preferences"],
+  ): void {
     this.currentClientMetadata().pushToken = token;
-    this.pushNotifications.renew(token);
+    this.pushNotifications.renew(token, preferences);
     this.sessionLogger.info("Registered push token");
   }
 

@@ -75,6 +75,7 @@ export const ArrowUpRight = glyph("arrow-up-right");
 export const ArrowUpToLine = glyph("arrow-up-to-line");
 export const AudioLines = glyph("audio-lines");
 export const Bell = glyph("bell");
+export const BellOff = glyph("bell-off");
 export const Blocks = glyph("blocks");
 export const BookOpen = glyph("book-open");
 export const Bot = glyph("bot");

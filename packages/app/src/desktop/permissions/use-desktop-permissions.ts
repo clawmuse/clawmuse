@@ -128,6 +128,7 @@ export function useDesktopPermissions(): UseDesktopPermissionsReturn {
       const sent = await sendOsNotification({
         title: t("desktop.permissions.testNotification.title"),
         body: t("desktop.permissions.testNotification.body"),
+        data: { isTest: true },
       });
       if (!isMountedRef.current) {
         return;

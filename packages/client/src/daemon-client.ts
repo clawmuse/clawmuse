@@ -9,6 +9,20 @@ import {
 } from "@getpaseo/protocol/binary-frames/index";
 import { messageTooLargeError } from "./daemon-client-transport-utils.js";
 import type { HostAdd, HostUpdate, HostDirectory } from "@getpaseo/protocol/hosts";
+import type {
+  GoalActionId,
+  GoalEvidence,
+  GoalListFilter,
+  GoalMergeMethod,
+  GoalSource,
+  GoalsActResponse,
+  GoalsCreateResponse,
+  GoalsGetResponse,
+  GoalsListResponse,
+  GoalsPlanResponse,
+  GoalsSetRepoPlanResponse,
+  GoalsSubmitReviewResponse,
+} from "@getpaseo/protocol/goals";
 import { legacyUsageIcon } from "./legacy-usage-icons.js";
 import { subscribeTimeline, type TimelineMessage } from "./timeline-subscription/index.js";
 import { ProviderSnapshotUpdates } from "./provider-snapshots/index.js";
@@ -39,8 +53,10 @@ import {
   DaemonUpdateResponseSchema,
   SessionInboundMessageSchema,
   type ActiveTurnBehavior,
+  type PushNotificationPreferences,
   type ServerInfoStatusPayload,
 } from "@getpaseo/protocol/messages";
+import { agentNotificationsMutedLabels } from "@getpaseo/protocol/agent-labels";
 import { validateWSOutboundMessage } from "@getpaseo/protocol/validation/ws-outbound";
 import type {
   AgentStreamEventPayload,
@@ -2575,10 +2591,17 @@ export class DaemonClient {
     });
   }
 
-  registerPushToken(token: string): void {
+  registerPushToken(token: string, preferences?: PushNotificationPreferences): void {
     this.sendSessionMessage({
       type: "register_push_token",
       token,
+      ...(preferences ? { preferences } : {}),
+    });
+  }
+
+  async setAgentNotificationsMuted(agentId: string, muted: boolean): Promise<void> {
+    await this.updateAgent(agentId, {
+      labels: agentNotificationsMutedLabels(muted),
     });
   }
 
@@ -5754,6 +5777,131 @@ export class DaemonClient {
     });
   }
 
+  async listGoals(
+    input: { filter?: GoalListFilter; repoKey?: string | null; parentGoalId?: string } = {},
+    requestId?: string,
+  ): Promise<GoalsListResponse["payload"]> {
+    this.requireLocalGoalsSupport();
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "goals.list.request" as const,
+        ...(input.filter ? { filter: input.filter } : {}),
+        ...(input.repoKey !== undefined ? { repoKey: input.repoKey } : {}),
+        ...(input.parentGoalId ? { parentGoalId: input.parentGoalId } : {}),
+      },
+    });
+  }
+
+  async getGoal(goalId: string, requestId?: string): Promise<GoalsGetResponse["payload"]> {
+    this.requireLocalGoalsSupport();
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId,
+      message: { type: "goals.get.request" as const, goalId },
+    });
+  }
+
+  async createGoal(
+    input: {
+      idempotencyKey?: string;
+      repoKey: string;
+      title: string;
+      summary: string;
+      acceptance?: string;
+      priority?: number;
+      budgetRuns?: number;
+      start?: boolean;
+      parentGoalId?: string;
+      dependsOn?: string[];
+      agent?: string | null;
+      attachedAgentRef?: string | null;
+      source?: GoalSource;
+      paths?: string[];
+    },
+    requestId?: string,
+  ): Promise<GoalsCreateResponse["payload"]> {
+    this.requireLocalGoalsSupport();
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "goals.create.request" as const,
+        ...input,
+      },
+    });
+  }
+
+  async actOnGoal(
+    input: {
+      goalId: string;
+      action: GoalActionId;
+      budgetRuns?: number;
+      instruction?: string;
+      agent?: string | null;
+      confirmExecutionStopped?: boolean;
+      mergeMethod?: GoalMergeMethod;
+    },
+    requestId?: string,
+  ): Promise<GoalsActResponse["payload"]> {
+    this.requireLocalGoalsSupport();
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "goals.act.request" as const,
+        ...input,
+      },
+    });
+  }
+
+  async requestGoalPlan(
+    input: { repoKey: string; agent?: string | null },
+    requestId?: string,
+  ): Promise<GoalsPlanResponse["payload"]> {
+    this.requireLocalGoalsSupport();
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "goals.plan.request" as const,
+        repoKey: input.repoKey,
+        ...(input.agent !== undefined ? { agent: input.agent } : {}),
+      },
+    });
+  }
+
+  async setGoalRepoPlanEnabled(
+    input: { repoKey: string; planEnabled: boolean },
+    requestId?: string,
+  ): Promise<GoalsSetRepoPlanResponse["payload"]> {
+    this.requireLocalGoalsSupport();
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "goals.set_repo_plan.request" as const,
+        repoKey: input.repoKey,
+        planEnabled: input.planEnabled,
+      },
+    });
+  }
+
+  async submitGoalReview(
+    input: { goalId: string; runId: string; message: string; evidence: GoalEvidence },
+    requestId?: string,
+  ): Promise<GoalsSubmitReviewResponse["payload"]> {
+    this.requireLocalGoalsSupport();
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId,
+      message: {
+        type: "goals.submit_review.request" as const,
+        ...input,
+      },
+    });
+  }
+
+  onGoalsChanged(handler: (payload: { goalId: string | null }) => void): () => void {
+    return this.on("goals.changed", (message) => {
+      handler(message.payload);
+    });
+  }
+
   async connectHub(
     hubUrl: string,
     token: string,
@@ -7028,6 +7176,17 @@ export class DaemonClient {
     // A daemon without a configured status relationship rejects the RPC outright.
     if (this.lastServerInfoMessage?.features?.clawmuseStatus !== true) {
       throw new Error("This host is not connected to ClawMuse Status.");
+    }
+  }
+
+  supportsLocalGoals(): boolean {
+    return this.lastServerInfoMessage?.features?.localGoals === true;
+  }
+
+  private requireLocalGoalsSupport(): void {
+    // COMPAT(localGoals): added in v1.5.10, remove gate after 2027-11-12.
+    if (!this.supportsLocalGoals()) {
+      throw new Error("Update this host to use Tasks & Goals.");
     }
   }
 

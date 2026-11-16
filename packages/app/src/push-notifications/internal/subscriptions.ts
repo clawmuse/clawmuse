@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { z } from "zod";
+import { notificationPreferencesStore, toDaemonPushPreferences } from "@/notifications/preferences";
 import { readValidatedString } from "@/storage/validated-storage";
 import type { RevokePushNotificationsInput, StartPushNotificationsInput } from "./types";
 
@@ -20,18 +21,15 @@ function getExpoProjectId(): string | null {
   return fromExtra.success ? fromExtra.data : null;
 }
 
-async function ensurePushPermission(): Promise<boolean> {
+async function hasGrantedPushPermission(): Promise<boolean> {
   const existing = await Notifications.getPermissionsAsync();
-  if (existing.status === Notifications.PermissionStatus.GRANTED) return true;
-  if (!existing.canAskAgain) return false;
-  const requested = await Notifications.requestPermissionsAsync();
-  return requested.status === Notifications.PermissionStatus.GRANTED;
+  return existing.status === Notifications.PermissionStatus.GRANTED;
 }
 
 async function resolveToken(serverId: string): Promise<string | null> {
   const key = storageKey(serverId);
   const cached = await readValidatedString(AsyncStorage, key, ExpoPushTokenSchema);
-  if (!(await ensurePushPermission())) {
+  if (!(await hasGrantedPushPermission())) {
     await AsyncStorage.removeItem(key);
     return null;
   }
@@ -56,61 +54,125 @@ async function resolveToken(serverId: string): Promise<string | null> {
   return token;
 }
 
+async function revokeOrQueueToken(input: RevokePushNotificationsInput): Promise<void> {
+  const key = storageKey(input.serverId);
+  const cached = await readValidatedString(AsyncStorage, key, ExpoPushTokenSchema);
+  const pending = await notificationPreferencesStore.readPendingUnregisterToken(input.serverId);
+  const token = cached ?? pending;
+  if (!token) {
+    return;
+  }
+
+  if (input.client?.isConnected) {
+    if (input.client.getLastServerInfoMessage()?.features?.pushTokenRevocation === true) {
+      try {
+        await input.client.unregisterPushToken(token);
+      } catch (error) {
+        console.warn("[PushNotifications] Failed to revoke push token", error);
+        await notificationPreferencesStore.recordPendingUnregisterToken(input.serverId, token);
+        await AsyncStorage.removeItem(key);
+        return;
+      }
+    }
+    await AsyncStorage.removeItem(key);
+    await notificationPreferencesStore.clearPendingUnregisterToken(input.serverId);
+    return;
+  }
+
+  await notificationPreferencesStore.recordPendingUnregisterToken(input.serverId, token);
+  await AsyncStorage.removeItem(key);
+}
+
 export function startSubscription(input: StartPushNotificationsInput): () => void {
   let stopped = false;
   let token: string | null = null;
-  let tokenRequested = false;
+  let tokenRequestInFlight = false;
+  let lastRegisteredKey: string | null = null;
+
   const register = () => {
-    if (!stopped && token && input.client.isConnected) {
-      input.client.registerPushToken(token);
+    if (stopped || !token || !input.client.isConnected) {
+      return;
     }
+    const { hydrated, preferences } = notificationPreferencesStore.getSnapshot();
+    if (!hydrated || !preferences.pushEnabled) {
+      return;
+    }
+    const daemonPrefs = toDaemonPushPreferences(preferences);
+    const registrationKey = `${token}:${JSON.stringify(daemonPrefs)}`;
+    if (registrationKey === lastRegisteredKey) {
+      return;
+    }
+    lastRegisteredKey = registrationKey;
+    input.client.registerPushToken(token, daemonPrefs);
   };
 
-  // resolveToken may trigger the OS permission prompt, so it waits for the
-  // first real connection — the moment remote alerts become relevant — rather
-  // than firing while a host is unreachable.
-  const requestTokenOnce = () => {
-    if (tokenRequested || stopped) return;
-    tokenRequested = true;
+  const sync = () => {
+    if (stopped) {
+      return;
+    }
+    const { hydrated, preferences } = notificationPreferencesStore.getSnapshot();
+    if (!hydrated) {
+      return;
+    }
+
+    if (!preferences.pushEnabled) {
+      token = null;
+      lastRegisteredKey = null;
+      void revokeOrQueueToken({ client: input.client, serverId: input.serverId }).catch((error) =>
+        console.warn("[PushNotifications] Failed to process push revocation", error),
+      );
+      return;
+    }
+
+    if (!input.client.isConnected) {
+      return;
+    }
+
+    void notificationPreferencesStore.clearPendingUnregisterToken(input.serverId).catch(() => {});
+
+    if (token) {
+      register();
+      return;
+    }
+
+    if (tokenRequestInFlight) {
+      return;
+    }
+    tokenRequestInFlight = true;
     void resolveToken(input.serverId)
       .then((resolved) => {
+        tokenRequestInFlight = false;
         if (stopped) return undefined;
         token = resolved;
         register();
         return undefined;
       })
-      .catch((error) => console.warn("[PushNotifications] Failed to register push token", error));
+      .catch((error) => {
+        tokenRequestInFlight = false;
+        console.warn("[PushNotifications] Failed to register push token", error);
+      });
   };
 
-  const unsubscribe = input.client.subscribeConnectionStatus((state) => {
+  const unsubscribeConnection = input.client.subscribeConnectionStatus((state) => {
     if (state.status === "connected") {
-      requestTokenOnce();
-      register();
+      lastRegisteredKey = null;
+      sync();
     }
   });
-  if (input.client.isConnected) {
-    requestTokenOnce();
-  }
+  const unsubscribePrefs = notificationPreferencesStore.subscribe(sync);
+
+  void notificationPreferencesStore.ensureLoaded().then(() => {
+    sync();
+    return undefined;
+  });
 
   return () => {
     stopped = true;
-    unsubscribe();
+    unsubscribeConnection();
+    unsubscribePrefs();
   };
 }
 
 export async function revokeSubscription(input: RevokePushNotificationsInput): Promise<void> {
-  const key = storageKey(input.serverId);
-  const token = await readValidatedString(AsyncStorage, key, ExpoPushTokenSchema);
-  if (
-    token &&
-    input.client?.isConnected &&
-    input.client.getLastServerInfoMessage()?.features?.pushTokenRevocation === true
-  ) {
-    try {
-      await input.client.unregisterPushToken(token);
-    } catch (error) {
-      console.warn("[PushNotifications] Failed to revoke push token", error);
-    }
-  }
-  await AsyncStorage.removeItem(key);
+  await revokeOrQueueToken(input);
 }

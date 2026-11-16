@@ -2,6 +2,7 @@ import { cloudSpace } from "./cloud-space";
 import { usageMonitoring } from "./usage-monitoring";
 import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
+import { notificationSettings } from "./notification-settings";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
 import { openProjectOnboarding } from "./open-project-onboarding";
@@ -316,6 +317,7 @@ export const zhCN: TranslationResources = {
   usageMonitoring: usageMonitoring["zh-CN"],
   remoteAccess: remoteAccess["zh-CN"],
   mobileUpdates: mobileUpdates["zh-CN"],
+  notificationSettings: notificationSettings["zh-CN"],
   speechSettings: speechSettings["zh-CN"],
   connectionResilience: connectionResilience["zh-CN"],
   clawmuseAccount: {
@@ -3615,6 +3617,7 @@ export const zhCN: TranslationResources = {
         saveDraft: "保存草稿",
         draftHint: "先保存，不执行；可以添加子任务后再开始",
         evidenceSaved: "证据已保存，请核对结果后再验收。",
+        landDone: "Pull Request 已合入，任务结单。",
         attachedHint:
           "此任务跟踪原会话。继续只会重新检查会话，不会发送指令；请打开原会话继续工作。暂停正在跟踪的任务也会中断原会话。",
         reviewRevision: "提交 SHA 或产物版本",
@@ -3631,8 +3634,33 @@ export const zhCN: TranslationResources = {
         openSource: "查看来源",
         addTask: "添加子任务",
         revision: "验证版本：{{revision}}",
-        source: { github: "GitHub Issue", schedule: "定时任务", session: "关联会话" },
+        source: {
+          github: "GitHub Issue",
+          schedule: "定时任务",
+          session: "关联会话",
+          manual: "手动目标",
+          planner: "建议目标",
+        },
         check: { passed: "通过", failed: "失败", not_run: "未运行" },
+        onboardingTitle: "定下目标交给 AI 在后台推进，完成后回到看板验收",
+        onboardingSteps:
+          "1. 新建目标或让 AI 扫描项目生成建议 · 2. Agent 在独立工作区自动推进并汇报进展 · 3. 完成后回到这里验收或继续追问",
+        noReposHint:
+          "当前连接的主机还没有登记项目。先在左侧打开任意项目文件夹或发起一次会话，项目就会自动出现在这里。",
+        noHostsTitle: "尚未连接可用主机",
+        noHostsHint: "请启动本机后台服务或连接配对电脑，连上后即可直接新建目标与生成建议。",
+        hostNeedsUpdateTitle: "本机后台服务需重启以启用新版看板",
+        hostNeedsUpdateHint:
+          "当前正在运行的后台服务仍是旧进程，尚未加载本地任务与目标引擎。重启桌面端或后台服务后即可直接使用。",
+        subtasksProgress: "已完成 {{done}} / {{total}} 个子任务",
+        acceptancePresetsLabel: "一键填入常用标准",
+        presetTestsPassLabel: "测试与类型检查通过",
+        presetTestsPassValue: "相关测试与类型检查通过，改动经人工审阅",
+        presetBuildCleanLabel: "构建无报错且流程跑通",
+        presetBuildCleanValue: "项目构建无报错，核心功能流程验证通过",
+        presetReportOnlyLabel: "仅输出排查结论",
+        presetReportOnlyValue: "输出清晰的问题根因与修复方案，不做破坏性改动",
+        quickVerifyFill: "一键填入已人工核验",
       },
       executionUnconfirmed:
         "主机连接已更换。继续前请先在原主机停止旧执行，并确认已结束。如果目标仍在排队，请先暂停。",
@@ -3717,6 +3745,7 @@ export const zhCN: TranslationResources = {
         accept: "接受",
         discard: "丢弃",
         approve: "通过",
+        land: "合入并结单",
         continue: "继续",
         pause: "暂停",
         cancel: "取消",
@@ -3745,6 +3774,7 @@ export const zhCN: TranslationResources = {
         instruction: "指示",
         openExecution: "查看执行记录与文件",
         openPr: "打开 Pull Request",
+        mergeCommit: "合入提交 {{sha}}",
       },
       continue: {
         submit: "继续",
@@ -3755,6 +3785,10 @@ export const zhCN: TranslationResources = {
       confirmDiscard: {
         title: "丢弃这个目标？",
         message: "排队和运行中的工作会停止，汇报会保留。",
+      },
+      confirmLand: {
+        title: "合入并结单？",
+        message: "核验过的 Pull Request 会合入目标分支，Worktree 会归档，该目标随即关闭。",
       },
       create: {
         title: "新建目标",

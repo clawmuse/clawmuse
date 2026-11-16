@@ -2,6 +2,7 @@ import { cloudSpace } from "./cloud-space";
 import { usageMonitoring } from "./usage-monitoring";
 import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
+import { notificationSettings } from "./notification-settings";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
 import { openProjectOnboarding } from "./open-project-onboarding";
@@ -22,6 +23,7 @@ export const es: TranslationResources = {
   usageMonitoring: usageMonitoring["es"],
   remoteAccess: remoteAccess.en,
   mobileUpdates: mobileUpdates["es"],
+  notificationSettings: notificationSettings["es"],
   speechSettings: speechSettings["es"],
   connectionResilience: connectionResilience["es"],
   clawmuseAccount: {
@@ -3468,6 +3470,7 @@ export const es: TranslationResources = {
         accept: "Aceptar",
         discard: "Descartar",
         approve: "Aprobar",
+        land: "Fusionar y cerrar",
         continue: "Continuar",
         pause: "Pausar",
         cancel: "Cancelar",
@@ -3496,6 +3499,7 @@ export const es: TranslationResources = {
         instruction: "Instrucción",
         openExecution: "View execution and files",
         openPr: "Abrir pull request",
+        mergeCommit: "Commit de fusión {{sha}}",
       },
       continue: {
         submit: "Continuar",
@@ -3506,6 +3510,11 @@ export const es: TranslationResources = {
       confirmDiscard: {
         title: "¿Descartar este objetivo?",
         message: "El trabajo en cola y en ejecución se detiene. Los informes se conservan.",
+      },
+      confirmLand: {
+        title: "¿Fusionar y cerrar este objetivo?",
+        message:
+          "La pull request verificada se fusiona en la rama base, el worktree se archiva y el objetivo se cierra.",
       },
       create: {
         title: "Nuevo objetivo",

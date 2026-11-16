@@ -43,6 +43,7 @@ import {
 } from "@/clawmuse-status/binding-state";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { GoalDictationInput } from "./goal-dictation-input";
+import { GoalEvidenceBadge } from "./goal-evidence-badge";
 import { TaskReviewForm } from "./task-review-form";
 import { GoalTargetFields } from "./goal-target-fields";
 
@@ -78,9 +79,10 @@ function TaskRelations({
   onCreateSubtask?: (goal: Goal) => void;
 }) {
   const { t } = useTranslation();
+  const knownGoals = useGoalsStore((state) => state.goals);
   const add = useCallback(() => onCreateSubtask?.(goal), [goal, onCreateSubtask]);
   const canAdd =
-    onCreateSubtask && goal.source && goal.status !== "done" && goal.status !== "discarded";
+    onCreateSubtask && !goal.parentGoalId && goal.status !== "done" && goal.status !== "discarded";
   return (
     <View style={styles.section}>
       {goal.parentGoalId ? (
@@ -97,9 +99,16 @@ function TaskRelations({
       {goal.blockedBy?.length ? (
         <Alert description={t("clawmuseStatus.goals.tasks.waitingDependencies")} />
       ) : null}
-      {goal.dependsOn?.map((id) => (
-        <TaskLink key={id} id={id} label={t("clawmuseStatus.goals.tasks.dependency", { id })} />
-      ))}
+      {goal.dependsOn?.map((id) => {
+        const depTitle = knownGoals.find((candidate) => candidate.id === id)?.title ?? id;
+        return (
+          <TaskLink
+            key={id}
+            id={id}
+            label={t("clawmuseStatus.goals.tasks.dependency", { id: depTitle })}
+          />
+        );
+      })}
       {goal.children?.map((child) => (
         <TaskLink
           key={child.id}
@@ -118,7 +127,6 @@ function TaskRelations({
 
 function TaskReviewSection({ goal }: { goal: GoalDetail }) {
   if (
-    !goal.source ||
     goal.status !== "needs_review" ||
     (goal.reviewReason === "completed" &&
       !goal.latestReport?.evidence?.checks.some((check) => check.result !== "passed")) ||
@@ -140,6 +148,7 @@ function ReportRow({ report }: { report: GoalReport }): ReactElement {
       <Text style={styles.reportMessage}>{report.message}</Text>
       {report.evidence ? (
         <View style={styles.section}>
+          <GoalEvidenceBadge evidence={report.evidence} />
           <Text style={styles.meta}>
             {t("clawmuseStatus.goals.tasks.revision", { revision: report.evidence.revision })}
           </Text>
@@ -190,7 +199,7 @@ function RunRow({ run, onClose }: { run: GoalRun; onClose: () => void }): ReactE
           {t("clawmuseStatus.goals.detail.instruction")}: {run.instruction}
         </Text>
       ) : null}
-      {run.agentRef && run.relayHostId ? (
+      {run.agentRef && (run.serverId || run.relayHostId) ? (
         <Button size="sm" variant="outline" onPress={openExecution} disabled={!executionTarget}>
           {t("clawmuseStatus.goals.detail.openExecution")}
         </Button>
@@ -362,12 +371,24 @@ export function GoalDetailSheet({
           return;
         }
       }
+      if (action === "land") {
+        const confirmed = await confirmDialog({
+          title: t("clawmuseStatus.goals.confirmLand.title"),
+          message: t("clawmuseStatus.goals.confirmLand.message"),
+          confirmLabel: t("clawmuseStatus.goals.actions.land"),
+          cancelLabel: t("clawmuseStatus.goals.actions.cancel"),
+          destructive: false,
+        });
+        if (!confirmed) {
+          return;
+        }
+      }
       setActionError(null);
       try {
         await act(goal.id, action, input);
         setSetupMode(null);
         setInstruction("");
-        if (action === "discard" || action === "approve") {
+        if (action === "discard" || action === "approve" || action === "land") {
           onClose();
         }
       } catch (error) {
@@ -522,6 +543,13 @@ export function GoalDetailSheet({
               {t("clawmuseStatus.goals.target.summary", {
                 host: goal.hostDisplayName ?? t("clawmuseStatus.goals.target.autoHost"),
                 model: goal.agent ?? t("clawmuseStatus.goals.target.hostDefaultModel"),
+              })}
+            </Text>
+          ) : null}
+          {goal.mergeCommitSha ? (
+            <Text style={styles.meta}>
+              {t("clawmuseStatus.goals.detail.mergeCommit", {
+                sha: goal.mergeCommitSha.slice(0, 12),
               })}
             </Text>
           ) : null}

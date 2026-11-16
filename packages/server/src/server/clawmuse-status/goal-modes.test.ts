@@ -1,8 +1,19 @@
+import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { goalRunProviderOptions, resolveGoalRunModeId } from "./goal-modes.js";
+import type { GoalRunIsolationContext } from "./goal-unattended-policy.js";
 import { mergeProviderOptions } from "../agent/provider-options.js";
+import {
+  ClaudeProviderOptionsSchema,
+  type ClaudeProviderOptions,
+} from "../agent/providers/claude/options.js";
 
-describe("resolveGoalRunModeId", () => {
+const WORKTREE: GoalRunIsolationContext = {
+  isolation: "worktree",
+  worktreePath: "/paseo/worktrees/abc12345/goal-42",
+};
+
+describe("goalRunProviderOptions", () => {
   it("overrides permissive Codex profiles and keeps planners read-only", () => {
     const inherited = {
       approval_policy: "never",
@@ -10,7 +21,7 @@ describe("resolveGoalRunModeId", () => {
       sandbox_workspace_write: { writable_roots: ["/home"], network_access: true },
     };
     expect(
-      mergeProviderOptions(inherited, goalRunProviderOptions("auto", "execute")),
+      mergeProviderOptions(inherited, goalRunProviderOptions("codex", "auto", "execute")),
     ).toMatchObject({
       approval_policy: "on-request",
       sandbox_mode: "workspace-write",
@@ -21,9 +32,76 @@ describe("resolveGoalRunModeId", () => {
         exclude_tmpdir_env_var: true,
       },
     });
-    expect(goalRunProviderOptions("auto", "plan")?.sandbox_mode).toBe("read-only");
-    expect(goalRunProviderOptions("acceptEdits", "execute")).toBeUndefined();
+    expect(goalRunProviderOptions("codex", "auto", "plan")?.sandbox_mode).toBe("read-only");
+    expect(goalRunProviderOptions("claude", "acceptEdits", "execute")).toBeUndefined();
   });
+
+  it("keeps the strict Codex sandbox on local isolation even when asked", () => {
+    const local: GoalRunIsolationContext = { isolation: "local", worktreePath: null };
+    expect(goalRunProviderOptions("codex", "auto", "execute", local)).toMatchObject({
+      approval_policy: "on-request",
+      sandbox_workspace_write: { network_access: false, exclude_slash_tmp: true },
+    });
+  });
+
+  it("opens the worktree plus temp dir and network for Codex execute runs", () => {
+    expect(goalRunProviderOptions("codex", "auto", "execute", WORKTREE)).toMatchObject({
+      approval_policy: "never",
+      sandbox_mode: "workspace-write",
+      sandbox_workspace_write: {
+        writable_roots: [WORKTREE.worktreePath, tmpdir()],
+        network_access: true,
+        exclude_slash_tmp: false,
+        exclude_tmpdir_env_var: false,
+      },
+    });
+  });
+
+  it("never relaxes a Codex plan run even inside a worktree", () => {
+    expect(goalRunProviderOptions("codex", "auto", "plan", WORKTREE)).toMatchObject({
+      sandbox_mode: "read-only",
+      approval_policy: "on-request",
+      sandbox_workspace_write: { network_access: false, exclude_slash_tmp: true },
+    });
+  });
+
+  it("gives Claude execute runs a worktree-scoped allow/deny rule set", () => {
+    const options = goalRunProviderOptions("claude", "acceptEdits", "execute", WORKTREE) as
+      | ClaudeProviderOptions
+      | undefined;
+    expect(ClaudeProviderOptionsSchema.safeParse(options).success).toBe(true);
+    const permissions = options?.settings?.permissions;
+    expect(permissions?.allow).toEqual(
+      expect.arrayContaining([
+        "Bash(npm:*)",
+        "Bash(git commit:*)",
+        "Bash(git push origin HEAD)",
+        "Bash(gh pr create:*)",
+      ]),
+    );
+    // A bare `git push origin main` must not be auto-approved.
+    expect(permissions?.allow).not.toContain("Bash(git push:*)");
+    expect(permissions?.deny).toEqual(
+      expect.arrayContaining([
+        "Bash(gh pr merge:*)",
+        "Bash(gh repo delete:*)",
+        "Bash(gh secret:*)",
+        "Bash(gh release:*)",
+        "Bash(git push --force:*)",
+        "Bash(git push origin main:*)",
+      ]),
+    );
+    expect(options?.disallowedTools).toEqual(expect.arrayContaining(["Bash(gh pr merge:*)"]));
+    expect(options?.additionalDirectories).toEqual([tmpdir()]);
+  });
+
+  it("fails closed for providers without a tailored profile", () => {
+    expect(goalRunProviderOptions("opencode", "build", "execute", WORKTREE)).toBeUndefined();
+    expect(goalRunProviderOptions("claude", "default", "execute")).toBeUndefined();
+  });
+});
+
+describe("resolveGoalRunModeId", () => {
   it("keeps Claude permission prompts instead of choosing bypass", () => {
     expect(
       resolveGoalRunModeId([

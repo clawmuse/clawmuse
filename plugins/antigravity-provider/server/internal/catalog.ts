@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
   ProviderCatalog,
   ProviderLaunch,
@@ -7,6 +8,19 @@ import type {
 } from "@getpaseo/plugin/server/provider";
 import { probe } from "./process.js";
 import { AntigravityError } from "./wire.js";
+
+export const DEFAULT_STATUS_CACHE_TTL_MS = 5 * 60_000;
+const MAX_STATUS_CACHE_ENTRIES = 16;
+
+export interface StatusProbeOptions {
+  now?: () => number;
+  ttlMs?: number;
+}
+
+export interface StatusProbe {
+  getStatus(launch: ProviderLaunch): Promise<ProviderStatus>;
+  invalidate(launch: ProviderLaunch): void;
+}
 
 const modes: readonly ProviderMode[] = [
   {
@@ -19,6 +33,13 @@ const modes: readonly ProviderMode[] = [
     isUnattended: true,
   },
 ];
+
+export function launchCacheKey(launch: ProviderLaunch): string {
+  const env = Object.entries(launch.env).sort(([left], [right]) => left.localeCompare(right));
+  return createHash("sha256")
+    .update(JSON.stringify([launch.command, launch.args, env]))
+    .digest("hex");
+}
 
 export async function getCatalog(launch: ProviderLaunch, cwd?: string): Promise<ProviderCatalog> {
   const output = await probe({ launch, args: ["models"], cwd });
@@ -34,7 +55,7 @@ export async function getCatalog(launch: ProviderLaunch, cwd?: string): Promise<
   return { models, modes, thinkingOptions: [], defaultMode: "full-access" };
 }
 
-export async function getStatus(launch: ProviderLaunch): Promise<ProviderStatus> {
+async function probeStatus(launch: ProviderLaunch): Promise<ProviderStatus> {
   try {
     const version = (await probe({ launch, args: ["--version"] })).trim();
     const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
@@ -56,6 +77,54 @@ export async function getStatus(launch: ProviderLaunch): Promise<ProviderStatus>
     if (!(error instanceof AntigravityError)) throw error;
     return { available: false, diagnostic: error.message };
   }
+}
+
+export function createStatusProbe(options: StatusProbeOptions = {}): StatusProbe {
+  const now = options.now ?? Date.now;
+  const ttlMs = options.ttlMs ?? DEFAULT_STATUS_CACHE_TTL_MS;
+  const positiveCache = new Map<string, number>();
+  const inFlight = new Map<string, Promise<ProviderStatus>>();
+
+  function rememberAvailable(key: string, currentTime: number): void {
+    if (ttlMs <= 0) return;
+    for (const [entryKey, expiresAt] of positiveCache) {
+      if (currentTime >= expiresAt) positiveCache.delete(entryKey);
+    }
+    positiveCache.delete(key);
+    if (positiveCache.size >= MAX_STATUS_CACHE_ENTRIES) {
+      const oldest = positiveCache.keys().next().value;
+      if (oldest !== undefined) positiveCache.delete(oldest);
+    }
+    positiveCache.set(key, currentTime + ttlMs);
+  }
+
+  return {
+    getStatus(launch) {
+      const key = launchCacheKey(launch);
+      const currentTime = now();
+      const expiresAt = positiveCache.get(key);
+      if (expiresAt !== undefined) {
+        if (currentTime < expiresAt) return Promise.resolve({ available: true });
+        positiveCache.delete(key);
+      }
+      const existing = inFlight.get(key);
+      if (existing) return existing;
+      const pending = probeStatus(launch)
+        .then((status) => {
+          if (status.available) rememberAvailable(key, now());
+          else positiveCache.delete(key);
+          return status;
+        })
+        .finally(() => {
+          inFlight.delete(key);
+        });
+      inFlight.set(key, pending);
+      return pending;
+    },
+    invalidate(launch) {
+      positiveCache.delete(launchCacheKey(launch));
+    },
+  };
 }
 
 export function validateSelection(

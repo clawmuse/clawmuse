@@ -90,12 +90,14 @@ import type { VoiceCallerContext, VoiceSpeakHandler } from "./voice-types.js";
 import {
   computeNotificationPlan,
   isPushEligibleAttentionReason,
+  PRESENCE_THRESHOLD_MS,
   type ClientPresenceState,
 } from "./agent-attention-policy.js";
 import {
   buildAgentAttentionNotificationPayload,
   findLatestPermissionRequest,
 } from "@getpaseo/protocol/agent-attention-notification";
+import { isAgentNotificationsMuted } from "@getpaseo/protocol/agent-labels";
 import { createGitHubService } from "../services/github-service.js";
 import type { ForgeService } from "../services/forge-service.js";
 import {
@@ -113,6 +115,7 @@ import {
 } from "./websocket/runtime-metrics.js";
 import { ClawMuseStatusService } from "./clawmuse-status/service.js";
 import type { ClawMuseGoalRunner } from "./clawmuse-status/goal-runner.js";
+import type { LocalGoalService } from "./goals/service.js";
 import { getProcessMemoryDiagnostics, getProcessUptimeSeconds } from "./process-diagnostics.js";
 import {
   CLIENT_SHUTDOWN_RPC_REASON,
@@ -665,6 +668,7 @@ export class VoiceAssistantWebSocketServer {
   private unsubscribeSpeechReadiness: (() => void) | null = null;
   private unsubscribeDaemonConfigChange: (() => void) | null = null;
   private readonly clawmuseStatus: ClawMuseStatusService;
+  private readonly localGoals: LocalGoalService | undefined;
   private unsubscribeClawMuseStatusAgents: (() => void) | null = null;
   private unsubscribeTerminalActivity: (() => void) | null = null;
   private readonly browserToolsBroker: BrowserToolsBroker | null;
@@ -743,6 +747,7 @@ export class VoiceAssistantWebSocketServer {
     orchestrationSkills?: SessionOptions["orchestrationSkills"],
     workspaceLabelService?: WorkspaceLabelService,
     clawmuseGoals?: ClawMuseGoalRunner,
+    localGoals?: LocalGoalService,
   ) {
     this.logger = logger.child({ module: "websocket-server" });
     this.workspaceSetupRuntime = workspaceSetupRuntime;
@@ -870,8 +875,17 @@ export class VoiceAssistantWebSocketServer {
         this.logger.warn({ err, agentId: params.agentId }, "Failed to broadcast agent attention");
       });
     });
+    this.agentManager.setAgentTurnStartedCallback((params) => {
+      void this.broadcastAgentTurnStarted(params).catch((err) => {
+        this.logger.warn(
+          { err, agentId: params.agentId },
+          "Failed to broadcast agent turn started",
+        );
+      });
+    });
 
     this.clawmuseStatus = this.createClawMuseStatus({ paseoHome, serverId, clawmuseGoals });
+    this.localGoals = localGoals;
 
     this.wss = this.createWebSocketServer(server, wsConfig, auth);
     this.unsubscribeRemoteAccess = this.remoteAccess.observe(() => this.refreshRemoteAccess());
@@ -973,6 +987,7 @@ export class VoiceAssistantWebSocketServer {
       listAgents: () => this.agentManager.listAgents(),
       listUsage: (): Promise<readonly UsageReportEntry[]> =>
         this.pluginRuntime?.listUsageReports() ?? Promise.resolve([]),
+      hasActiveClient: () => this.hasActivePresentClient(),
       ...(input.clawmuseGoals ? { goals: input.clawmuseGoals } : {}),
     });
   }
@@ -1729,6 +1744,7 @@ export class VoiceAssistantWebSocketServer {
       hubExecutionAgents: options.hubExecutionAgents,
       hubRelationships: options.hubRelationships,
       clawmuseStatus: this.clawmuseStatus,
+      localGoals: this.localGoals,
       onAgentFocused: (agentId, atMs) => this.clawmuseStatus.markAgentSeen(agentId, atMs),
       serviceProxy: this.serviceProxy ?? undefined,
       scriptRuntimeStore: this.scriptRuntimeStore ?? undefined,
@@ -2260,10 +2276,16 @@ export class VoiceAssistantWebSocketServer {
         daemonConfigReload: true,
         // COMPAT(clawmuseStatus): added in v0.8.0, remove gate after 2027-09-11.
         ...(this.clawmuseStatus.isConfigured ? { clawmuseStatus: true } : {}),
+        // COMPAT(localGoals): added in v1.5.10, remove gate after 2027-11-12.
+        ...(this.localGoals ? { localGoals: true } : {}),
         // COMPAT(relayConfig): added in v0.2.6, remove gate after 2027-01-31.
         ...(this.advertiseRelayConfig ? { relayConfig: true } : {}),
         // COMPAT(pushTokenRevocation): added in v0.3.2, remove gate after 2027-02-10.
         pushTokenRevocation: true,
+        // COMPAT(pushNotificationPreferences): added in v1.5.11, remove gate after 2027-11-13.
+        pushNotificationPreferences: true,
+        // COMPAT(agentNotificationMute): added in v1.5.11, remove gate after 2027-11-13.
+        agentNotificationMute: true,
         // COMPAT(plugins): added in v0.3.0, remove gate after 2027-08-07.
         plugins: true,
         pluginManagement: true,
@@ -3276,6 +3298,100 @@ export class VoiceAssistantWebSocketServer {
     };
   }
 
+  private hasActivePresentClient(nowMs = Date.now()): boolean {
+    for (const [ws, connection] of this.sessions) {
+      const state = this.getClientActivityState(connection.session, ws);
+      if (state.lastActivityAtMs === null) {
+        continue;
+      }
+      const clampedAtMs = Math.min(state.lastActivityAtMs, nowMs);
+      if (nowMs - clampedAtMs <= PRESENCE_THRESHOLD_MS) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private summarizePresenceForAgent(
+    states: readonly ClientPresenceState[],
+    agentId: string,
+    nowMs: number,
+  ): { hasPresentClient: boolean; focusedOnTarget: boolean } {
+    let hasPresentClient = false;
+    let focusedOnTarget = false;
+    for (const state of states) {
+      if (state.lastActivityAtMs === null) {
+        continue;
+      }
+      const clampedAtMs = Math.min(state.lastActivityAtMs, nowMs);
+      if (nowMs - clampedAtMs <= PRESENCE_THRESHOLD_MS) {
+        hasPresentClient = true;
+        if (state.appVisible && state.focusedAgentId === agentId) {
+          focusedOnTarget = true;
+        }
+      }
+    }
+    return { hasPresentClient, focusedOnTarget };
+  }
+
+  private async broadcastAgentTurnStarted(params: {
+    agentId: string;
+    provider: AgentProvider;
+  }): Promise<void> {
+    if (!this.pushNotificationSender.sendAgentEvent) {
+      return;
+    }
+    const agent = this.agentManager.getAgent(params.agentId);
+    if (!agent?.workspaceId || isAgentNotificationsMuted(agent)) {
+      return;
+    }
+
+    const states: ClientPresenceState[] = [];
+    for (const [ws, connection] of this.sessions) {
+      if (
+        connection.session.delivery.isModern(ws)
+          ? !connection.session.wantsSourceNotification(ws, "agent_attention_required")
+          : !(await connection.session.subscribesToAgent(agent, ws))
+      ) {
+        continue;
+      }
+      states.push(this.getClientActivityState(connection.session, ws));
+    }
+
+    const nowMs = Date.now();
+    const { hasPresentClient, focusedOnTarget } = this.summarizePresenceForAgent(
+      states,
+      params.agentId,
+      nowMs,
+    );
+    const storedRecord = await this.agentStorage?.get(params.agentId).catch(() => null);
+    const agentTitle = storedRecord?.title ?? agent.config.title ?? null;
+
+    const withPreviewPayload = buildAgentAttentionNotificationPayload({
+      reason: "running",
+      serverId: this.serverId,
+      workspaceId: agent.workspaceId,
+      agentId: params.agentId,
+      agentTitle,
+      includePreview: true,
+    });
+    const withoutPreviewPayload = buildAgentAttentionNotificationPayload({
+      reason: "running",
+      serverId: this.serverId,
+      workspaceId: agent.workspaceId,
+      agentId: params.agentId,
+      includePreview: false,
+    });
+
+    await this.pushNotificationSender.sendAgentEvent({
+      reason: "running",
+      hasPresentClient,
+      focusedOnTarget,
+      withPreviewPayload,
+      withoutPreviewPayload,
+    });
+  }
+
   private async broadcastAgentAttention(params: {
     agentId: string;
     provider: AgentProvider;
@@ -3285,6 +3401,7 @@ export class VoiceAssistantWebSocketServer {
     if (!agent?.workspaceId) {
       return;
     }
+    const muted = isAgentNotificationsMuted(agent);
     const clientEntries: Array<{
       ws: WebSocketLike;
       state: ClientPresenceState;
@@ -3309,13 +3426,16 @@ export class VoiceAssistantWebSocketServer {
     const allStates = notificationEntries.map((e) => e.state);
     const nowMs = Date.now();
     const assistantMessage = await this.agentManager.getLastAssistantMessage(params.agentId);
+    const permissionRequest = findLatestPermissionRequest(agent.pendingPermissions);
     const notification = buildAgentAttentionNotificationPayload({
       reason: params.reason,
       serverId: this.serverId,
       workspaceId: agent.workspaceId,
       agentId: params.agentId,
       assistantMessage,
-      permissionRequest: findLatestPermissionRequest(agent.pendingPermissions),
+      permissionRequest,
+      errorMessage: agent.lastError,
+      includePreview: true,
     });
 
     const plan = computeNotificationPlan({
@@ -3325,14 +3445,41 @@ export class VoiceAssistantWebSocketServer {
       nowMs,
     });
 
-    if (plan.shouldPush) {
-      void this.pushNotificationSender.send(notification).catch((err) => {
-        this.logger.warn({ err, agentId: params.agentId }, "Failed to send push notification");
-      });
+    if (!muted) {
+      if (this.pushNotificationSender.sendAgentEvent) {
+        const { hasPresentClient, focusedOnTarget } = this.summarizePresenceForAgent(
+          allStates,
+          params.agentId,
+          nowMs,
+        );
+        const withoutPreviewPayload = buildAgentAttentionNotificationPayload({
+          reason: params.reason,
+          serverId: this.serverId,
+          workspaceId: agent.workspaceId,
+          agentId: params.agentId,
+          includePreview: false,
+        });
+        void this.pushNotificationSender
+          .sendAgentEvent({
+            reason: params.reason,
+            hasPresentClient,
+            focusedOnTarget,
+            withPreviewPayload: notification,
+            withoutPreviewPayload,
+          })
+          .catch((err) => {
+            this.logger.warn({ err, agentId: params.agentId }, "Failed to send push notification");
+          });
+      } else if (plan.shouldPush) {
+        void this.pushNotificationSender.send(notification).catch((err) => {
+          this.logger.warn({ err, agentId: params.agentId }, "Failed to send push notification");
+        });
+      }
     }
 
     for (const { ws } of clientEntries) {
       const shouldNotify =
+        !muted &&
         plan.inAppRecipientIndex !== null &&
         notificationEntries[plan.inAppRecipientIndex]?.ws === ws;
       const timestamp = new Date().toISOString();

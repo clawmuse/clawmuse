@@ -2,6 +2,7 @@ import { cloudSpace } from "./cloud-space";
 import { usageMonitoring } from "./usage-monitoring";
 import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
+import { notificationSettings } from "./notification-settings";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
 import { openProjectOnboarding } from "./open-project-onboarding";
@@ -22,6 +23,7 @@ export const ko: TranslationResources = {
   usageMonitoring: usageMonitoring["ko"],
   remoteAccess: remoteAccess.en,
   mobileUpdates: mobileUpdates["ko"],
+  notificationSettings: notificationSettings["ko"],
   speechSettings: speechSettings["ko"],
   connectionResilience: connectionResilience["ko"],
   clawmuseAccount: {
@@ -3415,6 +3417,7 @@ export const ko: TranslationResources = {
         accept: "수락",
         discard: "폐기",
         approve: "승인",
+        land: "머지하고 완료",
         continue: "계속",
         pause: "일시중지",
         cancel: "취소",
@@ -3443,6 +3446,7 @@ export const ko: TranslationResources = {
         instruction: "지시",
         openExecution: "View execution and files",
         openPr: "풀 리퀘스트 열기",
+        mergeCommit: "머지 커밋 {{sha}}",
       },
       continue: {
         submit: "계속",
@@ -3453,6 +3457,11 @@ export const ko: TranslationResources = {
       confirmDiscard: {
         title: "이 목표를 폐기할까요?",
         message: "대기 중이거나 실행 중인 작업이 중단됩니다. 보고는 유지됩니다.",
+      },
+      confirmLand: {
+        title: "이 목표를 머지하고 완료할까요?",
+        message:
+          "검증된 풀 리퀘스트를 기본 브랜치에 머지하고 워크트리를 보관한 뒤 목표를 완료합니다.",
       },
       create: {
         title: "새 목표",

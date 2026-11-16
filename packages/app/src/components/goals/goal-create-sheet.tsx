@@ -1,5 +1,5 @@
 import { randomUUID } from "expo-crypto";
-import { useCallback, useMemo, useState, type ReactElement } from "react";
+import { memo, useCallback, useMemo, useRef, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
@@ -12,6 +12,7 @@ import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-moda
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Field, FormTextInput } from "@/components/ui/form-field";
+import type { EditingTextInputHandle } from "@/components/ui/text-input";
 import {
   SelectField,
   type SelectFieldDisplay,
@@ -47,6 +48,25 @@ export function buildRepoOptions(repos: readonly GoalRepo[]): SelectFieldOption<
   }));
 }
 
+const AcceptancePresetChip = memo(function AcceptancePresetChip({
+  label,
+  value,
+  onSelect,
+  testID,
+}: {
+  label: string;
+  value: string;
+  onSelect: (value: string) => void;
+  testID: string;
+}) {
+  const handlePress = useCallback(() => onSelect(value), [onSelect, value]);
+  return (
+    <Button size="xs" variant="outline" onPress={handlePress} testID={testID}>
+      {label}
+    </Button>
+  );
+});
+
 /** Save a draft to decompose work before starting its execution. */
 export function GoalCreateSheet({
   visible,
@@ -57,6 +77,7 @@ export function GoalCreateSheet({
 }: GoalCreateSheetProps): ReactElement {
   const { t } = useTranslation();
   const createGoal = useGoalsStore((state) => state.createGoal);
+  const acceptanceRef = useRef<EditingTextInputHandle>(null);
   const [requestId] = useState(() => randomUUID());
   const [repoKey, setRepoKey] = useState<string | null>(
     parentGoal?.repoKey ?? initialRepoKey ?? (repos.length === 1 ? repos[0]!.repoKey : null),
@@ -98,6 +119,32 @@ export function GoalCreateSheet({
     },
     [repos],
   );
+
+  const acceptancePresets = useMemo(
+    () => [
+      {
+        id: "tests",
+        label: t("clawmuseStatus.goals.tasks.presetTestsPassLabel"),
+        value: t("clawmuseStatus.goals.tasks.presetTestsPassValue"),
+      },
+      {
+        id: "build",
+        label: t("clawmuseStatus.goals.tasks.presetBuildCleanLabel"),
+        value: t("clawmuseStatus.goals.tasks.presetBuildCleanValue"),
+      },
+      {
+        id: "report",
+        label: t("clawmuseStatus.goals.tasks.presetReportOnlyLabel"),
+        value: t("clawmuseStatus.goals.tasks.presetReportOnlyValue"),
+      },
+    ],
+    [t],
+  );
+
+  const applyAcceptancePreset = useCallback((value: string) => {
+    acceptanceRef.current?.replaceText(value);
+    setAcceptance(value);
+  }, []);
 
   const dependencyDisplay = useMemo(
     () => ({
@@ -256,6 +303,7 @@ export function GoalCreateSheet({
         </Field>
         <Field label={t("clawmuseStatus.goals.create.acceptanceLabel")}>
           <FormTextInput
+            ref={acceptanceRef}
             initialValue={acceptance}
             onChangeText={setAcceptance}
             placeholder={t("clawmuseStatus.goals.create.acceptancePlaceholder")}
@@ -265,6 +313,17 @@ export function GoalCreateSheet({
             textAlignVertical="top"
             testID="goal-create-acceptance"
           />
+          <View style={styles.presetsRow}>
+            {acceptancePresets.map((preset) => (
+              <AcceptancePresetChip
+                key={preset.id}
+                label={preset.label}
+                value={preset.value}
+                onSelect={applyAcceptancePreset}
+                testID={`goal-create-preset-${preset.id}`}
+              />
+            ))}
+          </View>
         </Field>
         <Field
           label={t("clawmuseStatus.goals.create.budgetLabel")}
@@ -302,6 +361,12 @@ const styles = StyleSheet.create((theme) => ({
   },
   multiline: {
     minHeight: 96,
+  },
+  presetsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing[2],
+    marginTop: theme.spacing[2],
   },
   scope: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm },
   error: {

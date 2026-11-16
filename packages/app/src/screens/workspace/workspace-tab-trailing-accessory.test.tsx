@@ -32,6 +32,8 @@ vi.mock("@/components/icons/app-icons", () => {
   return {
     ArrowLeftToLine: StubIcon,
     ArrowRightToLine: StubIcon,
+    Bell: StubIcon,
+    BellOff: StubIcon,
     Copy: StubIcon,
     CopyX: StubIcon,
     Ellipsis: StubIcon,

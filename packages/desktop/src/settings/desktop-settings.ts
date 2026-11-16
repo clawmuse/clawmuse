@@ -9,7 +9,15 @@ import type { AppReleaseChannel } from "../features/auto-updater.js";
 export interface DesktopSettings {
   releaseChannel: AppReleaseChannel;
   notifications: {
+    enabled: boolean;
     playSound: boolean;
+    permission: boolean;
+    finished: boolean;
+    error: boolean;
+    running: boolean;
+    goalsReview: boolean;
+    showPreview: boolean;
+    suppressWhenFocused: boolean;
   };
   daemon: {
     manageBuiltInDaemon: boolean;
@@ -32,7 +40,15 @@ export interface DesktopSettingsStore {
 export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   releaseChannel: "stable",
   notifications: {
+    enabled: true,
     playSound: true,
+    permission: true,
+    finished: true,
+    error: true,
+    running: false,
+    goalsReview: true,
+    showPreview: true,
+    suppressWhenFocused: true,
   },
   daemon: {
     manageBuiltInDaemon: true,
@@ -46,7 +62,17 @@ const ReleaseChannelSchema = z.enum(["stable", "beta"]);
 
 const NotificationsSchema = z
   .looseObject({
+    enabled: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.enabled),
     playSound: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.playSound),
+    permission: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.permission),
+    finished: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.finished),
+    error: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.error),
+    running: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.running),
+    goalsReview: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.goalsReview),
+    showPreview: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.showPreview),
+    suppressWhenFocused: z
+      .boolean()
+      .catch(DEFAULT_DESKTOP_SETTINGS.notifications.suppressWhenFocused),
   })
   .catch(() => ({ ...DEFAULT_DESKTOP_SETTINGS.notifications }));
 
@@ -125,13 +151,35 @@ function buildDefaultDocument(): PersistedDesktopSettingsDocument {
 function toDesktopSettings(stored: StoredDesktopSettings): DesktopSettings {
   return {
     releaseChannel: stored.releaseChannel,
-    notifications: { playSound: stored.notifications.playSound },
+    notifications: {
+      enabled: stored.notifications.enabled,
+      playSound: stored.notifications.playSound,
+      permission: stored.notifications.permission,
+      finished: stored.notifications.finished,
+      error: stored.notifications.error,
+      running: stored.notifications.running,
+      goalsReview: stored.notifications.goalsReview,
+      showPreview: stored.notifications.showPreview,
+      suppressWhenFocused: stored.notifications.suppressWhenFocused,
+    },
     daemon: {
       manageBuiltInDaemon: stored.daemon.manageBuiltInDaemon,
       keepRunningAfterQuit: stored.daemon.keepRunningAfterQuit,
     },
   };
 }
+
+const NOTIFICATION_BOOLEAN_KEYS = [
+  "enabled",
+  "playSound",
+  "permission",
+  "finished",
+  "error",
+  "running",
+  "goalsReview",
+  "showPreview",
+  "suppressWhenFocused",
+] as const satisfies ReadonlyArray<keyof DesktopSettings["notifications"]>;
 
 function coerceDesktopSettingsPatch(input: unknown): DesktopSettingsPatch {
   if (!isRecord(input)) {
@@ -145,9 +193,15 @@ function coerceDesktopSettingsPatch(input: unknown): DesktopSettingsPatch {
   }
 
   if (isRecord(input.notifications)) {
-    const playSound = coerceBoolean(input.notifications.playSound);
-    if (playSound !== null) {
-      patch.notifications = { playSound };
+    const notificationsPatch: Partial<DesktopSettings["notifications"]> = {};
+    for (const key of NOTIFICATION_BOOLEAN_KEYS) {
+      const coerced = coerceBoolean(input.notifications[key]);
+      if (coerced !== null) {
+        notificationsPatch[key] = coerced;
+      }
+    }
+    if (Object.keys(notificationsPatch).length > 0) {
+      patch.notifications = notificationsPatch;
     }
   }
 

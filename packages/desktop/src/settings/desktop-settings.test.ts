@@ -81,7 +81,7 @@ describe("desktop-settings", () => {
 
     expect(settings).toEqual({
       releaseChannel: "stable",
-      notifications: { playSound: true },
+      notifications: { ...DEFAULT_DESKTOP_SETTINGS.notifications },
       daemon: {
         manageBuiltInDaemon: true,
         keepRunningAfterQuit: false,
@@ -103,7 +103,7 @@ describe("desktop-settings", () => {
 
     expect(next).toEqual({
       releaseChannel: "beta",
-      notifications: { playSound: true },
+      notifications: { ...DEFAULT_DESKTOP_SETTINGS.notifications },
       daemon: {
         manageBuiltInDaemon: true,
         keepRunningAfterQuit: false,
@@ -270,7 +270,7 @@ describe("desktop-settings", () => {
 
     expect(migrated).toEqual({
       releaseChannel: "beta",
-      notifications: { playSound: true },
+      notifications: { ...DEFAULT_DESKTOP_SETTINGS.notifications },
       daemon: {
         manageBuiltInDaemon: false,
         keepRunningAfterQuit: false,
@@ -315,8 +315,33 @@ describe("desktop-settings", () => {
     expect(persisted.settings.releaseChannel).toBe("beta");
     expect(next).toEqual({
       releaseChannel: "beta",
-      notifications: { playSound: false },
+      notifications: { ...DEFAULT_DESKTOP_SETTINGS.notifications, playSound: false },
       daemon: { manageBuiltInDaemon: true, keepRunningAfterQuit: false },
+    });
+  });
+
+  it("persists granular notification toggles across restarts", async () => {
+    const userDataPath = await createTempUserDataDir();
+    directories.add(userDataPath);
+
+    await createDesktopSettingsStore({ userDataPath }).patch({
+      notifications: {
+        enabled: true,
+        running: true,
+        finished: false,
+        showPreview: false,
+        suppressWhenFocused: false,
+      },
+    });
+
+    const settings = await createDesktopSettingsStore({ userDataPath }).get();
+
+    expect(settings.notifications).toEqual({
+      ...DEFAULT_DESKTOP_SETTINGS.notifications,
+      running: true,
+      finished: false,
+      showPreview: false,
+      suppressWhenFocused: false,
     });
   });
 

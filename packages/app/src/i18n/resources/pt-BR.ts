@@ -2,6 +2,7 @@ import { cloudSpace } from "./cloud-space";
 import { usageMonitoring } from "./usage-monitoring";
 import { remoteAccess } from "./remote-access";
 import { mobileUpdates } from "./mobile-updates";
+import { notificationSettings } from "./notification-settings";
 import { speechSettings } from "./speech-settings";
 import { connectionResilience } from "./connection-resilience";
 import { openProjectOnboarding } from "./open-project-onboarding";
@@ -22,6 +23,7 @@ export const ptBR: TranslationResources = {
   usageMonitoring: usageMonitoring["pt-BR"],
   remoteAccess: remoteAccess.en,
   mobileUpdates: mobileUpdates["pt-BR"],
+  notificationSettings: notificationSettings["pt-BR"],
   speechSettings: speechSettings["pt-BR"],
   connectionResilience: connectionResilience["pt-BR"],
   clawmuseAccount: {
@@ -3446,6 +3448,7 @@ export const ptBR: TranslationResources = {
         accept: "Aceitar",
         discard: "Descartar",
         approve: "Aprovar",
+        land: "Mesclar e concluir",
         continue: "Continuar",
         pause: "Pausar",
         cancel: "Cancelar",
@@ -3474,6 +3477,7 @@ export const ptBR: TranslationResources = {
         instruction: "Instrução",
         openExecution: "View execution and files",
         openPr: "Abrir pull request",
+        mergeCommit: "Commit de mesclagem {{sha}}",
       },
       continue: {
         submit: "Continuar",
@@ -3484,6 +3488,11 @@ export const ptBR: TranslationResources = {
       confirmDiscard: {
         title: "Descartar este objetivo?",
         message: "O trabalho na fila e em execução para. Os relatórios são mantidos.",
+      },
+      confirmLand: {
+        title: "Mesclar e concluir este objetivo?",
+        message:
+          "O pull request verificado é mesclado na branch base, o worktree é arquivado e o objetivo é concluído.",
       },
       create: {
         title: "Novo objetivo",

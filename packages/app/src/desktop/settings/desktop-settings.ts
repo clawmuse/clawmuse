@@ -9,12 +9,20 @@ import {
 import type { ReleaseChannel } from "@/hooks/use-settings";
 import { i18n } from "@/i18n/i18next";
 
-const DESKTOP_SETTINGS_QUERY_KEY = ["desktop-settings"] as const;
+export const DESKTOP_SETTINGS_QUERY_KEY = ["desktop-settings"] as const;
 
 export interface DesktopSettings {
   releaseChannel: ReleaseChannel;
   notifications: {
+    enabled: boolean;
     playSound: boolean;
+    permission: boolean;
+    finished: boolean;
+    error: boolean;
+    running: boolean;
+    goalsReview: boolean;
+    showPreview: boolean;
+    suppressWhenFocused: boolean;
   };
   daemon: {
     manageBuiltInDaemon: boolean;
@@ -31,13 +39,27 @@ export interface DesktopSettingsPatch {
 export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   releaseChannel: "stable",
   notifications: {
+    enabled: true,
     playSound: true,
+    permission: true,
+    finished: true,
+    error: true,
+    running: false,
+    goalsReview: true,
+    showPreview: true,
+    suppressWhenFocused: true,
   },
   daemon: {
     manageBuiltInDaemon: true,
     keepRunningAfterQuit: false,
   },
 };
+
+let latestDesktopSettings: DesktopSettings = DEFAULT_DESKTOP_SETTINGS;
+
+export function getCachedDesktopSettings(): DesktopSettings {
+  return latestDesktopSettings;
+}
 
 export function useDesktopSettings(): {
   settings: DesktopSettings;
@@ -76,17 +98,18 @@ export function useDesktopSettings(): {
       const previous =
         queryClient.getQueryData<DesktopSettings>(DESKTOP_SETTINGS_QUERY_KEY) ??
         DEFAULT_DESKTOP_SETTINGS;
-      queryClient.setQueryData<DesktopSettings>(
-        DESKTOP_SETTINGS_QUERY_KEY,
-        mergeDesktopSettings(previous, updates),
-      );
+      const merged = mergeDesktopSettings(previous, updates);
+      latestDesktopSettings = merged;
+      queryClient.setQueryData<DesktopSettings>(DESKTOP_SETTINGS_QUERY_KEY, merged);
       return { previous };
     },
     onSuccess: (persisted) => {
+      latestDesktopSettings = persisted;
       queryClient.setQueryData<DesktopSettings>(DESKTOP_SETTINGS_QUERY_KEY, persisted);
     },
     onError: (saveError, _updates, context) => {
       if (context) {
+        latestDesktopSettings = context.previous;
         queryClient.setQueryData<DesktopSettings>(DESKTOP_SETTINGS_QUERY_KEY, context.previous);
       }
       reportError({
@@ -125,7 +148,9 @@ export async function loadDesktopSettings(): Promise<DesktopSettings> {
   if (!getIsElectron()) {
     return DEFAULT_DESKTOP_SETTINGS;
   }
-  return parseDesktopSettings(await invokeDesktopCommand<unknown>("get_desktop_settings"));
+  const parsed = parseDesktopSettings(await invokeDesktopCommand<unknown>("get_desktop_settings"));
+  latestDesktopSettings = parsed;
+  return parsed;
 }
 
 export async function updatePersistedDesktopSettings(
@@ -134,9 +159,11 @@ export async function updatePersistedDesktopSettings(
   if (!getIsElectron()) {
     return DEFAULT_DESKTOP_SETTINGS;
   }
-  return parseDesktopSettings(
+  const parsed = parseDesktopSettings(
     await invokeDesktopCommand<unknown>("patch_desktop_settings", normalizePatch(updates)),
   );
+  latestDesktopSettings = parsed;
+  return parsed;
 }
 
 export async function migrateLegacyDesktopSettings(input: {
@@ -149,28 +176,41 @@ export async function migrateLegacyDesktopSettings(input: {
   await invokeDesktopCommand("migrate_legacy_desktop_settings", input);
 }
 
+function readBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
 function parseDesktopSettings(raw: unknown): DesktopSettings {
   const record = isRecord(raw) ? raw : {};
   const notifications = isRecord(record.notifications) ? record.notifications : {};
   const daemon = isRecord(record.daemon) ? record.daemon : {};
+  const defaults = DEFAULT_DESKTOP_SETTINGS.notifications;
 
   return {
     releaseChannel: record.releaseChannel === "beta" ? "beta" : "stable",
     notifications: {
-      playSound:
-        typeof notifications.playSound === "boolean"
-          ? notifications.playSound
-          : DEFAULT_DESKTOP_SETTINGS.notifications.playSound,
+      enabled: readBoolean(notifications.enabled, defaults.enabled),
+      playSound: readBoolean(notifications.playSound, defaults.playSound),
+      permission: readBoolean(notifications.permission, defaults.permission),
+      finished: readBoolean(notifications.finished, defaults.finished),
+      error: readBoolean(notifications.error, defaults.error),
+      running: readBoolean(notifications.running, defaults.running),
+      goalsReview: readBoolean(notifications.goalsReview, defaults.goalsReview),
+      showPreview: readBoolean(notifications.showPreview, defaults.showPreview),
+      suppressWhenFocused: readBoolean(
+        notifications.suppressWhenFocused,
+        defaults.suppressWhenFocused,
+      ),
     },
     daemon: {
-      manageBuiltInDaemon:
-        typeof daemon.manageBuiltInDaemon === "boolean"
-          ? daemon.manageBuiltInDaemon
-          : DEFAULT_DESKTOP_SETTINGS.daemon.manageBuiltInDaemon,
-      keepRunningAfterQuit:
-        typeof daemon.keepRunningAfterQuit === "boolean"
-          ? daemon.keepRunningAfterQuit
-          : DEFAULT_DESKTOP_SETTINGS.daemon.keepRunningAfterQuit,
+      manageBuiltInDaemon: readBoolean(
+        daemon.manageBuiltInDaemon,
+        DEFAULT_DESKTOP_SETTINGS.daemon.manageBuiltInDaemon,
+      ),
+      keepRunningAfterQuit: readBoolean(
+        daemon.keepRunningAfterQuit,
+        DEFAULT_DESKTOP_SETTINGS.daemon.keepRunningAfterQuit,
+      ),
     },
   };
 }

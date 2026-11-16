@@ -1,4 +1,3 @@
-import { ClawMuseStatusGetResponseSchema } from "@getpaseo/protocol/messages";
 import { Command } from "commander";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -13,7 +12,7 @@ import {
   type ListResult,
 } from "../../output/index.js";
 import { addJsonAndDaemonHostOptions } from "../../utils/command-options.js";
-import { withTaskApi } from "./api.js";
+import { withTaskApi, type TaskCreateBody } from "./api.js";
 
 const taskSchema = z
   .object({
@@ -53,8 +52,13 @@ interface TaskOptions extends CommandOptions {
   filter?: string;
   instruction?: string;
   evidence?: string;
+  sourceKind?: string;
+  sourceKey?: string;
+  sourceUrl?: string;
+  paths?: string;
   run?: string;
   confirmExecutionStopped?: boolean;
+  mergeMethod?: string;
 }
 function single(value: unknown): SingleResult<Task> {
   return { type: "single", data: envelope.parse(value).goal, schema };
@@ -64,8 +68,15 @@ export function formatTaskCreateError(error: unknown, requestId: string): Error 
   return new Error(`${message}. Retry with --request-id ${requestId}`, { cause: error });
 }
 
-export function taskCreateBody(title: string, options: TaskOptions) {
+export function taskCreateBody(title: string, options: TaskOptions): TaskCreateBody {
   if (!options.repo || !options.summary) throw new Error("--repo and --summary are required");
+  if ((options.sourceKind && !options.sourceKey) || (!options.sourceKind && options.sourceKey)) {
+    throw new Error("--source-kind and --source-key must be used together");
+  }
+  const paths = options.paths
+    ?.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
   return {
     requestId: options.requestId ?? randomUUID(),
     repoKey: options.repo,
@@ -78,6 +89,16 @@ export function taskCreateBody(title: string, options: TaskOptions) {
       : {}),
     ...(options.runOn ? { hostId: options.runOn } : {}),
     ...(options.model ? { agent: options.model } : {}),
+    ...(options.sourceKind
+      ? {
+          source: {
+            kind: options.sourceKind,
+            key: options.sourceKey ?? null,
+            url: options.sourceUrl ?? null,
+          },
+        }
+      : {}),
+    ...(paths && paths.length > 0 ? { paths } : {}),
     start: !options.draft,
   };
 }
@@ -109,33 +130,28 @@ export function createTaskCommand(): Command {
       .alias("ls")
       .option("--filter <filter>", "all, active, suggested, needs_review, or closed", "all")
       .option("--repo <key>", "Remote project key")
-      .option("--goal <id>", "Only this goal's tasks"),
+      .option("--goal <id>", "Only this goal's tasks")
+      .option("--source-kind <kind>", "Only tasks from this external source kind"),
   ).action(
     withOutput(
       async (options: TaskOptions, _command: Command): Promise<ListResult<Task>> =>
-        withTaskApi(options, async (request) => {
-          const query = new URLSearchParams({ filter: options.filter ?? "all" });
-          if (options.repo) query.set("repoKey", options.repo);
-          if (options.goal) query.set("parentGoalId", options.goal);
-          const tasks = new Map<string, Task>();
-          let before: string | null | undefined;
-          do {
-            if (before) query.set("before", before);
-            const value = z
-              .object({ goals: z.array(taskSchema), nextCursor: z.string().nullable().optional() })
-              .parse(await request(`/tasks?${query}`));
-            for (const item of value.goals) tasks.set(item.id, item);
-            before = value.nextCursor;
-          } while (before);
-          return { type: "list", data: [...tasks.values()], schema };
-        }),
+        withTaskApi(options, async (api) => ({
+          type: "list",
+          data: z.array(taskSchema).parse(
+            await api.listTasks({
+              filter: options.filter ?? "all",
+              repoKey: options.repo,
+              parentGoalId: options.goal,
+              sourceKind: options.sourceKind,
+            }),
+          ),
+          schema,
+        })),
     ),
   );
   addJsonAndDaemonHostOptions(task.command("inspect").argument("<id>")).action(
     withOutput(async (id: string, options: TaskOptions, _command: Command) =>
-      withTaskApi(options, async (request) =>
-        single(await request(`/tasks/${encodeURIComponent(id)}`)),
-      ),
+      withTaskApi(options, async (api) => single(await api.getTask(id))),
     ),
   );
   const create = task
@@ -148,21 +164,23 @@ export function createTaskCommand(): Command {
     .option("--depends-on <ids>", "Comma-separated tasks that must be accepted first")
     .option("--run-on <host-id>", "Pin to a status-service host")
     .option("--model <provider/model>", "Execution model")
+    .option("--source-kind <kind>", "External source kind, e.g. bianpai-idea")
+    .option("--source-key <key>", "Stable external source identity")
+    .option("--source-url <url>", "External source URL")
+    .option("--paths <paths>", "Comma-separated allowed file or directory prefixes")
     .option("--draft", "Save without starting execution")
     .option("--request-id <uuid>", "Reuse this ID after an ambiguous create response");
   addJsonAndDaemonHostOptions(create).action(
     withOutput(async (title: string, options: TaskOptions, _command: Command) => {
       const body = taskCreateBody(title, options);
       try {
-        return await withTaskApi(options, async (request) =>
-          single(await request("/tasks", "POST", body)),
-        );
+        return await withTaskApi(options, async (api) => single(await api.createTask(body)));
       } catch (error) {
         throw formatTaskCreateError(error, body.requestId);
       }
     }),
   );
-  for (const action of ["accept", "approve", "pause", "discard", "continue"] as const) {
+  for (const action of ["accept", "approve", "pause", "discard", "continue", "land"] as const) {
     addJsonAndDaemonHostOptions(
       task
         .command(action)
@@ -173,12 +191,16 @@ export function createTaskCommand(): Command {
         .option(
           "--confirm-execution-stopped",
           "Confirm you checked the original host and its prior executor has stopped",
-        ),
+        )
+        .option("--merge-method <method>", "For land: merge, squash, or rebase"),
     ).action(
       withOutput(async (id: string, options: TaskOptions, _command: Command) =>
-        withTaskApi(options, async (request) => {
-          const body =
-            action === "continue" || action === "accept"
+        withTaskApi(options, async (api) => {
+          if (options.mergeMethod && !["merge", "squash", "rebase"].includes(options.mergeMethod)) {
+            throw new Error("--merge-method must be merge, squash, or rebase");
+          }
+          const body = {
+            ...(action === "continue" || action === "accept"
               ? {
                   ...(options.runOn ? { hostId: options.runOn } : {}),
                   ...(options.model ? { agent: options.model } : {}),
@@ -189,8 +211,12 @@ export function createTaskCommand(): Command {
                     ? { confirmExecutionStopped: true }
                     : {}),
                 }
-              : {};
-          return single(await request(`/tasks/${encodeURIComponent(id)}/${action}`, "POST", body));
+              : {}),
+            ...(action === "land" && options.mergeMethod
+              ? { mergeMethod: options.mergeMethod as "merge" | "squash" | "rebase" }
+              : {}),
+          };
+          return single(await api.actOnTask(id, action, body));
         }),
       ),
     );
@@ -207,13 +233,15 @@ export function createTaskCommand(): Command {
       ),
   ).action(
     withOutput(async (id: string, options: TaskOptions, _command: Command) => {
-      if (!options.evidence) throw new Error("Evidence file is required");
+      if (!options.evidence || !options.run || !options.summary) {
+        throw new Error("--run, --summary and --evidence are required");
+      }
       const evidence: unknown = JSON.parse(await readFile(options.evidence, "utf8"));
-      return withTaskApi(options, async (request) =>
+      return withTaskApi(options, async (api) =>
         single(
-          await request(`/tasks/${encodeURIComponent(id)}/submit`, "POST", {
-            runId: options.run,
-            message: options.summary,
+          await api.submitTaskReview(id, {
+            runId: options.run!,
+            message: options.summary!,
             evidence,
           }),
         ),
@@ -237,9 +265,9 @@ export function createTaskCommand(): Command {
       const details = z
         .object({ title: z.string(), body: z.string(), url: z.string().url() })
         .parse(JSON.parse(result.stdout));
-      return withTaskApi(options, async (request) =>
+      return withTaskApi(options, async (api) =>
         single(
-          await request("/tasks", "POST", {
+          await api.createTask({
             ...taskCreateBody(details.title.slice(0, 200), {
               ...options,
               repo: issue.repoKey,
@@ -262,36 +290,19 @@ export function createTaskCommand(): Command {
       .option("--acceptance <text>", "Definition of done"),
   ).action(
     withOutput(async (agentId: string, options: TaskOptions, _command: Command) =>
-      withTaskApi(options, async (request, client) => {
+      withTaskApi(options, async (api, client) => {
         const existing = await client.fetchAgent({ agentId });
         if (!existing || existing.agent.archivedAt)
           throw new Error("Existing session is unavailable or archived");
-        const status = ClawMuseStatusGetResponseSchema.shape.payload.parse(
-          await client.getClawMuseStatus(),
-        );
-        const repos = z
-          .object({
-            repos: z.array(
-              z.object({
-                repoKey: z.string(),
-                hosts: z.array(z.object({ hostId: z.string(), relayHostId: z.string() })),
-              }),
-            ),
-          })
-          .parse(await request("/goal-repos"));
-        const host = repos.repos
-          .find((repo) => repo.repoKey === options.repo)
-          ?.hosts.find((candidate) => candidate.relayHostId === status.relayHostId);
-        if (!host) throw new Error("This host has not published the selected project");
         return single(
-          await request("/tasks", "POST", {
-            ...taskCreateBody(existing.agent.title ?? "Existing session", {
-              ...options,
-              summary: options.summary ?? existing.agent.title ?? "Review existing work",
-              runOn: host.hostId,
-            }),
-            attachedAgentRef: existing.agent.id,
-            source: { kind: "session", key: `${host.hostId}/${existing.agent.id}` },
+          await api.attachSession({
+            requestId: options.requestId ?? randomUUID(),
+            agentId,
+            repoKey: options.repo!,
+            title: existing.agent.title ?? "Existing session",
+            summary: options.summary ?? existing.agent.title ?? "Review existing work",
+            ...(options.acceptance ? { acceptance: options.acceptance } : {}),
+            ...(options.goal ? { parentGoalId: options.goal } : {}),
           }),
         );
       }),

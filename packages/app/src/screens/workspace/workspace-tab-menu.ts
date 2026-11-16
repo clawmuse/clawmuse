@@ -11,6 +11,8 @@ export interface WorkspaceTabMenuLabels {
   copyTerminalId: string;
   copyFilePath: string;
   rename: string;
+  muteNotifications?: string;
+  unmuteNotifications?: string;
   closeAbove: string;
   closeBelow: string;
   closeLeft: string;
@@ -27,6 +29,8 @@ export const DEFAULT_WORKSPACE_TAB_MENU_LABELS: WorkspaceTabMenuLabels = {
   copyTerminalId: i18n.t("workspace.tabs.menu.copyTerminalId"),
   copyFilePath: i18n.t("workspace.tabs.menu.copyFilePath"),
   rename: i18n.t("workspace.tabs.menu.rename"),
+  muteNotifications: i18n.t("notificationSettings.muteAgent"),
+  unmuteNotifications: i18n.t("notificationSettings.unmuteAgent"),
   closeAbove: i18n.t("workspace.tabs.menu.closeAbove"),
   closeBelow: i18n.t("workspace.tabs.menu.closeBelow"),
   closeLeft: i18n.t("workspace.tabs.menu.closeLeft"),
@@ -49,6 +53,8 @@ export type WorkspaceTabMenuEntry =
         | "arrow-right-to-line"
         | "copy-x"
         | "pencil"
+        | "bell"
+        | "bell-off"
         | "x";
       hint?: string;
       tooltip?: string;
@@ -79,6 +85,8 @@ interface BuildWorkspaceTabMenuEntriesInput {
   onCopyFilePath: (path: string) => Promise<void> | void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
+  isAgentMuted?: boolean;
+  onToggleAgentMute?: (agentId: string) => Promise<void> | void;
   onCloseTab: (tabId: string) => Promise<void> | void;
   onCloseTabsBefore: (tabId: string) => Promise<void> | void;
   onCloseTabsAfter: (tabId: string) => Promise<void> | void;
@@ -96,6 +104,8 @@ interface BuildWorkspaceDesktopTabActionsInput {
   onCopyFilePath: (path: string) => Promise<void> | void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
+  isAgentMuted?: boolean;
+  onToggleAgentMute?: (agentId: string) => Promise<void> | void;
   onCloseTab: (tabId: string) => Promise<void> | void;
   onCloseTabsToLeft: (tabId: string) => Promise<void> | void;
   onCloseTabsToRight: (tabId: string) => Promise<void> | void;
@@ -183,6 +193,8 @@ export function buildWorkspaceTabMenuEntries(
     onCopyFilePath,
     onReloadAgent,
     onRenameTab,
+    isAgentMuted = false,
+    onToggleAgentMute,
     onCloseTab,
     onCloseTabsBefore,
     onCloseTabsAfter,
@@ -260,6 +272,25 @@ export function buildWorkspaceTabMenuEntries(
         onRenameTab(tab);
       },
     });
+    if (tab.target.kind === "agent" && onToggleAgentMute) {
+      const { agentId } = tab.target;
+      entries.push({
+        kind: "item",
+        key: "toggle-agent-mute",
+        label: isAgentMuted
+          ? (labels.unmuteNotifications ??
+            DEFAULT_WORKSPACE_TAB_MENU_LABELS.unmuteNotifications ??
+            "Unmute notifications")
+          : (labels.muteNotifications ??
+            DEFAULT_WORKSPACE_TAB_MENU_LABELS.muteNotifications ??
+            "Mute notifications"),
+        icon: isAgentMuted ? "bell" : "bell-off",
+        testID: `${menuTestIDBase}-toggle-agent-mute`,
+        onSelect: () => {
+          void onToggleAgentMute(agentId);
+        },
+      });
+    }
     entries.push({
       kind: "separator",
       key: "rename-separator",
@@ -345,6 +376,8 @@ export function buildWorkspaceDesktopTabActions(
       onCopyFilePath: input.onCopyFilePath,
       onReloadAgent: input.onReloadAgent,
       onRenameTab: input.onRenameTab,
+      isAgentMuted: input.isAgentMuted,
+      onToggleAgentMute: input.onToggleAgentMute,
       onCloseTab: input.onCloseTab,
       onCloseTabsBefore: input.onCloseTabsToLeft,
       onCloseTabsAfter: input.onCloseTabsToRight,

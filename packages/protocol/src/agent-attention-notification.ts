@@ -1,28 +1,38 @@
 const NOTIFICATION_PREVIEW_LIMIT = 220;
 
 export type AgentAttentionReason = "finished" | "error" | "permission";
+export type AgentNotificationReason = AgentAttentionReason | "running";
 
-export interface AgentAttentionNotificationData {
+export interface AgentAttentionNotificationData<
+  TReason extends AgentNotificationReason = AgentNotificationReason,
+> {
   [key: string]: unknown;
   serverId: string;
   workspaceId?: string;
   agentId: string;
-  reason: AgentAttentionReason;
+  reason: TReason;
 }
 
-export interface AgentAttentionNotificationPayload {
+export interface AgentAttentionNotificationPayload<
+  TReason extends AgentNotificationReason = AgentNotificationReason,
+> {
   title: string;
   body: string;
-  data: AgentAttentionNotificationData;
+  data: AgentAttentionNotificationData<TReason>;
 }
 
-interface BuildAgentAttentionNotificationPayloadInput {
-  reason: AgentAttentionReason;
+interface BuildAgentAttentionNotificationPayloadInput<
+  TReason extends AgentNotificationReason = AgentNotificationReason,
+> {
+  reason: TReason;
   serverId: string;
   workspaceId: string;
   agentId: string;
   assistantMessage?: string | null;
   permissionRequest?: NotificationPermissionRequest | null;
+  errorMessage?: string | null;
+  agentTitle?: string | null;
+  includePreview?: boolean;
 }
 
 export interface NotificationPermissionRequest {
@@ -169,33 +179,46 @@ export function findLatestPermissionRequest(
   return latest;
 }
 
-function resolveAgentAttentionTitle(reason: AgentAttentionReason): string {
+function resolveAgentAttentionTitle(reason: AgentNotificationReason): string {
   if (reason === "permission") return "Agent needs permission";
   if (reason === "error") return "Agent needs attention";
+  if (reason === "running") return "Agent started";
   return "Agent finished";
 }
 
 function resolveAgentAttentionPreview(
   input: BuildAgentAttentionNotificationPayloadInput,
 ): string | null {
+  if (input.includePreview === false) {
+    return null;
+  }
   if (input.reason === "finished") {
     return buildNotificationPreview(input.assistantMessage);
   }
   if (input.reason === "permission") {
     return buildNotificationPreview(buildPermissionDetails(input.permissionRequest));
   }
+  if (input.reason === "error") {
+    return buildNotificationPreview(input.errorMessage);
+  }
+  if (input.reason === "running") {
+    return buildNotificationPreview(input.agentTitle ?? input.assistantMessage);
+  }
   return null;
 }
 
-function resolveAgentAttentionFallbackBody(reason: AgentAttentionReason): string {
+function resolveAgentAttentionFallbackBody(reason: AgentNotificationReason): string {
   if (reason === "permission") return "Permission requested.";
   if (reason === "error") return "Encountered an error.";
+  if (reason === "running") return "Started working.";
   return "Finished working.";
 }
 
-export function buildAgentAttentionNotificationPayload(
-  input: BuildAgentAttentionNotificationPayloadInput,
-): AgentAttentionNotificationPayload {
+export function buildAgentAttentionNotificationPayload<
+  TReason extends AgentNotificationReason = AgentNotificationReason,
+>(
+  input: BuildAgentAttentionNotificationPayloadInput<TReason>,
+): AgentAttentionNotificationPayload<TReason> {
   const title = resolveAgentAttentionTitle(input.reason);
   const preview = resolveAgentAttentionPreview(input);
   const body = preview ?? resolveAgentAttentionFallbackBody(input.reason);

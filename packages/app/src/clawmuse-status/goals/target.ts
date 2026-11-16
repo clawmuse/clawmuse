@@ -64,7 +64,8 @@ export function resolveModelSourceHost(input: {
         )
       : hosts.filter((host) => host.hostId === input.hostId);
   for (const host of ordered) {
-    const serverId = host.relayHostId ? input.serverIdForRelayHost(host.relayHostId) : null;
+    const serverId =
+      host.serverId ?? (host.relayHostId ? input.serverIdForRelayHost(host.relayHostId) : null);
     if (serverId) {
       return { host, serverId };
     }

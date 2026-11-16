@@ -101,4 +101,50 @@ describe("PushTokenStore persistence", () => {
     expect(store.getActiveTokens()).toEqual([]);
     expect(JSON.parse(persisted)).toEqual({ subscriptions: [] });
   });
+
+  test("persists per-token notification preferences and preserves them on plain renewal", () => {
+    let persisted = "";
+    const filePath = path.join(tmpdir(), `prefs-push-token-store-${process.pid}`, "push.json");
+    const store = new PushTokenStore(
+      createLogger(),
+      filePath,
+      () => Date.parse("2026-08-10T00:00:00.000Z"),
+      48 * 60 * 60 * 1000,
+      (_target, payload) => {
+        persisted = String(payload);
+      },
+    );
+
+    store.renewToken("ExponentPushToken[prefs]", {
+      running: true,
+      showPreview: false,
+      suppressWhenActive: false,
+    });
+    store.renewToken("ExponentPushToken[prefs]");
+
+    expect(store.getActiveSubscriptions()).toEqual([
+      {
+        token: "ExponentPushToken[prefs]",
+        expiresAt: Date.parse("2026-08-12T00:00:00.000Z"),
+        preferences: {
+          running: true,
+          showPreview: false,
+          suppressWhenActive: false,
+        },
+      },
+    ]);
+    expect(JSON.parse(persisted)).toEqual({
+      subscriptions: [
+        {
+          token: "ExponentPushToken[prefs]",
+          expiresAt: "2026-08-12T00:00:00.000Z",
+          preferences: {
+            running: true,
+            showPreview: false,
+            suppressWhenActive: false,
+          },
+        },
+      ],
+    });
+  });
 });

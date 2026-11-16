@@ -1,6 +1,7 @@
 import type { AgentAddress } from "./addresses.js";
 export const PARENT_SERVER_ID_LABEL = "paseo.parent-server-id";
 export const PARENT_AGENT_ID_LABEL = "paseo.parent-agent-id";
+export const NOTIFICATIONS_MUTED_LABEL = "paseo.notifications-muted";
 const OPEN_AGENT_TAB_LABEL_PREFIX = "paseo.open-agent-tab.";
 
 export function getOpenAgentTabLabel(clientId: string): string {
@@ -50,4 +51,12 @@ export function getParentAddressFromLabels(
 }
 export function parentAddressLabels(parent: AgentAddress): Record<string, string> {
   return { [PARENT_AGENT_ID_LABEL]: parent.agentId, [PARENT_SERVER_ID_LABEL]: parent.serverId };
+}
+
+export function isAgentNotificationsMuted(agent: AgentLabelSource | null | undefined): boolean {
+  return agent?.labels?.[NOTIFICATIONS_MUTED_LABEL] === "true";
+}
+
+export function agentNotificationsMutedLabels(muted: boolean): Record<string, string> {
+  return { [NOTIFICATIONS_MUTED_LABEL]: muted ? "true" : "false" };
 }

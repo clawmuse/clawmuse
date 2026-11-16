@@ -11,21 +11,25 @@ import {
 import type { Goal } from "@/clawmuse-status/goals/types";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { GoalEvidenceBadge } from "./goal-evidence-badge";
 import { formatTimeAgo } from "@/utils/time";
 
 interface GoalRowProps {
   goal: Goal;
   onPress: (goal: Goal) => void;
+  inBoard?: boolean;
 }
 
 /** Project, host, and either budget (once accepted) or who proposed it. */
 function metaLine(goal: Goal, t: TFunction): string {
   const parts = [goal.repoDisplayName];
-  if (goal.parentGoalTitle)
+  if (goal.parentGoalTitle) {
     parts.push(t("clawmuseStatus.goals.tasks.parent", { title: goal.parentGoalTitle }));
-  if (goal.source && goal.source.kind !== "manual")
+  }
+  if (goal.source && goal.source.kind !== "manual" && goal.source.kind !== "planner") {
     parts.push(t(`clawmuseStatus.goals.tasks.source.${goal.source.kind}`));
-  const host = goal.currentRun?.hostDisplayName;
+  }
+  const host = goal.currentRun?.hostDisplayName ?? goal.hostDisplayName;
   if (host) {
     parts.push(t("clawmuseStatus.goals.detail.onHost", { host }));
   }
@@ -35,6 +39,15 @@ function metaLine(goal: Goal, t: TFunction): string {
     }
   } else {
     parts.push(t("clawmuseStatus.goals.budget", goalBudgetProgress(goal)));
+  }
+  if (goal.children && goal.children.length > 0) {
+    const done = goal.children.filter((child) => child.status === "done").length;
+    parts.push(
+      t("clawmuseStatus.goals.tasks.subtasksProgress", {
+        done,
+        total: goal.children.length,
+      }),
+    );
   }
   return parts.join(" · ");
 }
@@ -51,12 +64,12 @@ function bodyLine(goal: Goal, t: TFunction): string {
  * underneath, status and budget as metadata. Everything else lives in the detail
  * sheet so the list stays scannable on a phone.
  */
-export const GoalRow = memo(function GoalRow({ goal, onPress }: GoalRowProps) {
+export const GoalRow = memo(function GoalRow({ goal, onPress, inBoard = false }: GoalRowProps) {
   const { t } = useTranslation();
   const handlePress = useCallback(() => onPress(goal), [goal, onPress]);
   return (
     <PressHighlight
-      style={styles.card}
+      style={[styles.card, inBoard ? styles.cardInBoard : styles.cardStandalone]}
       highlightStyle={styles.cardHighlight}
       onPress={handlePress}
       accessibilityRole="button"
@@ -69,6 +82,7 @@ export const GoalRow = memo(function GoalRow({ goal, onPress }: GoalRowProps) {
         </Text>
         <StatusBadge label={t(goalStatusLabelKey(goal))} variant={goalStatusBadgeVariant(goal)} />
       </View>
+      <GoalEvidenceBadge evidence={goal.latestReport?.evidence} />
       <Text style={styles.meta} numberOfLines={2}>
         {metaLine(goal, t)}
       </Text>
@@ -82,7 +96,6 @@ export const GoalRow = memo(function GoalRow({ goal, onPress }: GoalRowProps) {
 
 const styles = StyleSheet.create((theme) => ({
   card: {
-    marginHorizontal: { xs: theme.spacing[3], md: theme.spacing[6] },
     paddingHorizontal: theme.spacing[4],
     paddingVertical: theme.spacing[3],
     borderRadius: theme.borderRadius.lg,
@@ -90,6 +103,12 @@ const styles = StyleSheet.create((theme) => ({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface1,
     gap: theme.spacing[1],
+  },
+  cardStandalone: {
+    marginHorizontal: { xs: theme.spacing[3], md: theme.spacing[6] },
+  },
+  cardInBoard: {
+    marginHorizontal: 0,
   },
   cardHighlight: {
     backgroundColor: theme.colors.interactionHighlight,
