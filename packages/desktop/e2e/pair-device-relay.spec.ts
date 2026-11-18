@@ -303,6 +303,7 @@ test("initializes controlled-only relay pairing, shows save errors, and approves
     await section.getByRole("button", { name: "Allow persistent access", exact: true }).click();
     await connect;
     expect((await manager.getRemoteAccessState()).state.canManage).toBe(true);
+    await expect(section.getByRole("button", { name: "Revoke access", exact: true })).toBeVisible();
     await expect(
       section.getByRole("button", {
         name: "Allow this computer to control other computers",

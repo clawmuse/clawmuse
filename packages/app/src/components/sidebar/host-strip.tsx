@@ -34,6 +34,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useClawMuseDeviceLabel } from "@/clawmuse/device-label";
 import { HostStatusIcon } from "@/components/host-status-icon";
 import { ALL_HOSTS_OPTION_ID, HostPicker } from "@/components/hosts/host-picker";
+import { bySizing, TOUCH_TARGET } from "@/components/ui/control-geometry";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -46,6 +47,7 @@ import {
   useHorizontalScrollBoundary,
 } from "@/components/ui/horizontal-scroll-boundary";
 import { PressHighlight } from "@/components/ui/press-highlight";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { isWeb } from "@/constants/platform";
 import {
   deriveSidebarHostActivity,
@@ -59,10 +61,11 @@ import { useCreateFlowStore } from "@/stores/create-flow-store";
 import { useSessionStore } from "@/stores/session-store";
 import { workspaceEqualityFns } from "@/stores/session-store-hooks/selectors";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
-import { density, densityText } from "@/styles/density";
-import type { Theme } from "@/styles/theme";
+import { densityText } from "@/styles/density";
+import { SPACING, type Theme } from "@/styles/theme";
 import { orderHostsLocalFirst } from "@/types/host-connection";
 import { buildNewWorkspaceRoute } from "@/utils/host-routes";
+import { getStatusDotColor } from "@/utils/status-dot-color";
 
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedEye = withUnistyles(Eye);
@@ -73,6 +76,10 @@ const ThemedSettings = withUnistyles(Settings);
 
 const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 const CHIP_ICON_SIZE = 14;
+// Even sizes keep the 1px knockout ring centered on whole pixels.
+const ACTIVITY_DOT_SHELL_SIZE = 8;
+const ACTIVITY_DOT_SIZE = 6;
+const ACTIVITY_DOT_OFFSET = -2;
 // Gap kept between a chip scrolled into view and the strip's edge; inside the edge fade's opaque end.
 const SCROLL_EDGE_INSET = 8;
 const MENU_ICON_SIZE = 14;
@@ -141,8 +148,8 @@ export function SidebarHostStrip({
   const viewportWidth = useRef(0);
 
   // Measured when needed rather than cached from `onLayout`: on web a chip's `onLayout` fires only
-  // when its own size changes, so a chip pushed sideways by a neighbour that grew (a late font, a
-  // count badge arriving) keeps reporting where it used to be.
+  // when its own size changes, so a chip pushed sideways by a neighbour that grew (e.g. a late
+  // font) keeps reporting where it used to be.
   //
   // Scrolls only when the chip is not already fully in view, and then stops just short of the
   // edge so the neighbour that is cut off sits under the fade rather than beside the chip.
@@ -384,8 +391,12 @@ const HostChip = memo(function HostChip({
   const { t } = useTranslation();
   const activity = useSidebarHostActivity(serverId);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const style = useMemo(() => chipStyle(selected), [selected]);
   const accessibilityState = useMemo(() => ({ selected }), [selected]);
+
+  const handlePointerEnter = useCallback(() => setIsHovered(true), []);
+  const handlePointerLeave = useCallback(() => setIsHovered(false), []);
 
   const handlePress = useCallback(
     (event: GestureResponderEvent) => {
@@ -409,47 +420,63 @@ const HostChip = memo(function HostChip({
     [onOpenSettings, serverId],
   );
 
-  const accessibilityLabel = [
+  const tooltipParts = [
     label,
     activity.running > 0
       ? t("sidebar.display.hostFilter.running", { count: activity.running })
       : null,
     activity.needsInput ? t("sidebar.display.hostFilter.needsInput") : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  ].filter(Boolean);
+  const accessibilityLabel = tooltipParts.join(", ");
+  const tooltipLabel = tooltipParts.join(" · ");
+  const hasActivityDot = activity.running > 0 || activity.needsInput;
 
   return (
-    <View ref={handleRef} collapsable={false}>
+    <View
+      ref={handleRef}
+      collapsable={false}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+    >
       <ContextMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <ContextMenuTrigger
-          onPress={handlePress}
-          accessibilityRole="button"
-          accessibilityState={accessibilityState}
-          accessibilityLabel={accessibilityLabel}
-          style={style}
-          testID={`sidebar-host-strip-chip-${serverId}`}
-        >
-          <HostStatusIcon serverId={serverId} />
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.chipLabel,
-              selected && styles.chipLabelSelected,
-              hostLabelColorStyle(color),
-            ]}
+        <Tooltip delayDuration={300} enabledOnDesktop={!menuOpen} enabledOnMobile={false}>
+          <TooltipTrigger asChild triggerRefProp="triggerRef">
+            <ContextMenuTrigger
+              onPress={handlePress}
+              accessibilityRole="button"
+              accessibilityState={accessibilityState}
+              accessibilityLabel={accessibilityLabel}
+              style={style}
+              testID={`sidebar-host-strip-chip-${serverId}`}
+            >
+              <HostChipIcon
+                serverId={serverId}
+                hasActivityDot={hasActivityDot}
+                needsInput={activity.needsInput}
+                isHovered={isHovered}
+                selected={selected}
+              />
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.chipLabel,
+                  selected && styles.chipLabelSelected,
+                  hostLabelColorStyle(color),
+                ]}
+              >
+                {label}
+              </Text>
+            </ContextMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent
+            side="bottom"
+            align="center"
+            offset={6}
+            testID={`sidebar-host-strip-tooltip-${serverId}`}
           >
-            {label}
-          </Text>
-          {activity.running > 0 ? (
-            <View style={styles.count} testID={`sidebar-host-strip-running-${serverId}`}>
-              <Text style={styles.countText}>{activity.running}</Text>
-            </View>
-          ) : null}
-          {activity.needsInput ? (
-            <View style={styles.needsInput} testID={`sidebar-host-strip-needs-input-${serverId}`} />
-          ) : null}
-        </ContextMenuTrigger>
+            <Text style={styles.tooltipText}>{tooltipLabel}</Text>
+          </TooltipContent>
+        </Tooltip>
         <ContextMenuContent
           align="start"
           width={240}
@@ -479,6 +506,48 @@ const HostChip = memo(function HostChip({
     </View>
   );
 });
+
+function HostChipIcon({
+  serverId,
+  hasActivityDot,
+  needsInput,
+  isHovered,
+  selected,
+}: {
+  serverId: string;
+  hasActivityDot: boolean;
+  needsInput: boolean;
+  isHovered: boolean;
+  selected: boolean;
+}): ReactElement {
+  return (
+    <View style={styles.iconSlot}>
+      <HostStatusIcon serverId={serverId} size={CHIP_ICON_SIZE} />
+      {hasActivityDot ? (
+        <View
+          style={[
+            styles.activityDotShell,
+            isHovered && !selected && styles.activityDotShellHovered,
+            selected && styles.activityDotShellSelected,
+          ]}
+          testID={`sidebar-host-strip-status-${serverId}`}
+        >
+          <View
+            style={[
+              styles.activityDot,
+              needsInput ? styles.activityDotNeedsInput : styles.activityDotRunning,
+            ]}
+            testID={
+              needsInput
+                ? `sidebar-host-strip-needs-input-${serverId}`
+                : `sidebar-host-strip-running-${serverId}`
+            }
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 function useSidebarHostActivity(serverId: string): SidebarHostActivity {
   const pendingCreateAttempts = useStoreWithEqualityFn(
@@ -561,7 +630,12 @@ const styles = StyleSheet.create((theme) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: theme.spacing[2],
+    // Keep "All"'s leading glyph on the 16px sidebar content rail (listContent spacing[2] +
+    // SidebarSectionHeader spacing[2]) after tightening pointer chip horizontal padding to 6px.
+    paddingLeft: bySizing({
+      touch: theme.spacing[2],
+      pointer: SPACING[4] - SPACING[1.5],
+    }),
     paddingRight: theme.spacing[1],
     gap: theme.spacing[0.5],
   },
@@ -578,9 +652,9 @@ const styles = StyleSheet.create((theme) => ({
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[1.5],
-    minHeight: density.tightRowHeight,
-    paddingHorizontal: { xs: theme.spacing[3], md: theme.spacing[2] },
+    gap: theme.spacing[1],
+    minHeight: bySizing({ touch: TOUCH_TARGET, pointer: 26 }),
+    paddingHorizontal: bySizing({ touch: theme.spacing[2], pointer: theme.spacing[1.5] }),
     borderRadius: theme.borderRadius.full,
   },
   chipHovered: {
@@ -590,30 +664,54 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.surface3,
   },
   chipLabel: {
-    ...densityText(theme, "secondary"),
+    ...densityText(theme, "footnote"),
     color: theme.colors.foregroundMuted,
     maxWidth: 160,
   },
   chipLabelSelected: {
     color: theme.colors.foreground,
+    fontWeight: theme.fontWeight.medium,
   },
-  count: {
-    minWidth: 18,
-    paddingHorizontal: theme.spacing[1],
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.surface3,
+  iconSlot: {
+    position: "relative",
+    width: CHIP_ICON_SIZE,
+    height: CHIP_ICON_SIZE,
     alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
-  countText: {
-    ...densityText(theme, "caption"),
-    color: theme.colors.foregroundMuted,
-  },
-  needsInput: {
-    width: 7,
-    height: 7,
-    marginLeft: -theme.spacing[0.5],
+  activityDotShell: {
+    position: "absolute",
+    right: ACTIVITY_DOT_OFFSET,
+    bottom: ACTIVITY_DOT_OFFSET,
+    width: ACTIVITY_DOT_SHELL_SIZE,
+    height: ACTIVITY_DOT_SHELL_SIZE,
     borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surfaceSidebar,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activityDotShellHovered: {
+    backgroundColor: theme.colors.surfaceSidebarHover,
+  },
+  activityDotShellSelected: {
+    backgroundColor: theme.colors.surface3,
+  },
+  activityDot: {
+    width: ACTIVITY_DOT_SIZE,
+    height: ACTIVITY_DOT_SIZE,
+    borderRadius: theme.borderRadius.full,
+  },
+  activityDotRunning: {
+    backgroundColor:
+      getStatusDotColor({ theme, bucket: "running" }) ?? theme.colors.statusDotRunning,
+  },
+  activityDotNeedsInput: {
     backgroundColor: theme.colors.statusDotDanger,
+  },
+  tooltipText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.popoverForeground,
   },
   moreDivider: {
     borderLeftWidth: theme.borderWidth[1],
@@ -621,8 +719,8 @@ const styles = StyleSheet.create((theme) => ({
     paddingLeft: theme.spacing[0.5],
   },
   moreButton: {
-    width: density.tightRowHeight,
-    height: density.tightRowHeight,
+    width: bySizing({ touch: TOUCH_TARGET, pointer: theme.spacing[6] }),
+    height: bySizing({ touch: TOUCH_TARGET, pointer: 26 }),
     alignItems: "center",
     justifyContent: "center",
     borderRadius: theme.borderRadius.full,

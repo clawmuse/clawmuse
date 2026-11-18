@@ -1298,7 +1298,7 @@ async function main() {
       process.execPath,
       devRunner,
       `--inspect=127.0.0.1:${inspectorPort}`,
-      ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+      ...(process.platform === "linux" ? ["--no-sandbox", "--disable-dev-shm-usage"] : []),
     ];
     const desktopCommand = process.platform === "linux" ? "xvfb-run" : desktopArgs.shift();
     const desktopCommandArgs =
@@ -1318,7 +1318,7 @@ async function main() {
           EXPO_DEV_URL: `http://localhost:${expoPort}`,
           PASEO_ELECTRON_REMOTE_DEBUGGING_PORT: String(cdpPort),
           PASEO_ELECTRON_USER_DATA_DIR: userData,
-          PASEO_ELECTRON_FLAGS: `--remote-debugging-address=127.0.0.1 --remote-debugging-port=${cdpPort}`,
+          PASEO_ELECTRON_FLAGS: `${process.platform === "linux" ? "--disable-dev-shm-usage " : ""}--remote-debugging-address=127.0.0.1 --remote-debugging-port=${cdpPort}`,
         },
       },
       artifactDir,

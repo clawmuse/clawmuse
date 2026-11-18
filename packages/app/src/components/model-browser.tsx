@@ -1401,7 +1401,7 @@ function ActiveProviderModels({
         />
       ) : null;
     const profilesContent =
-      showProfilesSection && profiles && profiles.rows.length > 0 ? (
+      showProfilesSection && profiles && (profiles.rows.length > 0 || Boolean(onEditProfiles)) ? (
         <AgentProfilesPickerContent
           rows={profiles.rows}
           onApplyProfile={onApplyProfile}

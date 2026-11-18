@@ -969,6 +969,7 @@ function taskHost() {
       config: null,
     },
     ["codex"],
+    (_provider, own) => own ?? {},
   );
   let agents: AgentSnapshotPayload[] = [base];
   const archive = vi.fn(async (agentId: string) => ({

@@ -3,6 +3,12 @@ import test from "node:test";
 
 import { collectAssets, uploadWithRetry } from "./upload-release-assets.mjs";
 import { assertDraftRelease } from "./cnb/upload-github-draft.mjs";
+import {
+  classifyUploadTier,
+  planDraftUploads,
+  resolveCnbArtifactsImage,
+  verifyFinalAssets,
+} from "./cnb/relay-release-upload.mjs";
 
 test("ClawMuse uploads refuse public releases and incorrectly marked stable releases", () => {
   const stable = { tag: "v1.0.0", prerelease: "false" };
@@ -70,4 +76,120 @@ test("collects release files and skips manifests", () => {
   });
 
   assert.deepEqual(files, ["/release/Paseo.dmg", "/release/Paseo.zip"]);
+});
+
+test("resolves CNB desktop-artifacts image tags and rejects macOS/mobile tags", () => {
+  const opts = { registry: "registry.example.test", repoSlug: "acme/clawmuse" };
+  assert.match(
+    resolveCnbArtifactsImage({ tag: "v1.6.0-beta.1" }).image,
+    /\/desktop-artifacts:v1\.6\.0-beta\.1$/,
+  );
+  assert.deepEqual(resolveCnbArtifactsImage({ tag: "v1.6.0-beta.1", ...opts }), {
+    image: "registry.example.test/acme/clawmuse/desktop-artifacts:v1.6.0-beta.1",
+    imageTag: "v1.6.0-beta.1",
+    platforms: ["linux", "windows"],
+  });
+  assert.deepEqual(resolveCnbArtifactsImage({ tag: "v1.5.5+1108", ...opts }), {
+    image: "registry.example.test/acme/clawmuse/desktop-artifacts:v1.5.5_1108",
+    imageTag: "v1.5.5_1108",
+    platforms: ["linux", "windows"],
+  });
+  assert.deepEqual(resolveCnbArtifactsImage({ tag: "desktop-linux-v1.6.0-beta.1", ...opts }), {
+    image: "registry.example.test/acme/clawmuse/desktop-artifacts:desktop-linux-v1.6.0-beta.1",
+    imageTag: "desktop-linux-v1.6.0-beta.1",
+    platforms: ["linux"],
+  });
+  assert.deepEqual(resolveCnbArtifactsImage({ tag: "desktop-windows-v1.6.0-beta.1", ...opts }), {
+    image: "registry.example.test/acme/clawmuse/desktop-artifacts:desktop-windows-v1.6.0-beta.1",
+    imageTag: "desktop-windows-v1.6.0-beta.1",
+    platforms: ["windows"],
+  });
+  assert.throws(() => resolveCnbArtifactsImage({ tag: "desktop-macos-v1.6.0-beta.1" }), /no CNB/);
+  assert.throws(() => resolveCnbArtifactsImage({ tag: "ios-v1.6.0-beta.1" }), /no CNB/);
+});
+
+test("plans draft uploads by deleting starter/mismatched assets and ordering by tier", () => {
+  const localFiles = [
+    { filename: "ClawMuse-1.6.0-beta.1-arm64.zip", size: 180_000_000 },
+    { filename: "ClawMuse-1.6.0-beta.1-arm64.dmg", size: 190_000_000 },
+    { filename: "ClawMuse-Setup-1.6.0-beta.1.exe", size: 290_000_000 },
+    { filename: "ClawMuse-Setup-1.6.0-beta.1-x64.exe", size: 150_000_000 },
+    { filename: "SHA256SUMS.txt", size: 1200 },
+    { filename: "beta-mac.yml", size: 877 },
+    { filename: "beta.yml", size: 700 },
+  ];
+  const remoteAssets = [
+    { id: 1, name: "beta-mac.yml", size: 877, state: "uploaded" },
+    { id: 2, name: "SHA256SUMS.txt", size: 1200, state: "uploaded" },
+    { id: 3, name: "ClawMuse-1.6.0-beta.1-arm64.dmg", size: 190_000_000, state: "starter" },
+    { id: 4, name: "ClawMuse-Setup-1.6.0-beta.1-x64.exe", size: 100, state: "uploaded" },
+  ];
+
+  const plan = planDraftUploads({
+    localFiles,
+    remoteAssets,
+    forceNames: new Set(["SHA256SUMS.txt"]),
+  });
+
+  assert.deepEqual(
+    plan.skipped.map((item) => item.filename),
+    ["beta-mac.yml"],
+  );
+  assert.deepEqual(
+    plan.deleteAssets.map((item) => item.id),
+    [3, 4, 2],
+  );
+  assert.deepEqual(
+    plan.uploads.map((item) => item.filename),
+    [
+      "beta.yml",
+      "SHA256SUMS.txt",
+      "ClawMuse-Setup-1.6.0-beta.1-x64.exe",
+      "ClawMuse-1.6.0-beta.1-arm64.dmg",
+      "ClawMuse-1.6.0-beta.1-arm64.zip",
+      "ClawMuse-Setup-1.6.0-beta.1.exe",
+    ],
+  );
+  assert.equal(classifyUploadTier("beta.yml", 700), 1);
+  assert.equal(classifyUploadTier("ClawMuse-1.6.0-beta.1-android.apk", 300_000_000), 2);
+  assert.equal(classifyUploadTier("ClawMuse-Setup-1.6.0-beta.1.exe", 290_000_000), 3);
+});
+
+test("verifies final GitHub assets require state=uploaded and exact byte sizes", () => {
+  const expectedFiles = [
+    { filename: "beta.yml", size: 700 },
+    { filename: "ClawMuse-1.6.0-beta.1-arm64.dmg", size: 190_000_000 },
+  ];
+
+  assert.deepEqual(
+    verifyFinalAssets({
+      expectedFiles,
+      remoteAssets: [
+        { name: "beta.yml", size: 700, state: "uploaded" },
+        { name: "ClawMuse-1.6.0-beta.1-arm64.dmg", size: 190_000_000, state: "uploaded" },
+      ],
+    }),
+    { verifiedCount: 2, totalBytes: 190_000_700 },
+  );
+
+  assert.throws(
+    () =>
+      verifyFinalAssets({
+        expectedFiles,
+        remoteAssets: [
+          { name: "beta.yml", size: 700, state: "uploaded" },
+          { name: "ClawMuse-1.6.0-beta.1-arm64.dmg", size: 190_000_000, state: "starter" },
+        ],
+      }),
+    /incomplete \(starter\): ClawMuse-1\.6\.0-beta\.1-arm64\.dmg/,
+  );
+
+  assert.throws(
+    () =>
+      verifyFinalAssets({
+        expectedFiles,
+        remoteAssets: [{ name: "beta.yml", size: 699, state: "uploaded" }],
+      }),
+    /size mismatch: beta\.yml[\s\S]*missing: ClawMuse-1\.6\.0-beta\.1-arm64\.dmg/,
+  );
 });

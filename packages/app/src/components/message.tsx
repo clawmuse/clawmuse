@@ -578,7 +578,7 @@ const assistantTurnFooterStylesheet = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
     minWidth: 0,
-    minHeight: 24,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: theme.spacing[2],
@@ -592,7 +592,7 @@ const assistantTurnFooterStylesheet = StyleSheet.create((theme) => ({
   },
   labelButton: {
     flex: 1,
-    minHeight: 24,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
     minWidth: 0,

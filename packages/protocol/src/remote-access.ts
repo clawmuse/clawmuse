@@ -30,6 +30,7 @@ export const RemoteAccessStateSchema = z.object({
   receiving: z.boolean(),
   canToggleReceiving: z.boolean(),
   canManage: z.boolean(),
+  canRevoke: z.boolean().optional(),
   canPair: z.boolean(),
   controllers: z.array(
     z.object({

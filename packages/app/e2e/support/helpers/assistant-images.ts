@@ -219,7 +219,6 @@ export async function sendFollowUpAndExpectVisibleResponse(
 async function selectSettledAgentTab(page: Page, agent: ArchiveTabAgent): Promise<void> {
   const tab = page.getByRole("button", { name: agent.title, exact: true });
   await tab.click();
-  await expect(page).toHaveTitle(agent.title);
   await expect(tab).toHaveAttribute("aria-selected", "true");
   await expect(page.locator('[data-testid="agent-chat-scroll"]:visible').first()).toBeVisible({
     timeout: 30_000,

@@ -64,8 +64,11 @@ entry never gives the host reverse access to its controller.
 Controlled-only mode blocks daemon-owned outbound links, routed operations, and agent delegation.
 The desktop discards other host connections before restoring them at startup, blocks further imports,
 and refuses account login. Local workspace and daemon configuration remain usable. Only a paired
-manager can lift the outbound restriction or revoke controllers; the local host can pause receiving
-connections without changing grants. Revocation, expiration, and pausing close affected sessions.
+manager can lift the outbound restriction. Both a paired manager and the unattenuated local host
+session can revoke controllers; a remote manager cannot revoke the last active manager while
+controlled-only mode is enabled, whereas local revocation keeps controlled-only mode enabled. The
+local host can also pause receiving connections without changing grants. Revocation, expiration, and
+pausing close affected sessions.
 Existing shared-password and credential-free sessions cannot enter managed hosts.
 
 This is a product authorization boundary. Agents, terminals, plugins, and OS administrators run with

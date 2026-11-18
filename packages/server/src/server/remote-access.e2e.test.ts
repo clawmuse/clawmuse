@@ -75,6 +75,11 @@ test("local approval admits an independent controller, revocation closes it, and
   await approver.decideRemotePairing({ controllerId: pendingId, approve: true, persistent: true });
   await connected;
   expect((await manager.getRemoteAccessState()).state.canManage).toBe(true);
+  expect((await approver.getRemoteAccessState()).state).toMatchObject({
+    controlledOnly: true,
+    canManage: false,
+    canRevoke: true,
+  });
   await expect(approver.setControlledOnly(false)).rejects.toThrow("management authorization");
   await expect(approver.addHost({ connection: "127.0.0.1:1" })).rejects.toThrow("controlled-only");
   const operator = createHostClient(address, {
@@ -84,7 +89,10 @@ test("local approval admits an independent controller, revocation closes it, and
   });
   cleanup.push(() => operator.close());
   await operator.connect();
-  expect((await operator.getRemoteAccessState()).state.canManage).toBe(false);
+  expect((await operator.getRemoteAccessState()).state).toMatchObject({
+    canManage: false,
+    canRevoke: false,
+  });
   await expect(operator.createRemoteAccessInvitation({ manager: true })).rejects.toThrow(
     "authorization",
   );
@@ -103,6 +111,22 @@ test("local approval admits an independent controller, revocation closes it, and
   });
   cleanup.push(() => uncredentialed.close());
   await expect(uncredentialed.connect()).rejects.toThrow("Use a new pairing invitation");
+
+  const localStateBeforeRevoke = (await approver.getRemoteAccessState()).state;
+  expect(localStateBeforeRevoke.controllers).toHaveLength(1);
+  await approver.revokeRemoteController(localStateBeforeRevoke.controllers[0]!.id);
+  await expect.poll(() => manager.isConnected).toBe(false);
+  expect((await approver.getRemoteAccessState()).state).toMatchObject({
+    controlledOnly: true,
+    controllers: [],
+  });
+  const revokedManager = createHostClient(address, {
+    clientId: "revoked-manager",
+    controllerCredential: { token: managerToken },
+    reconnect: { enabled: false },
+  });
+  cleanup.push(() => revokedManager.close());
+  await expect(revokedManager.connect()).rejects.toThrow();
 });
 
 test("a local account binding admits same-account clients without approval and revokes them independently", async () => {

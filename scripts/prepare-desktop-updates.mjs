@@ -72,21 +72,64 @@ function validateManifest(manifest, name, expectedVersion) {
   }
 }
 
-async function verifyInstaller(source, file) {
-  if (!file || typeof file.url !== "string" || !filenamePattern.test(file.url)) {
-    throw new Error("Installer must be a local filename");
-  }
-  if (typeof file.sha512 !== "string" || !/^[A-Za-z0-9+/]{86}==$/.test(file.sha512)) {
-    throw new Error(`${file.url}: invalid SHA-512 checksum`);
-  }
-  const artifactPath = path.join(source, file.url);
-  const info = await stat(artifactPath);
+const sha512Pattern = /^[A-Za-z0-9+/]{86}==$/;
+
+async function verifyLocalInstaller(artifactPath, info, file, meta) {
   if (!info.isFile() || (file.size !== undefined && file.size !== info.size)) {
     throw new Error(`${file.url}: installer size mismatch`);
   }
-  if ((await sha512(artifactPath)) !== file.sha512) {
+  const actualSha512 = await sha512(artifactPath);
+  if (actualSha512 !== file.sha512) {
     throw new Error(`${file.url}: installer checksum mismatch`);
   }
+  if (meta) {
+    if (meta.size !== info.size) {
+      throw new Error(`${file.url}: installer size mismatch`);
+    }
+    if (meta.sha512 !== actualSha512) {
+      throw new Error(`${file.url}: installer checksum mismatch`);
+    }
+  }
+}
+
+function verifyRemoteInstallerMetadata(file, meta) {
+  if (
+    !Number.isInteger(meta.size) ||
+    meta.size <= 0 ||
+    typeof meta.sha512 !== "string" ||
+    !sha512Pattern.test(meta.sha512)
+  ) {
+    throw new Error(`${file.url}: invalid installer metadata`);
+  }
+  if (file.size !== undefined && file.size !== meta.size) {
+    throw new Error(`${file.url}: installer size mismatch`);
+  }
+  if (meta.sha512 !== file.sha512) {
+    throw new Error(`${file.url}: installer checksum mismatch`);
+  }
+}
+
+async function verifyInstaller(source, file, fileMetadata) {
+  if (!file || typeof file.url !== "string" || !filenamePattern.test(file.url)) {
+    throw new Error("Installer must be a local filename");
+  }
+  if (typeof file.sha512 !== "string" || !sha512Pattern.test(file.sha512)) {
+    throw new Error(`${file.url}: invalid SHA-512 checksum`);
+  }
+  const artifactPath = path.join(source, file.url);
+  const meta = fileMetadata?.get(file.url);
+  let info;
+  try {
+    info = await stat(artifactPath);
+  } catch (error) {
+    if (error?.code !== "ENOENT" || !meta) throw error;
+  }
+
+  if (info) {
+    await verifyLocalInstaller(artifactPath, info, file, meta);
+    return;
+  }
+  verifyRemoteInstallerMetadata(file, meta);
 }
 
 async function installVersionDirectory(staging, releaseDirectory) {
@@ -117,11 +160,9 @@ async function installVersionDirectory(staging, releaseDirectory) {
   }
 }
 
-// The output is a candidate directory. Publish it only after reviewing the release.
-export async function prepareDesktopUpdates(
+async function collectVerifiedDesktopUpdates(
   source,
-  output,
-  { platform = "all", expectedVersion } = {},
+  { platform = "all", expectedVersion, fileMetadata } = {},
 ) {
   const platformPatterns = {
     all: manifestPattern,
@@ -147,7 +188,7 @@ export async function prepareDesktopUpdates(
     }
     version = manifest.version;
     for (const file of manifest.files) {
-      await verifyInstaller(source, file);
+      await verifyInstaller(source, file, fileMetadata);
       const previous = artifacts.get(file.url);
       if (previous && previous.sha512 !== file.sha512) {
         throw new Error(`${file.url}: conflicting installer checksums`);
@@ -165,6 +206,34 @@ export async function prepareDesktopUpdates(
     if (name.startsWith("latest"))
       manifests.push({ name: name.replace(/^latest/, "beta"), contents });
   }
+  return { version, manifestNames, manifests, artifacts, sourceFiles };
+}
+
+export async function verifyDesktopUpdateManifests(
+  source,
+  { platform = "all", expectedVersion, fileMetadata } = {},
+) {
+  const { version, manifestNames, manifests, artifacts } = await collectVerifiedDesktopUpdates(
+    source,
+    {
+      platform,
+      expectedVersion,
+      fileMetadata,
+    },
+  );
+  return { version, manifestNames, manifests, artifacts };
+}
+
+// The output is a candidate directory. Publish it only after reviewing the release.
+export async function prepareDesktopUpdates(
+  source,
+  output,
+  { platform = "all", expectedVersion } = {},
+) {
+  const { version, manifests, artifacts, sourceFiles } = await collectVerifiedDesktopUpdates(
+    source,
+    { platform, expectedVersion },
+  );
 
   await mkdir(output, { recursive: true });
   await chmod(output, 0o755);

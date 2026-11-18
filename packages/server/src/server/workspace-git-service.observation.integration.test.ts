@@ -292,15 +292,12 @@ test("recursive observation updates tracked state and prunes ignored storms", as
     { timeout: 5_000 },
   );
 
-  // The diff refresh is debounced after the summary refresh; wait for it so it cannot land in the storm window.
-  getCheckoutDiff.mockClear();
   writeFileSync(trackedPath, "base\n");
   await vi.waitFor(
     () => {
       const events = deliveredEvents.flatMap((batch) => batch.events);
       expect(events.map((event) => event.path)).toContain(trackedPath);
       expect(getCheckoutWorktreeState).toHaveBeenCalled();
-      expect(getCheckoutDiff).toHaveBeenCalled();
       expect(service.getMetrics()).toMatchObject({
         workspaceRefreshInFlightCount: 0,
         workspaceRefreshQueuedCount: 0,

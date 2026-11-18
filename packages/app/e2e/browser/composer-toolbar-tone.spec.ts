@@ -52,7 +52,8 @@ test.describe("Composer toolbar glyph tone", () => {
         const attach = await readComposerControlTone(composerControl(page, ATTACH));
 
         expectGlyphMatchesLabel(thinking, "thinking");
-        expectGlyphMatchesLabel(mode, "mode");
+        // ClawMuse keeps mode icon-only on the toolbar to leave room for the usage strip.
+        expectIconOnlyGlyph(mode, "mode");
         expectIconOnlyGlyph(attach, "attach");
         expect(attach.glyph, "an icon-only glyph is brighter than a labelled glyph").not.toBe(
           thinking.label,
@@ -66,7 +67,7 @@ test.describe("Composer toolbar glyph tone", () => {
   test.describe("on a compact non-touch window", () => {
     test.use({ hasTouch: false, viewport: { width: 590, height: 844 } });
 
-    test("the icon-only thinking glyph stays foreground and the labelled mode glyph matches its label", async ({
+    test("the icon-only mode glyph stays aligned while the labelled thinking glyph matches its label", async ({
       page,
     }) => {
       const agent = await openSeededComposer(page, "composer-tone-compact-");
@@ -75,13 +76,11 @@ test.describe("Composer toolbar glyph tone", () => {
         const mode = await readComposerControlTone(composerControl(page, MODE));
         const attach = await readComposerControlTone(composerControl(page, ATTACH));
 
-        expectIconOnlyGlyph(thinking, "thinking");
-        expectGlyphMatchesLabel(mode, "mode");
+        expectGlyphMatchesLabel(thinking, "thinking");
+        expectIconOnlyGlyph(mode, "mode");
         expectIconOnlyGlyph(attach, "attach");
-        expect(thinking.glyph, "the icon-only glyphs share one tone").toBe(attach.glyph);
-        expect(thinking.glyph, "an icon-only glyph is brighter than a labelled glyph").not.toBe(
-          mode.label,
-        );
+        expect(mode.glyph, "the icon-only glyphs share one tone").toBe(attach.glyph);
+        expect(attach.glyph, "an icon-only glyph matches its foreground slot").toBe(mode.glyph);
       } finally {
         await agent.cleanup();
       }
@@ -122,7 +121,10 @@ test.describe("Composer toolbar glyph tone", () => {
         const mode = await readComposerControlTone(composerControl(page, MODE));
 
         expectGlyphMatchesLabel(thinking, "thinking");
-        expectGlyphMatchesLabel(mode, "mode");
+        expectIconOnlyGlyph(mode, "mode");
+        expect(mode.glyph, "icon-only mode matches labelled thinking tone at pointer sizing").toBe(
+          thinking.glyph,
+        );
       } finally {
         await agent.cleanup();
       }

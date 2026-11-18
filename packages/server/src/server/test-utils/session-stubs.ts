@@ -48,6 +48,7 @@ export function asAgentStorage(stub: {
 }): SessionOptions["agentStorage"] {
   return createStub<SessionOptions["agentStorage"]>({
     listAll: async () => [],
+    lastRunAtByWorkspace: undefined,
     listActive: async function (options) {
       return (await this.listAll()).filter(
         (record) => options?.includeArchived || !record.archivedAt,

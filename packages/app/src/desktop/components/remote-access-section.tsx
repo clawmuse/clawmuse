@@ -143,6 +143,8 @@ function AccessContent({
   legacy?: ReactNode;
 }) {
   const { t } = useTranslation();
+  // COMPAT(remoteAccessCanRevoke): added in v1.6.0, remove fallback after 2027-05-18 once daemon floor >= v1.6.0.
+  const canRevoke = data.canRevoke ?? data.canManage;
   return (
     <View style={styles.section}>
       <Text style={styles.text}>
@@ -162,7 +164,7 @@ function AccessContent({
       ) : null}
       {!data.enabled ? legacy : null}
       {data.controllers.map((row) => (
-        <ControllerRow key={row.id} controller={row} model={model} canManage={data.canManage} />
+        <ControllerRow key={row.id} controller={row} model={model} canRevoke={canRevoke} />
       ))}
     </View>
   );
@@ -272,11 +274,11 @@ function InvitationLink({
 function ControllerRow({
   controller,
   model,
-  canManage,
+  canRevoke,
 }: {
   controller: RemoteAccessState["controllers"][number];
   model: AccessModel;
-  canManage: boolean;
+  canRevoke: boolean;
 }) {
   const { t } = useTranslation();
   const busy = model.action.isPending || model.invitation.isPending;
@@ -321,7 +323,7 @@ function ControllerRow({
           </Button>
         </View>
       ) : null}
-      {controller.status === "authorized" && canManage ? (
+      {controller.status === "authorized" && canRevoke ? (
         <Button variant="outline" disabled={busy} onPress={revoke}>
           {t("remoteAccess.revoke")}
         </Button>

@@ -91,9 +91,10 @@ On the control device, opening the link in the app starts pairing. The CLI can a
 Keep the link quoted. Subsequent CLI connections retain their own credential.
 
 A link expires after ten minutes and admits one controller. You can approve ordinary controllers
-for one hour or indefinitely. Managers can revoke individual controllers or change the outbound
-control policy. The host can pause incoming remote access locally. Pairing never gives the host
-access to another computer. Its local app and CLI cannot lift the controlled-only restriction.
+for one hour or indefinitely. Managers can change the outbound control policy; both managers and the
+local host can revoke individual controllers. The host can also pause incoming remote access locally.
+Pairing never gives the host access to another computer. Its local app and CLI cannot lift the
+controlled-only restriction.
 
 Signing into an account on a control device can list managed host identities; it does not replace
 pairing. Save a managed host to your account from its remote-access panel after pairing as a manager.

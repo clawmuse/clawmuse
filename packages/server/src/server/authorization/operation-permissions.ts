@@ -11,7 +11,7 @@ const INBOUND_PERMISSION = {
   "access.get_state.request": "daemon.read",
   "access.create_invitation.request": "workspace.write",
   "access.decide_pairing.request": "workspace.write",
-  "access.revoke_controller.request": "access.manage",
+  "access.revoke_controller.request": ["access.manage", "daemon.manage"],
   "access.set_mode.request": "access.manage",
 
   "hosts.list.request": "daemon.read",
@@ -270,7 +270,7 @@ const OUTBOUND_PERMISSION = {
   "access.get_state.response": "daemon.read",
   "access.create_invitation.response": "workspace.write",
   "access.decide_pairing.response": "workspace.write",
-  "access.revoke_controller.response": "access.manage",
+  "access.revoke_controller.response": ["access.manage", "daemon.manage"],
   "access.set_mode.response": "access.manage",
 
   "hosts.list.response": "daemon.read",

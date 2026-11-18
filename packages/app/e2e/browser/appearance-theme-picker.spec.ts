@@ -31,9 +31,9 @@ for (const theme of [
     await expect(page.getByTestId("settings-sidebar")).toBeVisible();
     await openSettingsSection(page, "appearance");
 
-    await page.getByLabel("Theme: System", { exact: true }).click();
-    await page.getByText(theme.label, { exact: true }).click();
-    await expect(page.getByLabel(`Theme: ${theme.label}`, { exact: true })).toBeVisible();
+    await expect(page.getByRole("radio", { name: "System", exact: true })).toBeChecked();
+    await page.getByRole("radio", { name: theme.label, exact: true }).click();
+    await expect(page.getByRole("radio", { name: theme.label, exact: true })).toBeChecked();
     await expect(page.getByTestId("settings-sidebar")).toHaveCSS("background-color", theme.sidebar);
     await expect
       .poll(() =>
@@ -44,7 +44,7 @@ for (const theme of [
     await page.reload();
     await expect(page.getByTestId("settings-sidebar")).toHaveCSS("background-color", theme.sidebar);
     await openSettingsSection(page, "appearance");
-    await expect(page.getByLabel(`Theme: ${theme.label}`, { exact: true })).toBeVisible();
+    await expect(page.getByRole("radio", { name: theme.label, exact: true })).toBeChecked();
     await page.screenshot({ path: testInfo.outputPath(`${theme.name}-theme.png`), fullPage: true });
   });
 }

@@ -155,6 +155,9 @@ export class RemoteAccess {
       )
     );
   }
+  canRevoke(actor: AccessActor): boolean {
+    return this.isFullLocalSession(actor) || this.canManage(actor);
+  }
   state(actor: AccessActor): RemoteAccessState {
     const canManage = this.canManage(actor);
     return {
@@ -163,6 +166,7 @@ export class RemoteAccess {
       receiving: this.saved.receiving,
       canToggleReceiving: actor.local || canManage,
       canManage,
+      canRevoke: this.canRevoke(actor),
       canPair: (actor.local || canManage) && (this.enabled || actor.local),
       controllers:
         actor.local || canManage
@@ -412,10 +416,11 @@ export class RemoteAccess {
   }
   revoke(actor: AccessActor, id: string): Promise<void> {
     return this.mutate((next) => {
-      if (!this.canManage(actor)) throw new Error("Requires management authorization");
+      if (!this.canRevoke(actor)) throw new Error("Requires local or management authorization");
       const row = next.controllers.find((entry) => entry.id === id);
       if (!row) throw new Error("Controller not found");
       if (
+        !this.isFullLocalSession(actor) &&
         next.controlledOnly &&
         hasManagement(row) &&
         !next.controllers.some(

@@ -320,14 +320,21 @@ platform :ios do
       File.join(BUILD_OUTPUT_DIRECTORY, IPA_NAME),
     )
 
-    upload_to_testflight(
-      api_key: api_key,
-      apple_id: ASC_APP_ID,
-      # Distribution runs separately so a processing timeout can be retried
-      # against this exact build without uploading another binary.
-      skip_waiting_for_build_processing: true,
-      distribute_external: false,
-    )
+    begin
+      upload_to_testflight(
+        api_key: api_key,
+        apple_id: ASC_APP_ID,
+        # Distribution runs separately so a processing timeout can be retried
+        # against this exact build without uploading another binary.
+        skip_waiting_for_build_processing: true,
+        distribute_external: false,
+      )
+    rescue => error
+      # Xcode 27.2 altool can log a benign CDUploaderStateInfoResumeFilePath error after UPLOAD SUCCEEDED.
+      raise unless error.message.include?("CDUploaderStateInfoResumeFilePath") && error.message.include?("UPLOAD SUCCEEDED with no errors")
+
+      UI.important("Ignoring benign altool resume-file cleanup warning after successful upload.")
+    end
   end
 
   desc "Wait for and distribute an uploaded build to internal TestFlight testers"

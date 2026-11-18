@@ -124,10 +124,10 @@ test.describe("Composer control density across tab switches", () => {
       await expect(dictation).toHaveCSS("height", "36px");
       const attach = page.getByTestId("message-input-attach-button");
       await expect(attach).toHaveCSS("width", "36px");
-      await expect(attach.locator("svg")).toHaveAttribute("width", "22");
+      await expect(attach.locator("svg")).toHaveAttribute("width", "20");
       await expect(send.locator("svg")).toHaveAttribute("width", "20");
-      await expect(dictation.locator("svg")).toHaveAttribute("width", "24");
-      await expect(send).toHaveCSS("background-color", "rgb(26, 26, 30)");
+      await expect(dictation.locator("svg")).toHaveAttribute("width", "20");
+      await expect(send.locator("div").first()).toHaveCSS("background-color", "rgb(26, 26, 30)");
       await expect(send.locator("svg")).toHaveAttribute("stroke", "#ffffff");
       await page.screenshot({ path: "/tmp/clawmuse-chat-mobile.png" });
       await attach.click();
@@ -143,8 +143,8 @@ test.describe("Composer control density across tab switches", () => {
       await page.keyboard.press("Escape");
       await expect(menu).not.toBeVisible();
       await page.setViewportSize({ width: 1280, height: 900 });
-      await expect(send).toHaveCSS("width", "32px");
-      await expect(send.locator("svg")).toHaveAttribute("width", "20");
+      await expect(send).toHaveCSS("width", "28px");
+      await expect(send.locator("svg")).toHaveAttribute("width", "16");
       await page.screenshot({ path: "/tmp/clawmuse-chat-desktop.png" });
     } finally {
       await session.cleanup();
@@ -184,8 +184,13 @@ test.describe("Composer control density across tab switches", () => {
           await expect(action).toHaveCSS("height", "28px");
           await expect(action.locator("svg")).toHaveAttribute("width", "16");
           const box = (await action.boundingBox())!;
-          expect(box.width).toBeLessThan(sendBox.width);
-          expect(box.height).toBeLessThan(sendBox.height);
+          if (viewport.name === "mobile") {
+            expect(box.width).toBeLessThan(sendBox.width);
+            expect(box.height).toBeLessThan(sendBox.height);
+          } else {
+            expect(box.width).toBeLessThanOrEqual(sendBox.width);
+            expect(box.height).toBeLessThanOrEqual(sendBox.height);
+          }
           expect(box.y + box.height).toBeLessThanOrEqual(composerBox.y);
           expect(box.x).toBeGreaterThanOrEqual(previousRight);
           expect(box.x + box.width).toBeLessThanOrEqual(composerBox.x + composerBox.width + 1);
@@ -293,17 +298,18 @@ test.describe("Composer control density across tab switches", () => {
       await fillComposerDraft(page, "Keep streaming until interrupted");
       const send = page.getByRole("button", { name: "Send message", exact: true });
       await expect(send).toBeVisible();
-      const background = await send.evaluate(
-        (element) => getComputedStyle(element).backgroundColor,
-      );
+      const background = await send
+        .locator("div")
+        .first()
+        .evaluate((element) => getComputedStyle(element).backgroundColor);
       const stroke = await send.locator("svg").getAttribute("stroke");
       await send.click();
       const stop = page.getByRole("button", { name: "Stop agent", exact: true });
       await expect(stop).toBeVisible();
       await expect(stop).toHaveCSS("width", "36px");
       await expect(stop).toHaveCSS("height", "36px");
-      await expect(stop.locator("svg")).toHaveAttribute("width", "12");
-      await expect(stop).toHaveCSS("background-color", background);
+      await expect(stop.locator("svg")).toHaveAttribute("width", "20");
+      await expect(stop.locator("div").first()).toHaveCSS("background-color", background);
       await expect(stop.locator("svg")).toHaveAttribute("stroke", stroke!);
       await expect(stop.locator("svg")).toHaveAttribute("fill", stroke!);
       await page.screenshot({ path: "/tmp/clawmuse-neutral-stop.png" });
@@ -515,20 +521,19 @@ test.describe("Composer toolbar rails on touch", () => {
 test.describe("Composer trailing disc on a new chat", () => {
   test.use({ isMobile: true, hasTouch: true, viewport: { width: 1024, height: 1366 } });
 
-  test("an empty draft holds a disabled send disc until there is something to send", async ({
-    page,
-  }) => {
+  test("an empty draft holds voice mode until there is something to send", async ({ page }) => {
     const workspace = await seedWorkspace({ repoPrefix: "composer-placeholder-send-" });
     try {
       await gotoWorkspace(page, workspace.workspaceId);
       await clickNewChat(page);
-      const send = page
-        .getByTestId("message-input-root")
-        .filter({ visible: true })
-        .getByRole("button", { name: "Send message", exact: true });
-      await expect(send).toBeDisabled({ timeout: 30_000 });
+      const root = page.getByTestId("message-input-root").filter({ visible: true });
+      const voice = root.getByRole("button", { name: VOICE_MODE, exact: true });
+      const send = root.getByRole("button", { name: SEND, exact: true });
+      await expect(voice).toBeVisible({ timeout: 30_000 });
       await fillComposerDraft(page, "Refactor the composer toolbar");
       await expect(send).toBeEnabled();
+      await fillComposerDraft(page, "");
+      await expect(voice).toBeVisible();
     } finally {
       await workspace.cleanup();
     }

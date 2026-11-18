@@ -49,15 +49,20 @@ async function expectSidebarIconCentered(page: Page, workspaceId: string, textHe
     .getByTestId(`sidebar-row-project-icon-${key}`)
     .filter({ visible: true })
     .first();
+  const title = page
+    .getByTestId(`sidebar-workspace-title-${key}`)
+    .filter({ visible: true })
+    .first();
   const text = page.getByTestId(`sidebar-workspace-text-${key}`).filter({ visible: true }).first();
   await expect(icon).toBeVisible();
   const iconBox = await icon.boundingBox();
+  const titleBox = await title.boundingBox();
   const textBox = await text.boundingBox();
-  expect(iconBox!.height).toBe(49);
+  expect(iconBox!.height).toBe(27);
   expect(textBox!.height).toBe(textHeight);
-  expect(iconBox!.width).toBe(42);
+  expect(iconBox!.width).toBe(20);
   expect(
-    Math.abs(iconBox!.y + iconBox!.height / 2 - textBox!.y - textBox!.height / 2),
+    Math.abs(iconBox!.y + iconBox!.height / 2 - titleBox!.y - titleBox!.height / 2),
   ).toBeLessThan(1);
 }
 
@@ -306,9 +311,12 @@ test.describe("New workspace entry points", () => {
       expect((await listAction.boundingBox())!.height).toBe(40);
       await expect(
         page
-          .getByTestId(`sidebar-workspace-archive-${getServerId()}:${seeded.workspaceId}`)
+          .getByTestId(`sidebar-workspace-kebab-${getServerId()}:${seeded.workspaceId}`)
           .filter({ visible: true }),
       ).toBeVisible();
+      await expect(
+        page.getByTestId(`sidebar-workspace-archive-button-${getServerId()}:${seeded.workspaceId}`),
+      ).toHaveCount(0);
       await seeded.client.setWorkspacePinned(seeded.workspaceId, true);
       await expectSidebarIconCentered(page, seeded.workspaceId, 27);
       await openSidebarDisplayPage(page, "sidebar-display-show");

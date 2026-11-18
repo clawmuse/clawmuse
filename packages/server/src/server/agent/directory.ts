@@ -60,14 +60,18 @@ export class AgentDirectory {
     return this.collectWorkspaceTimes(
       workspaceIds,
       async (requested, excludeAgentIds) => {
-        if (this.deps.storage.lastRunAtByWorkspace) {
+        if (
+          "lastRunAtByWorkspace" in this.deps.storage &&
+          typeof this.deps.storage.lastRunAtByWorkspace === "function"
+        ) {
           return this.deps.storage.lastRunAtByWorkspace(requested, { excludeAgentIds });
         }
         const excluded = new Set(excludeAgentIds);
         const records = requested
           ? await this.deps.storage.listByWorkspaces(requested, { includeArchived: true })
-          : await (this.deps.storage.listAll?.() ??
-              this.deps.storage.listActive({ includeArchived: true }));
+          : await ("listAll" in this.deps.storage && typeof this.deps.storage.listAll === "function"
+              ? this.deps.storage.listAll()
+              : this.deps.storage.listActive({ includeArchived: true }));
         const times = new Map<string, string>();
         for (const record of records) {
           if (

@@ -2,6 +2,10 @@
 
 ## 1.6.0-beta.1 - 2026-11-18
 
+- **Built-in Plugin Gallery**: Browse, install, and manage community plugins directly from `clawmuse.com/registry` inside host settings.
+- **Antigravity ACP & Account Resilience**: Upgrade Antigravity to the ACP driver with subagent transcript hydration and harden ClawMuse session restoration across transient failures.
+- **Opt-In Beta & Upstream Sync**: Launch `1.6.0-beta.1` opt-in updates alongside Paseo `v0.15.0–v0.16.1+` queued turns, background task status, and workspace archival fixes.
+
 ### Added
 
 - Add the built-in Plugin Gallery backed by `clawmuse.com/registry`.

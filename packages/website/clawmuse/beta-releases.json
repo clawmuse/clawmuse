@@ -2,7 +2,7 @@
   "version": "1.6.0-beta.1",
   "checksumsUrl": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0-beta.1/SHA256SUMS.txt",
   "publishedAt": "2026-11-18T08:33:15.930Z",
-  "mirrored": false,
+  "mirrored": true,
   "files": [
     {
       "platform": "linux",

@@ -233,6 +233,8 @@ export interface ComboboxItemProps {
   kind?: "directory" | "file";
   leadingSlot?: ReactNode;
   trailingSlot?: ReactNode;
+  /** Separate pressable control rendered beside the row button (avoids nested buttons on web). */
+  trailingAction?: ReactNode;
   selected?: boolean;
   active?: boolean;
   disabled?: boolean;
@@ -249,6 +251,7 @@ export function ComboboxItem({
   kind,
   leadingSlot,
   trailingSlot,
+  trailingAction,
   selected,
   active,
   disabled,
@@ -297,11 +300,10 @@ export function ComboboxItem({
     [description],
   );
 
-  // The trailing slot may carry its own pressable (a host row's settings gear), so it cannot
-  // live inside the item's button — nested <button> is invalid DOM and React warns. The row
-  // becomes a View; the Pressable shrinks to the label run, and the trailing action sits
-  // beside it as a sibling.
-  if (trailingSlot) {
+  // Interactive trailing actions carry their own pressable (a host row's settings gear), so they
+  // cannot live inside the item's button — nested <button> is invalid DOM and React warns. The row
+  // becomes a View; the Pressable shrinks to the label run, and the trailing action sits beside it.
+  if (trailingAction) {
     return (
       <View style={styles.comboboxItemRow}>
         <Pressable
@@ -323,13 +325,18 @@ export function ComboboxItem({
               </Text>
             ) : null}
           </View>
-          {selected ? (
-            <View style={styles.comboboxItemTrailingSlot}>
-              <ThemedCheck size={16} />
+          {selected || trailingSlot ? (
+            <View style={styles.comboboxItemTrailingContainer}>
+              {selected ? (
+                <View style={styles.comboboxItemTrailingSlot}>
+                  <ThemedCheck size={16} />
+                </View>
+              ) : null}
+              {trailingSlot}
             </View>
           ) : null}
         </Pressable>
-        {trailingSlot}
+        {trailingAction}
       </View>
     );
   }
@@ -354,11 +361,14 @@ export function ComboboxItem({
           </Text>
         ) : null}
       </View>
-      {selected ? (
+      {selected || trailingSlot ? (
         <View style={styles.comboboxItemTrailingContainer}>
-          <View style={styles.comboboxItemTrailingSlot}>
-            <DensityIcon icon={Check} size="md" color="foregroundMuted" />
-          </View>
+          {selected ? (
+            <View style={styles.comboboxItemTrailingSlot}>
+              <DensityIcon icon={Check} size="md" color="foregroundMuted" />
+            </View>
+          ) : null}
+          {trailingSlot}
         </View>
       ) : null}
     </Pressable>

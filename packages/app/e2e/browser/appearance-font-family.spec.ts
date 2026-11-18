@@ -26,7 +26,7 @@ test("keeps settings usable while editing code and interface font families", asy
       await setFontFamily(page, name, "'foo");
       await expect(page.getByRole("textbox", { name })).toHaveValue("'Fira Code', monospace");
       await expect(page.getByRole("button", { name: "Appearance", exact: true })).toBeInViewport();
-      await expect(page.getByText("Theme", { exact: true }).first()).toHaveCSS("font-size", "12px");
+      await expect(page.getByText("Theme", { exact: true }).first()).toHaveCSS("font-size", "14px");
 
       await page.screenshot({ path: testInfo.outputPath(`rejected-${name}.png`) });
       await page.reload();

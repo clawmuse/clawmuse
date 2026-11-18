@@ -15,7 +15,7 @@ export const messageActionStyles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    minHeight: { xs: 44, md: isNative ? 44 : 24 },
+    minHeight: { xs: 44, md: isNative ? 44 : 28 },
     gap: { xs: 2, md: isNative ? 2 : theme.spacing[2] },
   },
 }));

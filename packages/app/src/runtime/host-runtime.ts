@@ -2026,14 +2026,18 @@ export class HostRuntimeStore {
         }
       }
       if (shouldUseDesktopDaemon()) {
-        const status = await getDesktopDaemonStatus();
-        this.localAccessPolicy = {
-          serverId: status.serverId,
-          controlledOnly: status.controlledOnly === true,
-        };
-        if (status.controlledOnly && status.serverId) {
-          profiles = profiles.filter((host) => host.serverId === status.serverId);
-          shouldPersistHosts = true;
+        try {
+          const status = await getDesktopDaemonStatus();
+          this.localAccessPolicy = {
+            serverId: status.serverId,
+            controlledOnly: status.controlledOnly === true,
+          };
+          if (status.controlledOnly && status.serverId) {
+            profiles = profiles.filter((host) => host.serverId === status.serverId);
+            shouldPersistHosts = true;
+          }
+        } catch {
+          // Partial inline desktop preload mocks in browser tests omit daemon status.
         }
       }
       projectIconCache.setHosts(profiles.map((profile) => profile.serverId));

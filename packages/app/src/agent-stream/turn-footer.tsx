@@ -26,8 +26,8 @@ const workingIndicatorColorMapping = (theme: Theme) => ({ color: theme.colors.fo
 export const TURN_FOOTER_BOTTOM_SPACING = SPACING[8];
 // Every footer variant (running, completed with Copy, completed with only its duration) gets
 // this content height, so a turn ending swaps the footer's controls without moving the rows
-// above it.
-const TURN_FOOTER_CONTENT_HEIGHT = 24;
+// above it. Matches ToolbarButton's 28px pointer height.
+const TURN_FOOTER_CONTENT_HEIGHT = 28;
 
 export type TurnContentStrategy = StreamStrategy;
 export type AssistantTurnForkHandler = (input: {

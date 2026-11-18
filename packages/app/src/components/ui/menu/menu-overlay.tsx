@@ -179,21 +179,23 @@ export function useAnchoredPosition({
   useEffect(() => {
     if (!triggerRect || !visibleContentSize) return;
 
+    const outerSize = {
+      width: visibleContentSize.width + SURFACE_BORDER_WIDTH * 2,
+      height: visibleContentSize.height + SURFACE_BORDER_WIDTH * 2,
+    };
+
     // measureInWindow and Modal both use full-screen coordinates, so the display area starts at 0.
     const result = computePosition({
       triggerRect,
       // onContentLayout measures the inner content; placement uses the outer border box.
-      contentSize: {
-        width: visibleContentSize.width + SURFACE_BORDER_WIDTH * 2,
-        height: visibleContentSize.height + SURFACE_BORDER_WIDTH * 2,
-      },
+      contentSize: outerSize,
       displayArea: { x: 0, y: 0, width: screenWidth, height: screenHeight },
       placement: side,
       alignment: align,
       offset,
     });
 
-    setPosition(holdSurfaceEdge(result, visibleContentSize.height));
+    setPosition(holdSurfaceEdge(result, outerSize.height));
     setActualPlacement(result.actualPlacement);
   }, [triggerRect, visibleContentSize, side, align, offset, screenWidth, screenHeight]);
 

@@ -38,6 +38,7 @@ describe("remote access", () => {
       enabled: true,
       controlledOnly: true,
       canManage: false,
+      canRevoke: true,
     });
     await access.decide(local, pending.id, true, true);
     expect(access.authenticate(token)).toMatchObject({
@@ -161,6 +162,65 @@ describe("remote access", () => {
       ),
     ).rejects.toThrow("unattenuated local session");
     expect(access.enabled).toBe(false);
+  });
+
+  it("lets the unattenuated local host revoke any controller in controlled-only mode without lifting restrictions", async () => {
+    const { access } = await setup();
+    const managerInvite = await access.createInvitation(local, { bootstrap: true });
+    const managerToken = randomBytes(32).toString("base64url");
+    const manager = await access.requestPairing({
+      token: managerToken,
+      invitation: managerInvite.token,
+    });
+    await access.decide(local, manager.id, true, true);
+
+    const operatorInvite = await access.createInvitation(local, {});
+    const operatorToken = randomBytes(32).toString("base64url");
+    const operator = await access.requestPairing({
+      token: operatorToken,
+      invitation: operatorInvite.token,
+    });
+    await access.decide(local, operator.id, true, true);
+
+    const attenuatedLocal = {
+      principalId: "local",
+      local: true,
+      manager: false,
+      permissions: ["daemon.read", "workspace.write"] as const,
+    };
+    const remoteOperator = { principalId: operator.id, local: false, manager: false };
+    expect(access.state(attenuatedLocal).canRevoke).toBe(false);
+    expect(access.state(remoteOperator).canRevoke).toBe(false);
+    await expect(access.revoke(attenuatedLocal, operator.id)).rejects.toThrow("authorization");
+    await expect(access.revoke(remoteOperator, operator.id)).rejects.toThrow("authorization");
+
+    const localControlledState = access.state({
+      principalId: "local",
+      local: true,
+      manager: false,
+      permissions: access.localPermissions(),
+    });
+    expect(localControlledState).toMatchObject({
+      controlledOnly: true,
+      canManage: false,
+      canRevoke: true,
+    });
+
+    await access.revoke(
+      { principalId: "local", local: true, manager: false, permissions: access.localPermissions() },
+      operator.id,
+    );
+    expect(access.authenticate(operatorToken)).toBeNull();
+
+    await access.revoke(
+      { principalId: "local", local: true, manager: false, permissions: access.localPermissions() },
+      manager.id,
+    );
+    expect(access.authenticate(managerToken)).toBeNull();
+    expect(access.controlledOnly).toBe(true);
+    await expect(access.createInvitation(local, { bootstrap: true })).resolves.toMatchObject({
+      token: expect.any(String),
+    });
   });
 });
 

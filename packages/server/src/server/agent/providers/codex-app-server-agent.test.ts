@@ -1120,9 +1120,15 @@ describe("Codex app-server provider", () => {
         thinkingOptionId: "medium",
       });
       expect(session.describePersistence()).toBeNull();
-      expect(appServer.requests().map((request) => request.method)).not.toContain("thread/start");
+      expect(
+        appServer.requests().filter((request) => request.method === "thread/start"),
+      ).toHaveLength(1);
 
       await session.startTurn("First message");
+      await appServer.waitForTurnStart();
+      const saved = waitForNextEvent(session, "thread_started");
+      appServer.startsTurn({ threadId: "thread-1" });
+      await saved;
       await expect(session.getRuntimeInfo()).resolves.toMatchObject({ sessionId: "thread-1" });
       expect(session.describePersistence()).toMatchObject({ sessionId: "thread-1" });
       appServer.completeTurn();

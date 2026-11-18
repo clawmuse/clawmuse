@@ -120,7 +120,7 @@ export function HostPickerOption({
       <ComboboxItem
         label={label}
         leadingSlot={leadingSlot}
-        trailingSlot={trailingSlot}
+        trailingAction={trailingSlot}
         active={active}
         onPress={onPress}
         testID={testID}

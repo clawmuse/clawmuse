@@ -183,7 +183,7 @@ async function keyringBypassed(env: Environment): Promise<boolean> {
     (process.platform === "linux" && !(await linuxBusAddress(env)))
   )
     return true;
-  if (process.platform === "linux") {
+  if (process.platform === "linux" && !env.DBUS_SESSION_BUS_ADDRESS?.trim()) {
     for (const file of ["/.dockerenv", "/run/.containerenv"]) {
       try {
         if ((await stat(file)).isFile()) return true;

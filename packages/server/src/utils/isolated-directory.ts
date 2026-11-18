@@ -1,6 +1,10 @@
 import { Worker } from "node:worker_threads";
 import { z } from "zod";
 
+// Real timers ensure vitest fake-timer tests do not prematurely trip OS worker timeouts.
+const realSetTimeout = globalThis.setTimeout;
+const realClearTimeout = globalThis.clearTimeout;
+
 const EntrySchema = z.object({
   name: z.string(),
   kind: z.enum(["file", "directory", "symlink", "other"]),
@@ -124,7 +128,7 @@ export class IsolatedDirectory {
         path,
         resolve,
         reject,
-        timer: setTimeout(() => {
+        timer: realSetTimeout(() => {
           reject(
             Object.assign(new Error(`Directory ${operation} timed out: ${path}`), {
               code: "ETIMEDOUT",
@@ -159,7 +163,7 @@ export class IsolatedDirectory {
           continue;
         }
       }
-      if (slot.idle) clearTimeout(slot.idle);
+      if (slot.idle) realClearTimeout(slot.idle);
       slot.idle = null;
       slot.job = this.queue.shift()!;
       slot.worker.postMessage({ operation: slot.job.operation, path: slot.job.path }, []);
@@ -186,7 +190,7 @@ export class IsolatedDirectory {
         this.finish(job, error instanceof Error ? error : new Error(String(error)));
       }
       slot.job = null;
-      slot.idle = setTimeout(() => {
+      slot.idle = realSetTimeout(() => {
         slot.retiring = true;
         void worker.terminate();
       }, 1_000);
@@ -200,7 +204,7 @@ export class IsolatedDirectory {
     });
     worker.on("exit", () => {
       if (slot.job) this.finish(slot.job, new Error("Directory worker exited"));
-      if (slot.idle) clearTimeout(slot.idle);
+      if (slot.idle) realClearTimeout(slot.idle);
       this.slots.delete(slot);
       this.drain();
     });
@@ -209,7 +213,7 @@ export class IsolatedDirectory {
   }
 
   private finish(job: Job, error?: Error): void {
-    clearTimeout(job.timer);
+    realClearTimeout(job.timer);
     this.pending.delete(job.key);
     if (error) job.reject(error);
   }

@@ -1154,7 +1154,7 @@ function ComposerCancelButton({
   const icon = isCancellingAgent ? (
     <ThemedAttachmentSpinner size="small" uniProps={cancelIconMapping} />
   ) : (
-    <Square size={discGlyphSize} color="white" fill="white" />
+    <ThemedSquare size={discGlyphSize} uniProps={cancelIconMapping} />
   );
   const shortcutNode = agentInterruptKeys ? <Shortcut chord={agentInterruptKeys} /> : null;
   return (
@@ -3064,6 +3064,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
 })) as unknown as Record<string, object>;
 
 const ThemedAttachmentSpinner = withUnistyles(LoadingSpinner);
+const ThemedSquare = withUnistyles(Square);
 const cancelIconMapping = (theme: Theme) => ({
   color: theme.colors.surface0,
   fill: theme.colors.surface0,

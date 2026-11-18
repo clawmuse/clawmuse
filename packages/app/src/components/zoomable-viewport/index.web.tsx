@@ -278,6 +278,7 @@ export function ZoomableViewport({
   const handleFocus = useCallback(() => setIsFocusWithin(true), []);
   const handleBlur = useCallback(() => setIsFocusWithin(false), []);
   const handleMouseEnter = useCallback(() => setIsHovered(true), []);
+  const handleMouseMove = useCallback(() => setIsHovered((prev) => (prev ? prev : true)), []);
   const handleMouseLeave = useCallback(() => setIsHovered(false), []);
 
   return (
@@ -290,6 +291,7 @@ export function ZoomableViewport({
         onBlurCapture={handleBlur}
         onFocusCapture={handleFocus}
         onMouseEnter={handleMouseEnter}
+        onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         style={hoverRegionDomStyle}
       >

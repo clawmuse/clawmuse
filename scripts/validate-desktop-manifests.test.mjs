@@ -7,7 +7,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 import { validateDesktopManifests } from "./validate-desktop-manifests.mjs";
-import { prepareDesktopUpdates } from "./prepare-desktop-updates.mjs";
+import { prepareDesktopUpdates, verifyDesktopUpdateManifests } from "./prepare-desktop-updates.mjs";
+import { prepareClawmuseDownloads } from "./prepare-clawmuse-downloads.mjs";
 import { finalizeMacDistribution } from "../packages/desktop/scripts/finalize-mac-distribution.mjs";
 import { dump, load } from "js-yaml";
 import { findFile, resolveFiles } from "electron-updater/out/providers/Provider.js";
@@ -429,6 +430,160 @@ test("publishes Mac first and adds Windows later without moving other channels",
         filename,
       );
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("prepareClawmuseDownloads builds beta-releases.json and SHA256SUMS.txt from remote metadata without local Windows/Linux binaries", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "clawmuse-remote-downloads-"));
+  try {
+    const rootDir = path.join(dir, "repo");
+    const source = path.join(dir, "installers");
+    mkdirSync(path.join(rootDir, "packages/desktop"), { recursive: true });
+    mkdirSync(path.join(rootDir, "packages/website/clawmuse"), { recursive: true });
+    mkdirSync(source, { recursive: true });
+
+    const version = "1.6.0-beta.1";
+    writeFileSync(path.join(rootDir, "packages/desktop/package.json"), JSON.stringify({ version }));
+    writeFileSync(
+      path.join(rootDir, "packages/website/clawmuse/releases.json"),
+      JSON.stringify({ ios: { url: "https://apps.apple.com/app/id1234567890" } }),
+    );
+
+    const makeEntry = (filename, seed) => {
+      const bytes = Buffer.alloc(1_048_576, seed);
+      return {
+        filename,
+        bytes,
+        size: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        sha512: createHash("sha512").update(bytes).digest("base64"),
+      };
+    };
+
+    const macDmg = makeEntry(`ClawMuse-${version}-arm64.dmg`, 0x41);
+    const macZip = makeEntry(`ClawMuse-${version}-arm64.zip`, 0x42);
+    const winExe = makeEntry(`ClawMuse-Setup-${version}-x64.exe`, 0x43);
+    const linuxAppImage = makeEntry("ClawMuse-x86_64.AppImage", 0x44);
+    const linuxDeb = makeEntry(`ClawMuse-${version}-amd64.deb`, 0x45);
+
+    // Only local Mac files and manifests exist on disk; Windows/Linux binaries live only on relay.
+    writeFileSync(path.join(source, macDmg.filename), macDmg.bytes);
+    writeFileSync(path.join(source, macZip.filename), macZip.bytes);
+
+    writeFileSync(
+      path.join(source, "beta-mac.yml"),
+      dump({
+        version,
+        releaseDate,
+        files: [macZip, macDmg].map(({ filename, size, sha512 }) => ({
+          url: filename,
+          size,
+          sha512,
+        })),
+      }),
+    );
+    writeFileSync(
+      path.join(source, "beta.yml"),
+      dump({
+        version,
+        releaseDate,
+        files: [{ url: winExe.filename, size: winExe.size, sha512: winExe.sha512 }],
+      }),
+    );
+    writeFileSync(
+      path.join(source, "beta-linux.yml"),
+      dump({
+        version,
+        releaseDate,
+        files: [linuxAppImage, linuxDeb].map(({ filename, size, sha512 }) => ({
+          url: filename,
+          size,
+          sha512,
+        })),
+      }),
+    );
+
+    const metadataPath = path.join(source, "remote-artifacts-metadata.json");
+    const remoteFiles = [macDmg, macZip, winExe, linuxAppImage, linuxDeb].map(
+      ({ filename, size, sha256, sha512 }) => ({ filename, size, sha256, sha512 }),
+    );
+    writeFileSync(metadataPath, JSON.stringify({ files: remoteFiles }, null, 2));
+
+    const result = await prepareClawmuseDownloads(source, {
+      beta: true,
+      metadataPath,
+      rootDir,
+    });
+    assert.equal(result.version, version);
+    assert.equal(result.currentCount, 4);
+
+    const manifest = JSON.parse(readFileSync(result.manifestPath, "utf8"));
+    assert.equal(manifest.version, version);
+    assert.equal(manifest.mirrored, true);
+    assert.deepEqual(
+      manifest.files.map((item) => item.filename).sort(),
+      [macDmg.filename, winExe.filename, linuxAppImage.filename, linuxDeb.filename].sort(),
+    );
+    const winRecord = manifest.files.find((item) => item.filename === winExe.filename);
+    assert.equal(winRecord.sha256, winExe.sha256);
+    assert.equal(winRecord.size, winExe.size);
+
+    const sumsText = readFileSync(result.checksumsPath, "utf8");
+    assert.match(sumsText, new RegExp(`${winExe.sha256}  ${winExe.filename}`));
+    assert.match(sumsText, new RegExp(`${macDmg.sha256}  ${macDmg.filename}`));
+
+    // Reject if a manifest SHA-512 disagrees with remote metadata.
+    const badManifestPath = path.join(source, "beta.yml");
+    writeFileSync(
+      badManifestPath,
+      dump({
+        version,
+        releaseDate,
+        files: [{ url: winExe.filename, size: winExe.size, sha512: macDmg.sha512 }],
+      }),
+    );
+    await assert.rejects(
+      prepareClawmuseDownloads(source, { beta: true, metadataPath, rootDir }),
+      /checksum mismatch/,
+    );
+
+    // Restore valid beta.yml, then reject if local file disagrees with metadata SHA-256.
+    writeFileSync(
+      badManifestPath,
+      dump({
+        version,
+        releaseDate,
+        files: [{ url: winExe.filename, size: winExe.size, sha512: winExe.sha512 }],
+      }),
+    );
+    const badMetaPath = path.join(source, "bad-metadata.json");
+    const badFiles = structuredClone(remoteFiles);
+    const dmgEntry = badFiles.find((item) => item.filename === macDmg.filename);
+    dmgEntry.sha256 = winExe.sha256;
+    writeFileSync(badMetaPath, JSON.stringify({ files: badFiles }));
+    await assert.rejects(
+      prepareClawmuseDownloads(source, { beta: true, metadataPath: badMetaPath, rootDir }),
+      /SHA-256 mismatch/,
+    );
+
+    // Direct verifyDesktopUpdateManifests check works without local files and rejects absent metadata.
+    const verified = await verifyDesktopUpdateManifests(source, {
+      platform: "windows",
+      expectedVersion: version,
+      fileMetadata: new Map([[winExe.filename, { size: winExe.size, sha512: winExe.sha512 }]]),
+    });
+    assert.equal(verified.version, version);
+    assert.equal(verified.manifests[0].name, "beta.yml");
+    await assert.rejects(
+      verifyDesktopUpdateManifests(source, {
+        platform: "windows",
+        expectedVersion: version,
+        fileMetadata: new Map(),
+      }),
+      /ENOENT/,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

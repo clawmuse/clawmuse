@@ -132,6 +132,28 @@ describe("SessionAuthorization", () => {
     expect(authorization.allowsOutbound(outboundMessage("rpc_error"))).toBe(true);
   });
 
+  test("local daemon.manage sessions can revoke controllers while workspace.write cannot", () => {
+    const localInControlledOnly = new SessionAuthorization(["daemon.manage"]);
+    const remoteManager = new SessionAuthorization(["access.manage"]);
+    const remoteOperator = new SessionAuthorization(["workspace.write"]);
+
+    for (const authorization of [localInControlledOnly, remoteManager]) {
+      expect(authorization.allowsInbound(inboundMessage("access.revoke_controller.request"))).toBe(
+        true,
+      );
+      expect(
+        authorization.allowsOutbound(outboundMessage("access.revoke_controller.response")),
+      ).toBe(true);
+    }
+
+    expect(remoteOperator.allowsInbound(inboundMessage("access.revoke_controller.request"))).toBe(
+      false,
+    );
+    expect(
+      remoteOperator.allowsOutbound(outboundMessage("access.revoke_controller.response")),
+    ).toBe(false);
+  });
+
   test("legacy Hub authority is translated at one compatibility boundary", () => {
     expect(permissionsForLegacyHubScopes(["hub.execution.*"])).toEqual(["hub.execute"]);
     expect(permissionsForLegacyHubScopes(["*"])).toEqual([]);

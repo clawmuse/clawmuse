@@ -948,28 +948,30 @@ test.describe("touch composer tracks", () => {
         agentId: workspace.agentId,
       });
       await submitMessage(page, "emit 1 agent stream updates");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expectWorkspaceHeaderVisible(page);
       const tasks = page.getByTestId("agent-task-list-header");
       const subagents = page.getByTestId("subagents-track-header");
       const changes = page.getByTestId("composer-diff-stat-pill");
       await expect(tasks).toBeVisible();
       await expect(subagents).toBeVisible();
       await expect(changes).toBeVisible();
-      const wideWidths = await Promise.all(
+      const compactWidths = await Promise.all(
         [tasks, subagents, changes].map(async (pill) => (await pill.boundingBox())!.width),
       );
       await page.setViewportSize({ width: 200, height: 844 });
-      // The compact layout mounts a new composer, so measure only after it replaces the wide one.
       await expectWorkspaceHeaderVisible(page);
       for (const [index, pill] of [tasks, subagents, changes].entries())
         await expect
           .poll(async () => (await pill.boundingBox())?.width ?? 0)
-          .toBeGreaterThanOrEqual(wideWidths[index] - 1);
+          .toBeGreaterThanOrEqual(compactWidths[index] - 1);
       const track = page.getByTestId("composer-track-scroll");
       expect(await track.evaluate((node) => node.scrollWidth)).toBeGreaterThan(
         await track.evaluate((node) => node.clientWidth),
       );
       await swipeComposerTracks(page, touch, "left");
       await expect.poll(() => trackScrollOffset(track)).toBeGreaterThan(0);
+      await swipeComposerTracks(page, touch, "right");
       await swipeComposerTracks(page, touch, "right");
       await expect.poll(() => trackScrollOffset(track)).toBeLessThanOrEqual(1);
       await swipeComposerTracks(page, touch, "left");
