@@ -19,12 +19,17 @@ async function invoke(channel: string, ...args: unknown[]): Promise<unknown> {
     console.error(`[desktop-ipc] ${channel} failed`, error);
     const message = error instanceof Error ? error.message : String(error);
     // Keep this inline: sandboxed preloads cannot load our branding or UI modules.
-    throw new Error(
-      message
-        .replace(/(?:Error: )?Error invoking remote method '[^']+':\s*(?:Error:\s*)?/g, "")
-        .replace(/(?<![\w./\\:@-])paseo(?![\w./\\:@-])/gi, "ClawMuse"),
+    const ipcPrefix =
+      /^(?:Error: )?Error invoking remote method '[^']+':\s*(?:([A-Za-z]+Error):\s*)?/;
+    const match = message.match(ipcPrefix);
+    const cleaned = new Error(
+      message.replace(ipcPrefix, "").replace(/(?<![\w./\\:@-])paseo(?![\w./\\:@-])/gi, "ClawMuse"),
       { cause: error },
     );
+    if (match?.[1]) {
+      cleaned.name = match[1];
+    }
+    throw cleaned;
   }
 }
 

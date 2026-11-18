@@ -2,7 +2,7 @@ import type { TFunction } from "i18next";
 import { i18n } from "@/i18n/i18next";
 import { formatTimeOfDay } from "@/utils/time";
 import type { UsageDisplayAs } from "./preferences";
-import type { UsageBalanceUnit } from "./types";
+import type { UsageBalanceUnit, UsageReportEntry } from "./types";
 
 const providerUsageLabels = {
   session: { label: "Session", key: "providerUsage.labels.session" },
@@ -17,6 +17,11 @@ const providerUsageLabels = {
   copilot_source: { label: "Account source", key: "usageMonitoring.source" },
   reset: { label: "Quota reset", key: "usageMonitoring.reset" },
 } as const;
+
+/** The source, with the account when the report names one: "Claude (work)". */
+export function formatUsageAccountName(entry: UsageReportEntry): string {
+  return entry.account.label ? `${entry.sourceLabel} (${entry.account.label})` : entry.sourceLabel;
+}
 
 export function formatProviderUsageLabel(id: string, label: string, t: TFunction = i18n.t): string {
   const reviewPrefix = "Code review · ";

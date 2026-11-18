@@ -13,10 +13,11 @@ import {
   IconButtonChromeProvider,
   mutedIconColorMapping,
 } from "@/components/ui/icon-button-chrome";
-import { HEADER_TOP_PADDING_MOBILE } from "@/constants/layout";
+import { HEADER_INNER_HEIGHT, HEADER_TOP_PADDING_MOBILE } from "@/constants/layout";
 import { compactChrome } from "@/constants/compact-chrome";
 import { densityText } from "@/styles/density";
 import type { ShortcutKey } from "@/utils/format-shortcut";
+import { useTopBand } from "@/window-layout";
 
 const ThemedBackIcon = withUnistyles(ArrowLeft);
 
@@ -39,7 +40,8 @@ interface CompactHeaderProps {
 
 /**
  * The phone header keeps navigation and actions in separate islands. On iOS the system glass
- * owns each island's contour; the row stays transparent over the floating header's fade.
+ * owns each island's contour; the row stays transparent over the floating header's fade. In a
+ * window's top band it takes the top bar's place.
  */
 export function CompactHeader({
   navigation,
@@ -52,6 +54,7 @@ export function CompactHeader({
 }: CompactHeaderProps) {
   const insets = useSafeAreaInsets();
   // Reserve the system status bar once, with no extra gap above the controls.
+  const inTopBand = useTopBand() !== null;
   const rootStyle = useMemo(
     () => [
       styles.root,
@@ -68,7 +71,7 @@ export function CompactHeader({
   return (
     <IconButtonChromeProvider value="header-island">
       <View style={rootStyle}>
-        <View style={styles.row}>
+        <View style={inTopBand ? styles.topBandRow : styles.row}>
           <View style={styles.navigationIsland}>
             <GlassSurface
               style={[StyleSheet.absoluteFill, styles.island]}
@@ -158,6 +161,12 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: compactChrome.gap,
+  },
+  topBandRow: {
+    height: HEADER_INNER_HEIGHT,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
   },
   titleGroup: {
     flex: 1,

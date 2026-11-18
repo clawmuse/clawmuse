@@ -62,6 +62,23 @@ function explorerSidebar(page: Page) {
   return visibleTestId(page, "workspace-explorer-sidebar").first();
 }
 
+export async function dragTabIntoExplorer(page: Page, tabId: string): Promise<void> {
+  const source = page.getByTestId("workspace-pane-main").getByTestId(`workspace-tab-${tabId}`);
+  const destination = explorerSidebar(page).getByTestId("workspace-tab-files");
+  const sourceBox = await source.boundingBox();
+  const destinationBox = await destination.boundingBox();
+  if (!sourceBox || !destinationBox)
+    throw new Error("Tab drag requires visible source and destination");
+  const start = { x: sourceBox.x + 12, y: sourceBox.y + sourceBox.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 12, start.y + 4);
+  await page.mouse.move(destinationBox.x + 12, destinationBox.y + destinationBox.height / 2, {
+    steps: 20,
+  });
+  await page.mouse.up();
+}
+
 async function selectWorkspaceTab(tab: Locator): Promise<void> {
   if ((await tab.getAttribute("aria-selected")) !== "true") {
     // The close action overlays the chip's trailing edge on hover. Click the
@@ -81,7 +98,11 @@ export async function ensureExplorerSidebar(page: Page): Promise<Locator> {
     const toggle = page.getByTestId("workspace-explorer-toggle").filter({ visible: true }).first();
     await expect(toggle).toBeVisible({ timeout: 30_000 });
     // After reload the restored panel can be open before its contents mount.
-    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+      await toggle.click();
+    }
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(explorer).toBeVisible({ timeout: 30_000 });
   }
   await expect(explorer).toBeInViewport({ timeout: 30_000 });
   return explorer;

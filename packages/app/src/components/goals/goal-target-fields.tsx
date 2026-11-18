@@ -215,7 +215,7 @@ export function GoalTargetFields({
             {value.agent}
           </Text>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             onPress={useHostDefault}
             testID={`${testIDPrefix}-model-reset`}

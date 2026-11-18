@@ -46,7 +46,7 @@ export function formatHostRuntimeSection(input: {
         ? describeConnectionKind(snapshot.activeConnection.type)
         : "none",
     },
-    { label: "Last online", value: snapshot?.lastOnlineAt ?? "never" },
+    { label: "Last online", value: snapshot?.lastOnlineAt ?? "unknown" },
     { label: "Last error", value: snapshot?.lastError ?? "none" },
     {
       label: "Agent directory",
@@ -101,6 +101,8 @@ export function describeConnectionKind(type: HostConnection["type"] | string): s
       return "local pipe";
     case "relay":
       return "relay";
+    case "routed":
+      return "routed";
     default:
       return "unknown";
   }

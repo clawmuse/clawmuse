@@ -159,3 +159,20 @@ it("follows system rotation on Android", async () => {
   );
   expect(activity.$["android:screenOrientation"]).toBe("unspecified");
 }, 30_000);
+// Scene startup is the integration boundary for the iOS keyboard window.
+describe("hardware keyboard scene integration", () => {
+  it("installs observation after Expo creates the scene window and is idempotent", () => {
+    const {
+      configureHardwareKeyboardAppDelegate,
+    } = require("./modules/paseo-hardware-keyboard/app.plugin.js");
+    const source =
+      "import Expo\nclass Scene {\n  super.scene(scene, willConnectTo: session, options: connectionOptions)\n}\n";
+    const configured = configureHardwareKeyboardAppDelegate(source);
+    expect(configured).toContain("import PaseoHardwareKeyboard");
+    expect(configured).toContain("PaseoHardwareKeyboardWindow.observing(window)");
+    expect(configured.indexOf("super.scene")).toBeLessThan(
+      configured.indexOf(".observing(window)"),
+    );
+    expect(configureHardwareKeyboardAppDelegate(configured)).toBe(configured);
+  });
+});

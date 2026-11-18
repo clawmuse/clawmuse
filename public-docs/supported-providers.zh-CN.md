@@ -23,13 +23,13 @@ nav: 支持的 Provider
 
 在 daemon 主机上安装 Antigravity CLI（`agy`），然后运行一次 `agy` 登录。在 Paseo 中选择 **Antigravity**。该 Provider 随 Paseo 一起提供，无需另外安装插件。
 
-**Full access** 是唯一的权限模式。当由其他应用驱动时，Antigravity 无法请求权限，因此 Paseo 会以 `--dangerously-skip-permissions` 启动 `agy`。每次工具调用（包括 shell 命令）都不会询问就直接运行。每个会话开始时都会显示一条说明此事的警告，重新打开聊天时也会显示。Antigravity 自己的策略仍然可以拒绝某个操作。
+Paseo 通过 `agy acp --stdio` 连接，提供四种权限模式：**Default**（修改文件或运行 shell 命令前询问）、**Accept edits**（自动批准文件修改，运行 shell 命令前询问）、**Plan** 和 **Full access**（以 `--dangerously-skip-permissions` 无人值守运行）。Antigravity 自己的策略仍然可以拒绝某个操作。
 
-daemon 重启后，Antigravity 会记得对话，但 Paseo 的对话记录会重新开始，因为 `agy` 不会重放它的历史。
+重新连接或 daemon 重启后，对话历史、原生斜杠命令、交互式问答卡片、子代理轨道、上下文窗口用量与配额信息都会自动恢复与流式同步。
 
 此集成使用你已安装的 CLI 和登录状态，未经 Google 认可。
 
-Paseo MCP 工具和引导功能不可用。你自己为 `agy` 配置的 MCP 服务器仍然可用。附加的图片会以文件引用的形式传给 Agent 读取。
+运行中引导（steering）不可用。配置的 MCP 服务器会转发给 ACP 会话，附加的图片和文件会以本地文件引用的形式传给 Agent 读取。
 
 如果 `agy` 不在 daemon 的 PATH 中，请在 `~/.paseo/config.json` 中覆盖它的命令。使用 `env` 设置 Provider 专用的环境变量：
 
@@ -68,6 +68,7 @@ Paseo MCP 工具和引导功能不可用。你自己为 `agy` 配置的 MCP 服�
 - [Dirac](https://dirac.run)：开源 Agent，支持基于哈希锚点的并行编辑。
 - [Factory Droid](https://factory.ai/product/cli)：Factory AI 的编程 Agent。
 - [fast-agent](https://fast-agent.ai/acp/)：支持多家 Provider 的编程 Agent。
+- [fx](#fx)：Vercel Labs 的原生编程 Agent。
 - [Gajae Code](https://gajae-code.com)：订阅制编程 Agent，采用先规划再修改的工作流。
 - [Gemini CLI](https://geminicli.com)：Google 官方的 Gemini CLI。
 - [GitHub Copilot](https://github.com/features/copilot/cli/)：通过 ACP 接入的 GitHub AI 结对编程助手。
@@ -91,6 +92,12 @@ Paseo MCP 工具和引导功能不可用。你自己为 `agy` 配置的 MCP 服�
 - [VT Code](https://github.com/vinhnx/VTCode/blob/main/docs/guides/zed-acp.md)：开源的多 Provider 编程 Agent。
 
 应用内目录是权威的、固定版本的来源。这里未列出的 Agent 仍然可以手动添加，参见[自定义 Provider](/docs/custom-providers)。
+
+### fx {#fx}
+
+在 daemon 主机上[安装 fx](https://fx.sh/docs/getting-started/installation)，并[连接一个模型提供方](https://fx.sh/docs/getting-started/authentication)，例如运行 `fx login`。在 **设置 → Hosts → 你的主机 → Providers** 中，在目录里找到 **fx** 并选择 **Add**。Paseo 会启动 `fx acp`，并使用你的 fx 凭据和设置。在 fx 拿到凭据之前，该 provider 会显示 fx 给出的登录提示。
+
+模型列表来自当前的 fx 提供方，运行 `fx provider` 可以更改新 Agent 使用的列表。更改 Agent 的权限模式也会更改 fx 保存的权限模式。fx 支持的功能见 [fx 的 ACP 指南](https://fx.sh/docs/using-fx/acp)。如果 `fx` 不在 daemon 的 PATH 中，请使用[命令覆盖](/docs/custom-providers)，并在参数中保留 `acp`。
 
 ### Hoplite {#hoplite}
 

@@ -264,6 +264,8 @@ function createSnapshot(cwd: string, overrides?: SnapshotOverrides): WorkspaceGi
       pullRequest: resolveSnapshotPullRequest(base, overrides),
       error: resolveSnapshotError(base, overrides),
     },
+    // Every remote these fixtures use is on github.com.
+    ...(forge ? { forgeWeb: { host: "github.com" } } : {}),
   };
 }
 
@@ -710,8 +712,9 @@ describe("WorkspaceGitServiceImpl primitive refresh entrypoint", () => {
 
     refreshStatus.resolve(createCheckoutStatus(REPO_CWD, { currentBranch: "feature" }));
     await refresh;
-    expect(await service.getSnapshot(REPO_CWD)).toEqual(
-      createSnapshot(REPO_CWD, {
+    // A branch change resets the PR status but not where the same remote lives on the web.
+    expect(await service.getSnapshot(REPO_CWD)).toEqual({
+      ...createSnapshot(REPO_CWD, {
         git: {
           currentBranch: "feature",
           diffStat: { additions: 4, deletions: 2 },
@@ -722,7 +725,8 @@ describe("WorkspaceGitServiceImpl primitive refresh entrypoint", () => {
           error: null,
         },
       }),
-    );
+      forgeWeb: { host: "github.com" },
+    });
     expect(getCheckoutStatus).toHaveBeenCalledTimes(2);
     expect(getCheckoutShortstat).toHaveBeenCalledTimes(2);
 
@@ -998,7 +1002,9 @@ describe("WorkspaceGitServiceImpl primitive refresh entrypoint", () => {
     await flushPromises();
 
     await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(2));
-    expect(getCheckoutStatus).toHaveBeenCalledTimes(1);
+    // Setup itself does no snapshot read; once the watcher covers the tree, one
+    // checkout read catches changes made since the forced read.
+    await vi.waitFor(() => expect(getCheckoutStatus).toHaveBeenCalledTimes(2));
 
     subscription.unsubscribe();
     service.dispose();
@@ -2195,6 +2201,7 @@ describe("WorkspaceGitServiceImpl D2 read methods", () => {
       expect(subscribe).toHaveBeenCalledTimes(1);
       expect(subscribe).toHaveBeenCalledWith(repoDir, expect.any(Function), {
         ignore: [join(repoDir, ".git"), ignoredRoot],
+        signal: expect.any(AbortSignal),
       });
 
       subscription.unsubscribe();

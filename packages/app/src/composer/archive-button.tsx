@@ -31,7 +31,7 @@ export function ComposerArchiveButton({
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          size="xs"
+          size="sm"
           leftIcon={renderIcon}
           disabled={disabled || pending}
           loading={pending}

@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native-unistyles";
 import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
-import { PairLinkModal } from "@/components/pair-link-modal";
+import { PairLinkModal } from "@/hosts/add-host/internal/pair-link-modal";
 import { getHostRuntimeStore, type PasswordRequiredPairing } from "@/runtime/host-runtime";
 import { buildOpenProjectRoute } from "@/utils/host-routes";
 

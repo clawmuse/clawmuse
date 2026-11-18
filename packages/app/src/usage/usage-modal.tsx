@@ -2,16 +2,16 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
-import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";
+import { AdaptiveModalSheet, SheetHeaderSubtitle } from "@/components/adaptive-modal-sheet";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { ALL_HOSTS_OPTION_ID } from "@/components/hosts/host-picker-constants";
 import { builtinSidebarNavLabelKey } from "@/sidebar-nav/model";
 import { UsageMonitoringSettings } from "./monitoring";
 import { Button } from "@/components/ui/button";
-import { UsageControls } from "./controls";
+import { hasUsageControls, UsageControls } from "./controls";
 import { useUsageDisplay, type UsageDisplay } from "./display";
 import { UsageHistoryCard } from "./history-card";
-import { useUsageHostSelection } from "./hosts";
+import { formatUsageHostLabel, useUsageHostSelection } from "./hosts";
 import type { UsageHost } from "./model";
 import { useHostsUsage } from "./queries";
 import type { UsageView } from "./types";
@@ -25,8 +25,8 @@ interface UsageModalProps {
 
 /**
  * Usage over the current screen: a dialog on wide layouts, a bottom sheet on compact ones. It
- * shows the selected hosts' reports with pins, and the host filter, Refresh all, and Settings in its
- * title row.
+ * shows the selected hosts' reports with pins, and Refresh all and Settings in its title row. With
+ * more than one host, the host shown is the title's subtitle, and Settings is where it is picked.
  */
 export function UsageModal(props: UsageModalProps) {
   const { t } = useTranslation();
@@ -73,30 +73,34 @@ function HostUsageModal({
   let settingsServerId: string | null = serverId;
   if (serverId === ALL_HOSTS_OPTION_ID)
     settingsServerId = selectedHosts.length === 1 ? selectedHosts[0].serverId : null;
+  const viewList = useMemo(() => views.map(({ view }) => view), [views]);
   const controls = useMemo(
-    () => (
-      <UsageControls
-        serverId={settingsServerId}
-        views={views.map(({ view }) => view)}
-        onRefresh={refresh}
-        hostSelection={hostSelection}
-        onManageMonitoring={manageMonitoring}
-      />
-    ),
-    [hostSelection, refresh, views, manageMonitoring, settingsServerId],
+    () =>
+      hasUsageControls(viewList, hostSelection) ? (
+        <UsageControls
+          key={serverId}
+          serverId={settingsServerId}
+          views={viewList}
+          onRefresh={refresh}
+          hostSelection={hostSelection}
+          onManageMonitoring={manageMonitoring}
+        />
+      ) : null,
+    [hostSelection, manageMonitoring, refresh, serverId, settingsServerId, viewList],
   );
+  const hostLabel = formatUsageHostLabel(hostSelection, t("sidebar.display.hostFilter.all"));
   const showHostLabels = selectedHosts.length > 1;
   return (
-    <UsageModalFrame {...props} actions={controls}>
+    <UsageModalFrame {...props} actions={controls} subtitle={hostLabel}>
       {monitoring ? (
         <Button variant="ghost" size="sm" onPress={closeMonitoring}>
           {t("usageMonitoring.back")}
         </Button>
       ) : null}
-      {/* Keyed by host so a refresh in flight on one host never shows on another's cards. Only the
-          body: keying the frame remounts the sheet, and on phones and native the unmounting sheet
-          reports onDismiss, which closes the modal as soon as another host is picked. */}
-      <View key={serverId} style={styles.content}>
+      {/* Keyed by host so state the cards hold, such as a refresh in flight, never shows on another
+          host's cards. The frame is not keyed: remounting it would dismiss a compact sheet, and
+          Usage with it. */}
+      <View key={serverId} style={styles.content} testID={`usage-host-${serverId}`}>
         {monitoring ? (
           selectedHosts.map((host) => (
             <SettingsSection key={host.serverId} title={host.label}>
@@ -153,11 +157,22 @@ function UsageModalFrame({
   onClose,
   onDismiss,
   actions,
+  subtitle,
   children,
-}: UsageModalProps & { actions?: ReactNode; children: ReactNode }) {
+}: UsageModalProps & { actions?: ReactNode; subtitle?: string; children: ReactNode }) {
   const { t } = useTranslation();
   const title = t(builtinSidebarNavLabelKey("usage"));
-  const header = useMemo(() => ({ title, actions }), [actions, title]);
+  const header = useMemo(
+    () => ({
+      title,
+      titleTestID: "usage-modal-title",
+      subtitle: subtitle ? (
+        <SheetHeaderSubtitle text={subtitle} testID="usage-modal-host" />
+      ) : undefined,
+      actions,
+    }),
+    [actions, subtitle, title],
+  );
   return (
     <AdaptiveModalSheet
       header={header}

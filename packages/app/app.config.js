@@ -10,6 +10,7 @@ const withPasteInput = require("./plugins/with-paste-input");
 const withClawMuseAgentLiveActivity = require("./plugins/clawmuse-agent-live-activity");
 const withAndroidScroll = require("./modules/paseo-scroll/app.plugin");
 const withIosDeploymentFloor = require("./plugins/with-ios-deployment-floor");
+const withAndroidDisplayMetrics = require("./modules/paseo-display-metrics/app.plugin");
 const { getNativeReleaseVersion } = require("./native-release-version");
 const { resolveUpdatesConfig } = require("./updates-config");
 const appVariant = process.env.APP_VARIANT ?? "production";
@@ -199,10 +200,12 @@ export default {
       searchPaths: ["../../node_modules", "./node_modules"],
     },
     plugins: [
+      "./modules/paseo-hardware-keyboard/app.plugin",
       "expo-secure-store",
       "expo-router",
       withPasteInput,
       withAndroidScroll,
+      withAndroidDisplayMetrics,
       withIosDeploymentFloor,
       [withAndroidAsyncStorageSize, 64],
       ...buildProfile.cameraPlugins,

@@ -290,20 +290,13 @@ function SchedulesScreenBody({
             />
           ) : null}
           <SegmentedControl
-            size="sm"
             value={statusFilter}
             onValueChange={onStatusFilterChange}
             options={statusFilterOptions}
             testID="schedules-status-filter"
           />
         </View>
-        <Button
-          variant="outline"
-          leftIcon={Plus}
-          onPress={onCreate}
-          size="sm"
-          testID="schedules-new"
-        >
+        <Button variant="outline" leftIcon={Plus} onPress={onCreate} testID="schedules-new">
           {t("schedules.new")}
         </Button>
       </View>

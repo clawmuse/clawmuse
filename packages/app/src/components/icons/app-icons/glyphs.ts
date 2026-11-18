@@ -143,6 +143,7 @@ const GLYPH_TABLE = {
   "square-dot": [SQUARE, c(12, 12, 1.25)],
   "square-minus": [SQUARE, p("M8 12h8")],
   "square-plus": [SQUARE, p("M8 12h8"), p("M12 8v8")],
+  "square-slash": [SQUARE, p("m9 15 6-6")],
   "square-check-big": [
     p("M20.5 11v6.5a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3v-11a3 3 0 0 1 3-3h10"),
     p("m8.5 11 3 3L21 4.5"),
@@ -201,6 +202,7 @@ const GLYPH_TABLE = {
   plus: [p("M5 12h14"), p("M12 5v14")],
   ellipsis: [c(5, 12, 1), c(12, 12, 1), c(19, 12, 1)],
   "ellipsis-vertical": [c(12, 5, 1), c(12, 12, 1), c(12, 19, 1)],
+  "grip-vertical": [c(9, 5, 1), c(9, 12, 1), c(9, 19, 1), c(15, 5, 1), c(15, 12, 1), c(15, 19, 1)],
   "triangle-alert": [TRIANGLE, p("M12 8.5v4"), dot(12, 16.75)],
   activity: [p("M21.5 12h-3.25l-3 8.5-6.5-17-3 8.5H2.5")],
   "audio-lines": [p("M2.5 10v4"), p("M7 6.5v11"), p("M12 3v18"), p("M17 7.5v9"), p("M21.5 10v4")],
@@ -579,6 +581,7 @@ const GLYPH_TABLE = {
     ),
   ],
   pause: [rect(5, 3.5, 4.5, 17, 1.5), rect(14.5, 3.5, 4.5, 17, 1.5)],
+  power: [p("M12 2.5v8.5"), p("M17.7 4.4a9.5 9.5 0 1 1-11.4 0")],
 
   // Devices and infrastructure.
   monitor: [rect(2.5, 3.5, 19, 13, 2.5), p("M8 20.5h8"), p("M12 16.5v4")],

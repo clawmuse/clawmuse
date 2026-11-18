@@ -37,6 +37,8 @@ interface PickerControl {
 export interface NewWorkspaceFormProps {
   isCompact: boolean;
   isPending: boolean;
+  /** Plugin fields, drawn after the base ref. */
+  pluginItems: ReactNode;
   project: PickerControl & {
     options: ComboboxOption[];
     projectByOptionId: Map<string, HostProjectListItem>;
@@ -169,7 +171,7 @@ function useRefRenderOption(itemById: Map<string, PickerItem>, isPending: boolea
  */
 export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement {
   const { t } = useTranslation();
-  const { isCompact, isPending, project, host, isolation, base, launch } = props;
+  const { isCompact, isPending, pluginItems, project, host, isolation, base, launch } = props;
   const variant: FieldTriggerVariant = isCompact ? "field" : "badge";
   const projectPicker = useProjectPicker(project, isPending);
   const isolationPicker = useIsolationPicker(isolation, isPending);
@@ -219,6 +221,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
       label={t("newWorkspace.fields.project")}
       accessibilityLabel="Workspace project"
       tooltip={t("newWorkspace.tooltips.project")}
+      shortcutAction="new-workspace"
       icon={projectIcon}
       value={project.triggerLabel}
       onPress={project.open}
@@ -349,6 +352,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         {hostField}
         {isolationField}
         {baseField}
+        {pluginItems}
         {launchField}
         {pickers}
       </View>
@@ -361,6 +365,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
       <View style={styles.desktopControl}>{hostField}</View>
       {isolationField ? <View style={styles.desktopControl}>{isolationField}</View> : null}
       {baseField ? <View style={styles.desktopControl}>{baseField}</View> : null}
+      {pluginItems}
       <View style={styles.launchSpacer} pointerEvents="none" />
       {launchField}
       {pickers}

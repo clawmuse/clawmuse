@@ -1,11 +1,8 @@
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
-import { Text, View, type GestureResponderEvent } from "react-native";
+import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useReducedMotion } from "react-native-reanimated";
-import { Archive, CircleAlert } from "@/components/icons/app-icons";
-import { Button } from "@/components/ui/button";
-import { buttonControlHeight } from "@/components/ui/control-geometry";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CircleAlert } from "@/components/icons/app-icons";
 import {
   ProjectStatusIndicator,
   twoLineIconGeometry,
@@ -36,7 +33,11 @@ import {
 import { shouldRenderSyncedStatusLoader } from "@/utils/status-loader";
 import { StatusRing } from "@/components/status-ring";
 import { resolveSidebarWorkspacePrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
-import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
+import { SCRIM_WIDTH, TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
+import {
+  ARCHIVE_BUTTON_FOOTPRINT,
+  SidebarWorkspaceArchiveButton,
+} from "@/components/sidebar/sidebar-workspace-menu";
 import { useWorkspaceLabelDefinitions } from "@/workspace-labels";
 import { SidebarActionsMenuContext } from "@/components/sidebar/use-open-kebab-menu-visibility";
 
@@ -46,71 +47,17 @@ const needsInputColorMapping = (theme: Theme) => ({
 });
 
 const ThemedCircleAlert = withUnistyles(CircleAlert);
-const ThemedArchive = withUnistyles(Archive);
-const archiveIconMapping = (theme: Theme) => ({
-  color: theme.colors.foregroundMuted,
-  size: theme.iconSize.sm,
-});
-const archiveIcon = <ThemedArchive uniProps={archiveIconMapping} />;
-
-function stopArchivePressPropagation(event: GestureResponderEvent) {
-  event.stopPropagation();
-}
-
-export function SidebarWorkspaceArchiveButton({
-  workspaceKey,
-  loading,
-  visible,
-  label,
-  onArchive,
-}: {
-  workspaceKey: string;
-  visible: boolean;
-  loading: boolean;
-  label: string;
-  onArchive: () => void;
-}) {
-  const handlePress = useCallback(
-    (event: GestureResponderEvent) => {
-      event.stopPropagation();
-      onArchive();
-    },
-    [onArchive],
-  );
-
-  return (
-    <Tooltip enabledOnDesktop enabledOnMobile={false}>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          style={styles.archiveButton}
-          leftIcon={archiveIcon}
-          disabled={loading || !visible}
-          loading={loading}
-          accessibilityLabel={label}
-          accessibilityElementsHidden={!visible}
-          importantForAccessibility={visible ? "auto" : "no-hide-descendants"}
-          pointerEvents={visible ? "auto" : "none"}
-          onPressIn={stopArchivePressPropagation}
-          onPress={handlePress}
-          testID={`sidebar-workspace-archive-${workspaceKey}`}
-        />
-      </TooltipTrigger>
-      <TooltipContent>
-        <Text style={styles.archiveTooltipText}>{label}</Text>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 export function SidebarWorkspaceRowFrame({
   workspace,
   isDragging = false,
+  isEditingTitle = false,
   children,
 }: {
   workspace: SidebarWorkspaceEntry;
   isDragging?: boolean;
+  /** Hover would fade the kebab in over the title being edited and open the hover card. */
+  isEditingTitle?: boolean;
   children: (input: {
     isHovered: boolean;
     contextMenuOpen: boolean;
@@ -144,11 +91,12 @@ export function SidebarWorkspaceRowFrame({
       workspace={workspace}
       prHint={workspace.prHint}
       isDragging={isDragging}
-      disabled={contextMenuOpen || actionsMenuOpen}
+      disabled={contextMenuOpen || actionsMenuOpen || isEditingTitle}
     >
       <SidebarActionsMenuContext.Provider value={handleActionsMenuOpenChange}>
         {children({
-          isHovered: isHovered && !contextMenuOpen && !actionsMenuOpen && !isDragging,
+          isHovered:
+            isHovered && !contextMenuOpen && !actionsMenuOpen && !isDragging && !isEditingTitle,
           contextMenuOpen,
           onContextMenuOpenChange: handleContextMenuOpenChange,
           hoverHandlers,
@@ -165,10 +113,13 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   leadingProjectIconDataUri = null,
   serviceSummary = null,
   backdrop,
+  isHovered: _isHovered = false,
   isLoading,
+  isCreating: _isCreating = false,
   shortcutNumber = null,
   showShortcutBadge = false,
   reserveIdleStatusIndicatorSpace = true,
+  titleEditor = null,
   children,
 }: {
   workspace: SidebarWorkspaceEntry;
@@ -179,11 +130,15 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   serviceSummary?: WorkspaceServiceSummary | null;
   /** The row's current background, so the project status badge can knock out of it. */
   backdrop: SidebarSurfaceBackdrop;
+  isHovered?: boolean;
   isLoading: boolean;
+  isCreating?: boolean;
   shortcutNumber?: number | null;
   showShortcutBadge?: boolean;
   /** Keep the empty leading slot when the workspace has no active status. */
   reserveIdleStatusIndicatorSpace?: boolean;
+  /** Takes the title's place, in a box exactly one title line tall, while renaming in place. */
+  titleEditor?: ReactNode;
   children?: ReactNode;
 }) {
   const {
@@ -233,17 +188,28 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
                 reserveIdleSpace={reserveIdleStatusIndicatorSpace}
               />
             )}
-            <ContentLabel text={workspaceLabel} />
+            {titleEditor ? (
+              <View style={styles.workspaceTitleEditorSlot}>{titleEditor}</View>
+            ) : (
+              <View
+                style={styles.workspaceTitleSlot}
+                testID={`sidebar-workspace-title-${workspace.workspaceKey}`}
+              >
+                <ContentLabel text={workspaceLabel} />
+              </View>
+            )}
             <View style={sidebarWorkspaceRowStyles.rowRight}>{children}</View>
           </View>
           <View style={showProjectLeading ? styles.metaIndentProject : styles.metaIndentStatus}>
             <WorkspaceMetaRow
+              backdrop={backdrop}
               currentBranch={workspace.currentBranch}
               projectName={leadingProjectName}
               hostBadge={hostBadge ?? null}
               prHint={workspace.prHint}
               serviceSummary={serviceSummary}
               labels={labels}
+              workspace={workspace}
             />
           </View>
         </View>
@@ -393,16 +359,11 @@ export const sidebarWorkspaceRowStyles = StyleSheet.create((theme) => ({
     justifyContent: "flex-start",
   },
   trailingActionOverlay: {
-    position: "relative",
+    position: "absolute",
+    top: 0,
+    right: 0,
     flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    minHeight: 20,
-  },
-  trailingActionScrim: {
-    ...StyleSheet.absoluteFillObject,
-    // The gradient sits behind the action group while metadata crossfades out.
-    overflow: "hidden",
+    alignItems: "flex-start",
   },
 }));
 
@@ -442,6 +403,7 @@ export function resolveTrailingActionVisibility({
 }): {
   trailingPresentation: SidebarWorkspaceTrailingPresentation;
   showKebab: boolean;
+  showArchiveButton: boolean;
   showScrim: boolean;
   renderSlot: boolean;
   reserveSlotWidth: boolean;
@@ -460,6 +422,9 @@ export function resolveTrailingActionVisibility({
   return {
     trailingPresentation,
     showKebab,
+    // One-click archive is a pointer affordance: on touch it would sit a few pixels from the
+    // kebab and turn a miss into an archive.
+    showArchiveButton: showKebab && isHovered && !isTouchPlatform,
     // The scrim paints the row's own hover background, so it can only be drawn on a hovered
     // row — over an unhovered one the gradient fades to the wrong color. That is also why
     // touch, which shows the kebab without ever hovering, never gets one.
@@ -519,53 +484,50 @@ export function SidebarWorkspaceTrailingActionBase({
 export function SidebarWorkspaceTrailingActionOverlay({
   visible,
   scrimBackdrop,
+  workspaceKey,
+  onArchiveButtonPress,
   children,
 }: {
   visible: boolean;
   /** Fade the row into the kebab when something (the diff stat) is still rendered behind it. */
   scrimBackdrop?: SidebarSurfaceBackdrop;
+  workspaceKey: string;
+  /**
+   * Shows the archive button left of the kebab. It overlays the title like the kebab does, so
+   * the scrim widens to cover it rather than the slot reserving its width.
+   */
+  onArchiveButtonPress?: () => void;
   children: ReactNode;
 }) {
-  const reducedMotion = useReducedMotion();
-  if (!children) return null;
+  if (!visible || !children) return null;
   return (
-    <View
-      style={[
-        sidebarWorkspaceRowStyles.trailingActionOverlay,
-        sidebarWorkspaceRowStyles.fade,
-        reducedMotion && sidebarWorkspaceRowStyles.reducedMotion,
-        !visible && sidebarWorkspaceRowStyles.replaced,
-      ]}
-      pointerEvents={visible ? "auto" : "none"}
-      accessibilityElementsHidden={!visible}
-      importantForAccessibility={visible ? "auto" : "no-hide-descendants"}
-      testID="sidebar-workspace-trailing-actions"
-    >
+    <>
       {scrimBackdrop ? (
-        <View
-          style={sidebarWorkspaceRowStyles.trailingActionScrim}
-          pointerEvents="none"
+        <TrailingActionScrim
+          backdrop={scrimBackdrop}
+          width={onArchiveButtonPress ? SCRIM_WIDTH + ARCHIVE_BUTTON_FOOTPRINT : SCRIM_WIDTH}
           testID="sidebar-workspace-trailing-scrim"
-        >
-          <TrailingActionScrim backdrop={scrimBackdrop} />
-        </View>
+        />
       ) : null}
-      {children}
-    </View>
+      <View
+        style={sidebarWorkspaceRowStyles.trailingActionOverlay}
+        testID="sidebar-workspace-trailing-actions"
+      >
+        {onArchiveButtonPress ? (
+          <SidebarWorkspaceArchiveButton
+            workspaceKey={workspaceKey}
+            onArchive={onArchiveButtonPress}
+          />
+        ) : null}
+        {children}
+      </View>
+    </>
   );
 }
 
+const TITLE_LINE_HEIGHT = 20;
+
 const styles = StyleSheet.create((theme) => ({
-  archiveButton: {
-    width: buttonControlHeight.sm,
-    paddingHorizontal: 0,
-    // Center the larger hit area on the title without increasing the list's row height.
-    marginVertical: (Math.round(theme.fontSize.content * 1.6) - buttonControlHeight.sm) / 2,
-  },
-  archiveTooltipText: {
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
-  },
   workspaceRowContent: {
     position: "relative",
   },
@@ -640,17 +602,13 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.full,
     backgroundColor: getStatusDotColor({ theme, bucket: "attention" }) ?? undefined,
   },
-  // Left-edge status bar: the leading marker's color lives on a thin bar instead of a dot,
-  // so the row's rail reads as an edge rather than a floating circle. Done keeps a muted bar
-  // to hold the rail without the noise of a half-opacity dot.
-  workspaceLeadingBar: {
-    position: "relative",
-    width: densityIconBox("md"),
-    height: Math.round(theme.fontSize.content * 1.6),
-    flexShrink: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-    paddingLeft: 5,
+  workspaceTitleSlot: {
+    flex: 1,
+    minWidth: 0,
+  },
+  workspaceTitleEditorSlot: {
+    height: TITLE_LINE_HEIGHT,
+    flex: 1,
+    minWidth: 0,
   },
 }));

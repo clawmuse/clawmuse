@@ -7,14 +7,27 @@ import { tmpdir } from "node:os";
 import { prepareDesktopUpdates } from "./prepare-desktop-updates.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const directory = process.argv[2];
+const args = process.argv.slice(2);
+const noMirror = args.includes("--no-mirror");
+const explicitBeta = args.includes("--beta");
+const directory = args.find((arg) => !arg.startsWith("-"));
 if (!directory)
-  throw new Error("Usage: node scripts/prepare-clawmuse-downloads.mjs <artifact-directory>");
+  throw new Error(
+    "Usage: node scripts/prepare-clawmuse-downloads.mjs <artifact-directory> [--beta] [--no-mirror]",
+  );
 const { version } = JSON.parse(
   await readFile(resolve(root, "packages/desktop/package.json"), "utf8"),
 );
-const manifestPath = resolve(root, "packages/website/clawmuse/releases.json");
-const previous = JSON.parse(await readFile(manifestPath, "utf8"));
+const isBeta = explicitBeta || version.includes("-beta.");
+const manifestPath = resolve(
+  root,
+  isBeta
+    ? "packages/website/clawmuse/beta-releases.json"
+    : "packages/website/clawmuse/releases.json",
+);
+const stableManifest = JSON.parse(
+  await readFile(resolve(root, "packages/website/clawmuse/releases.json"), "utf8"),
+);
 const downloadBase = `https://github.com/endvin/clawmuse-releases/releases/download/v${version}`;
 const files = [];
 for (const filename of (await readdir(directory)).sort()) {
@@ -68,7 +81,7 @@ try {
 } finally {
   await rm(candidate, { recursive: true, force: true });
 }
-const appStoreUrl = process.env.CLAWMUSE_APP_STORE_URL || previous.ios.url;
+const appStoreUrl = process.env.CLAWMUSE_APP_STORE_URL || stableManifest.ios.url;
 if (
   !appStoreUrl ||
   !/^https:\/\/apps\.apple\.com\/(?:[a-z]{2}\/)?app\/(?:[a-zA-Z0-9-]+\/)?id[0-9]+$/.test(
@@ -89,16 +102,24 @@ const currentFiles = files.filter(
         windowsRevision(other) > windowsRevision(file),
     ),
 );
-const manifest = {
-  version,
-  checksumsUrl: `${downloadBase}/SHA256SUMS.txt`,
-  publishedAt: new Date().toISOString(),
-  files: currentFiles,
-  ios: {
-    url: appStoreUrl,
-    status: "available",
-  },
-};
+const manifest = isBeta
+  ? {
+      version,
+      checksumsUrl: `${downloadBase}/SHA256SUMS.txt`,
+      publishedAt: new Date().toISOString(),
+      mirrored: !noMirror,
+      files: currentFiles,
+    }
+  : {
+      version,
+      checksumsUrl: `${downloadBase}/SHA256SUMS.txt`,
+      publishedAt: new Date().toISOString(),
+      files: currentFiles,
+      ios: {
+        url: appStoreUrl,
+        status: "available",
+      },
+    };
 await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 await mkdir(directory, { recursive: true });
 await writeFile(

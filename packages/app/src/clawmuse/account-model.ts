@@ -69,6 +69,7 @@ export interface AccountDependencies {
 }
 
 const errors: Record<string, string> = {
+  controlled_only: "此电脑仅允许本机使用和接受远程控制，不能登录账号获取其他设备。",
   registration_closed: "当前暂未开放注册，请联系管理员开通。",
   device_already_owned: "这台电脑已绑定其他账号，请先在原账号移除。",
   password_change_required: "请先在云端控制台修改初始密码。",
@@ -78,6 +79,33 @@ const errors: Record<string, string> = {
   account_authorization_unavailable: "请在这台电脑上更新 ClawMuse，并登录账号启用账号连接。",
   device_identity_changed: "这台电脑的身份已变化，请在电脑上重新登录后再连接。",
 };
+
+function formatAccountError(
+  error: unknown,
+  fallbackKey:
+    | "clawmuseAccount.requestError"
+    | "cloudSpace.unavailable" = "clawmuseAccount.requestError",
+): string {
+  let name = "";
+  let message = "";
+  if (typeof error === "object" && error !== null) {
+    if ("name" in error && typeof error.name === "string") name = error.name;
+    if ("message" in error && typeof error.message === "string") message = error.message;
+  }
+  const isTimeout =
+    name === "AbortError" ||
+    name === "TimeoutError" ||
+    message.startsWith("AbortError:") ||
+    message.startsWith("TimeoutError:");
+  if (isTimeout) return i18n.t("clawmuseAccount.timeoutError");
+  if (name === "TypeError" || message.startsWith("TypeError:")) {
+    return i18n.t("clawmuseAccount.networkError");
+  }
+  const isMalformed =
+    error instanceof z.ZodError || name === "SyntaxError" || message.startsWith("SyntaxError:");
+  if (isMalformed) return i18n.t("clawmuseAccount.serviceError");
+  return message || i18n.t(fallbackKey);
+}
 
 /** Serializes login, discovery and logout so an old response cannot reconnect a signed-out host. */
 export class AccountModel {
@@ -91,6 +119,7 @@ export class AccountModel {
   };
   private listeners = new Set<() => void>();
   private pending: Promise<void> = Promise.resolve();
+  private inFlight = 0;
   private cloudHostId: string | null = null;
   constructor(private readonly deps: AccountDependencies) {}
   getState = () => this.state;
@@ -111,27 +140,34 @@ export class AccountModel {
     operation: () => Promise<void>,
     options: AccountOperationOptions = {},
   ): Promise<void> {
+    this.inFlight += 1;
     const run = this.pending.then(() => this.execute(operation, options));
-    this.pending = run.catch(() => undefined);
-    return run;
+    const settled = run.finally(() => {
+      this.inFlight -= 1;
+    });
+    this.pending = settled.catch(() => undefined);
+    return settled;
   }
   private async execute(
     operation: () => Promise<void>,
     { propagateError = false, action = null, background = false }: AccountOperationOptions,
   ): Promise<void> {
-    this.publish({ busy: true, pendingAction: action, ...(background ? {} : { error: null }) });
+    if (!background) {
+      this.publish({ busy: true, pendingAction: action, error: null });
+    }
     try {
       await operation();
     } catch (error) {
-      const name = error instanceof Error ? error.name : "";
-      let message = error instanceof Error ? error.message : i18n.t("clawmuseAccount.requestError");
-      if (name === "AbortError" || name === "TimeoutError")
-        message = i18n.t("clawmuseAccount.timeoutError");
-      else if (name === "TypeError") message = i18n.t("clawmuseAccount.networkError");
-      if (!background || !this.state.error) this.publish({ error: message });
+      if (!background) {
+        this.publish({ error: formatAccountError(error) });
+      }
       if (propagateError) throw error;
     } finally {
-      this.publish({ initialized: true, busy: false, pendingAction: null });
+      if (background) {
+        if (!this.state.initialized) this.publish({ initialized: true });
+      } else {
+        this.publish({ initialized: true, busy: false, pendingAction: null });
+      }
     }
   }
   private async request(path: string, body?: unknown) {
@@ -199,7 +235,7 @@ export class AccountModel {
     }
     throw new Error("此电脑仅允许本机使用和接受远程控制，不能登录账号获取其他设备。");
   }
-  private async discover() {
+  private async discover(background = false) {
     await this.ensureController();
     const directory = directorySchema.parse(await this.request("/clawmuse/devices"));
     if (this.state.account && this.state.account.id !== directory.account.id) {
@@ -237,9 +273,7 @@ export class AccountModel {
         await this.deps.renameHost(device.serverId, device.label);
       } catch (error) {
         if (!this.state.account) throw error;
-        failures.push(
-          `${device.label}: ${error instanceof Error ? error.message : i18n.t("clawmuseAccount.requestError")}`,
-        );
+        failures.push(`${device.label}: ${formatAccountError(error)}`);
       }
       if (this.deps.existingHostIds().includes(device.serverId)) {
         await this.deps.setHostHidden({
@@ -248,9 +282,9 @@ export class AccountModel {
         });
       }
     }
-    if (directory.cloud?.enabled) await this.syncCloud();
+    if (directory.cloud?.enabled) await this.syncCloud("", background);
     else if (this.state.cloudEnabled) this.clearCloud();
-    if (failures.length) this.publish({ error: failures.join("\n") });
+    if (!background && failures.length) this.publish({ error: failures.join("\n") });
   }
 
   private clearCloud() {
@@ -259,7 +293,7 @@ export class AccountModel {
       this.publish({ cloud: null, cloudEnabled: false, cloudError: null });
   }
 
-  private async syncCloud(operation: "" | "/start" | "/pause" = "") {
+  private async syncCloud(operation: "" | "/start" | "/pause" = "", background = false) {
     const accountId = this.state.account?.id;
     if (!accountId) return;
     this.publish({ cloudEnabled: true });
@@ -273,9 +307,9 @@ export class AccountModel {
       await this.importCloud(snapshot);
       this.publish({ cloud: snapshot, cloudError: null });
     } catch (error) {
-      if (this.state.account?.id === accountId)
+      if (!background && this.state.account?.id === accountId)
         this.publish({
-          cloudError: error instanceof Error ? error.message : i18n.t("cloudSpace.unavailable"),
+          cloudError: formatAccountError(error, "cloudSpace.unavailable"),
         });
     }
   }
@@ -308,7 +342,7 @@ export class AccountModel {
 
   startCloud = () => this.enqueue(() => this.syncCloud("/start"), { action: "startCloud" });
   pauseCloud = () => this.enqueue(() => this.syncCloud("/pause"), { action: "pauseCloud" });
-  private refreshDirectory = async () => {
+  private refreshDirectory = async (background = false) => {
     await this.ensureController();
     const response = await this.deps.request("/get-session");
     if (response.status === 401 || (response.status === 200 && response.data === null)) {
@@ -316,10 +350,13 @@ export class AccountModel {
       return;
     }
     if (response.status >= 400) throw new Error(i18n.t("clawmuseAccount.serviceError"));
-    await this.discover();
+    await this.discover(background);
   };
-  refresh = () => this.enqueue(this.refreshDirectory, { action: "refresh" });
-  refreshInBackground = () => this.enqueue(this.refreshDirectory, { background: true });
+  refresh = () => this.enqueue(() => this.refreshDirectory(false), { action: "refresh" });
+  refreshInBackground = () =>
+    this.inFlight > 0
+      ? this.pending
+      : this.enqueue(() => this.refreshDirectory(true), { background: true });
   signIn = (email: string, password: string, register = false) =>
     this.enqueue(async () => {
       await this.deps.beforeAccountChange();
@@ -361,15 +398,14 @@ export class AccountModel {
       await this.request("/clawmuse/devices", { ...managed, accountKey });
     }
   }
-  connectLocal = () =>
-    this.enqueue(
-      async () => {
-        if (!this.state.account) return;
-        await this.publishLocal();
-        await this.discover();
-      },
-      { action: "connectLocal" },
-    );
+  private syncLocalDevice = async (background = false) => {
+    if (!this.state.account) return;
+    await this.publishLocal();
+    await this.discover(background);
+  };
+  connectLocal = () => this.enqueue(() => this.syncLocalDevice(false), { action: "connectLocal" });
+  connectLocalInBackground = () =>
+    this.enqueue(() => this.syncLocalDevice(true), { background: true });
   registerDevice = (offer: ConnectionOffer, label: string) =>
     this.enqueue(
       async () => {

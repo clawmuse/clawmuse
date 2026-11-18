@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
+import { deriveSurfaceStates } from "./derive-colors";
 
 export const baseColors = {
   // Base colors
@@ -217,33 +218,17 @@ const darkStatusDotColors = {
   statusDotRunning: "#5caaf6",
 };
 
-/** Linear blend of two `#rrggbb` colors; `ratio` is the share of `to` in the result. */
-function mixHexColors(from: string, to: string, ratio: number): string {
-  const fromInt = parseInt(from.slice(1), 16);
-  const toInt = parseInt(to.slice(1), 16);
-  const mix = (shift: number) => {
-    const a = (fromInt >> shift) & 0xff;
-    const b = (toInt >> shift) & 0xff;
-    return Math.round(a + (b - a) * ratio)
-      .toString(16)
-      .padStart(2, "0");
-  };
-  return `#${mix(16)}${mix(8)}${mix(0)}`;
-}
-
-// Sidebar row fills use a half step where the surface ramp only offers a full one: hover sits
-// between the sidebar's own surface and the next tier, and selection lands on that tier — the
-// depth selection used to have. A full-step hover reads as a second selection.
-const SIDEBAR_HOVER_STEP = 0.7;
-
 export interface LightThemeConfig {
   surface0: string;
   surface1: string;
   surface2: string;
   surface3: string;
   surface4: string;
-  surfaceDiffEmpty: string;
   surfaceSidebar: string;
+  surfaceSidebarHover?: string;
+  surfaceSidebarSelected?: string;
+  foregroundSidebarHover?: string;
+  foregroundSidebarSelected?: string;
   foreground: string;
   foregroundMuted: string;
   foregroundExtraMuted: string;
@@ -257,7 +242,7 @@ export interface LightThemeConfig {
   destructive: string;
   terminalBlack: string;
   terminalBrightBlack: string;
-  ring: string;
+  ring?: string;
 }
 
 const lightTerminalAnsi = {
@@ -278,16 +263,18 @@ const lightTerminalAnsi = {
 } as const;
 
 export function buildLightSemanticColors(tint: LightThemeConfig) {
+  const sidebarStates = deriveSurfaceStates(tint.surfaceSidebar, tint.foreground, "light");
   return {
     surface0: tint.surface0,
     surface1: tint.surface1,
     surface2: tint.surface2,
     surface3: tint.surface3,
     surface4: tint.surface4,
-    surfaceDiffEmpty: tint.surfaceDiffEmpty,
     surfaceSidebar: tint.surfaceSidebar,
-    surfaceSidebarHover: mixHexColors(tint.surfaceSidebar, tint.surface3, SIDEBAR_HOVER_STEP),
-    surfaceSidebarSelected: tint.surface3,
+    surfaceSidebarHover: tint.surfaceSidebarHover ?? sidebarStates.hover,
+    surfaceSidebarSelected: tint.surfaceSidebarSelected ?? sidebarStates.selected,
+    foregroundSidebarHover: tint.foregroundSidebarHover ?? tint.foregroundExtraMuted,
+    foregroundSidebarSelected: tint.foregroundSidebarSelected ?? tint.foregroundExtraMuted,
     surfaceWorkspace: tint.surface0,
     surfaceUserMessage: "#f3f3f3",
     interactionHighlight: "rgba(0, 0, 0, 0.06)",
@@ -306,20 +293,14 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
     destructive: tint.destructive,
     destructiveForeground: tint.surface0,
     success: tint.accent,
-    successForeground: tint.surface0,
 
     background: tint.surface0,
     popover: tint.surface0,
     popoverForeground: tint.foreground,
     primary: tint.primary,
     primaryForeground: tint.primaryForeground,
-    secondary: tint.surface2,
-    secondaryForeground: tint.foreground,
-    muted: tint.surface2,
     mutedForeground: tint.foregroundMuted,
-    accentBorder: tint.borderAccent,
-    input: tint.surface2,
-    ring: tint.ring,
+    ring: tint.ring ?? tint.accent,
 
     ...lightDiffColors,
     ...lightStatusColors,
@@ -346,7 +327,6 @@ const lightSemanticColors = buildLightSemanticColors({
   surface2: "#f4f4f5",
   surface3: "#e4e4e7",
   surface4: "#d4d4d8",
-  surfaceDiffEmpty: "#f6f6f6",
   surfaceSidebar: "#f4f4f5",
   foreground: "#1a1a1e",
   foregroundMuted: "#71717a",
@@ -361,18 +341,18 @@ const lightSemanticColors = buildLightSemanticColors({
   destructive: "#b04138",
   terminalBlack: "#1a1a1e",
   terminalBrightBlack: "#3f3f46",
-  ring: "#18181b",
 });
 
 // ClawMuse — brand palette from packages/website/clawmuse/style.css ([data-theme="light"]).
+// `surface2` and `surface3` step slightly deeper than `--surface` so control hover and neutral
+// fills clear the `theme-contrast` ratios against `surface0`.
 const clawmuseLightColors = {
   ...buildLightSemanticColors({
     surface0: "#f3f7f3",
     surface1: "#fffefa",
-    surface2: "#eaf1e9",
-    surface3: "#e0eade",
-    surface4: "#d3dfd4",
-    surfaceDiffEmpty: "#e6eee5",
+    surface2: "#e3ede2",
+    surface3: "#d6e4d6",
+    surface4: "#c8d8c8",
     surfaceSidebar: "#eaf1e9",
     foreground: "#173b34",
     foregroundMuted: "#567369",
@@ -402,8 +382,11 @@ export interface DarkThemeConfig {
   surface2: string;
   surface3: string;
   surface4: string;
-  surfaceDiffEmpty: string;
   surfaceSidebar: string;
+  surfaceSidebarHover?: string;
+  surfaceSidebarSelected?: string;
+  foregroundSidebarHover?: string;
+  foregroundSidebarSelected?: string;
   foregroundMuted: string;
   foregroundExtraMuted: string;
   border: string;
@@ -437,17 +420,19 @@ const darkTerminalAnsi = {
 
 export function buildDarkSemanticColors(tint: DarkThemeConfig) {
   const foreground = tint.foreground ?? "#fafafa";
-  const ring = tint.ring ?? "#d4d4d8";
+  const ring = tint.ring ?? tint.accent;
+  const sidebarStates = deriveSurfaceStates(tint.surfaceSidebar, foreground, "dark");
   return {
     surface0: tint.surface0,
     surface1: tint.surface1,
     surface2: tint.surface2,
     surface3: tint.surface3,
     surface4: tint.surface4,
-    surfaceDiffEmpty: tint.surfaceDiffEmpty,
     surfaceSidebar: tint.surfaceSidebar,
-    surfaceSidebarHover: mixHexColors(tint.surfaceSidebar, tint.surface1, SIDEBAR_HOVER_STEP),
-    surfaceSidebarSelected: tint.surface1,
+    surfaceSidebarHover: tint.surfaceSidebarHover ?? sidebarStates.hover,
+    surfaceSidebarSelected: tint.surfaceSidebarSelected ?? sidebarStates.selected,
+    foregroundSidebarHover: tint.foregroundSidebarHover ?? tint.foregroundExtraMuted,
+    foregroundSidebarSelected: tint.foregroundSidebarSelected ?? tint.foregroundExtraMuted,
     surfaceWorkspace: tint.surface1,
     surfaceUserMessage: tint.surface3,
     interactionHighlight: "rgba(255, 255, 255, 0.08)",
@@ -466,7 +451,6 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
     destructive: tint.destructive,
     destructiveForeground: "#ffffff",
     success: tint.accent,
-    successForeground: "#ffffff",
 
     // Legacy aliases (for gradual migration)
     background: tint.surface0,
@@ -474,12 +458,7 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
     popoverForeground: foreground,
     primary: foreground,
     primaryForeground: tint.surface0,
-    secondary: tint.surface2,
-    secondaryForeground: foreground,
-    muted: tint.surface2,
     mutedForeground: tint.foregroundMuted,
-    accentBorder: tint.borderAccent,
-    input: tint.surface2,
     ring,
 
     ...darkDiffColors,
@@ -512,7 +491,6 @@ const clawmuseDarkColors = buildDarkSemanticColors({
   surface2: "#17332f",
   surface3: "#193b34",
   surface4: "#2a463e",
-  surfaceDiffEmpty: "#102827",
   surfaceSidebar: "#091b19",
   foreground: "#edf5ef",
   foregroundMuted: "#9eb6ad",
@@ -535,7 +513,6 @@ const paseoDarkColors = buildDarkSemanticColors({
   surface2: "#272A29",
   surface3: "#434645",
   surface4: "#595B5B",
-  surfaceDiffEmpty: "#252827",
   surfaceSidebar: "#141716",
   foregroundMuted: "#A1A5A4",
   foregroundExtraMuted: "#717574",
@@ -555,7 +532,6 @@ const zincDarkColors = buildDarkSemanticColors({
   surface2: "#27272a",
   surface3: "#3f3f46",
   surface4: "#52525b",
-  surfaceDiffEmpty: "#242427",
   surfaceSidebar: "#131316",
   foregroundMuted: "#a1a1aa",
   foregroundExtraMuted: "#71717a",
@@ -576,7 +552,6 @@ const midnightDarkColors = buildDarkSemanticColors({
   surface2: "#252731",
   surface3: "#3c3e4c",
   surface4: "#535564",
-  surfaceDiffEmpty: "#222430",
   surfaceSidebar: "#121420",
   foregroundMuted: "#9a9db0",
   foregroundExtraMuted: "#6b6e82",
@@ -596,7 +571,6 @@ const claudeDarkColors = buildDarkSemanticColors({
   surface2: "#2f2d2b",
   surface3: "#4a4745",
   surface4: "#605d5b",
-  surfaceDiffEmpty: "#2a2826",
   surfaceSidebar: "#1a1918",
   foregroundMuted: "#ada9a5",
   foregroundExtraMuted: "#78746f",
@@ -616,13 +590,12 @@ const ghosttyDarkColors = buildDarkSemanticColors({
   surface2: "#383c48",
   surface3: "#4a4f5e",
   surface4: "#5b6175",
-  surfaceDiffEmpty: "#323643",
   surfaceSidebar: "#21252d",
   foregroundMuted: "#c8ccd8",
   foregroundExtraMuted: "#a0a4b2",
   border: "#353a47",
   borderAccent: "#3f4454",
-  accent: "#89b4fa",
+  accent: "#3570e0", // dark enough to carry white text on filled buttons
   accentBright: "#b4d0fc",
   destructive: "#c44a55", // red with slight cool lean against the slate-blue surfaces
   terminalBlack: "#21252d",
@@ -636,8 +609,10 @@ export const SPACING = {
   1.5: 6,
   2: 8,
   3: 12,
+  3.5: 14,
   4: 16,
   6: 24,
+  7: 28,
   8: 32,
   12: 48,
   16: 64,
@@ -803,14 +778,15 @@ export const darkMidnightTheme = buildDarkTheme(midnightDarkColors);
 export const darkClaudeTheme = buildDarkTheme(claudeDarkColors);
 export const darkGhosttyTheme = buildDarkTheme(ghosttyDarkColors);
 
-// Pure black — zero-luminance background with high-contrast surfaces.
+// Pure black — zero-luminance background with high-contrast surfaces. A control over the
+// workspace surface (`surface2` on `surface1`) steps by a contrast ratio of 1.12, the step Paseo
+// dark has there; the old `#111111` gave half of it.
 const pureBlackDarkColors = buildDarkSemanticColors({
   surface0: "#000000",
   surface1: "#0a0a0a",
-  surface2: "#111111",
+  surface2: "#181818",
   surface3: "#202020",
   surface4: "#2d2d2d",
-  surfaceDiffEmpty: "#0c0c0c",
   surfaceSidebar: "#000000",
   foregroundMuted: "#a1a1aa",
   foregroundExtraMuted: "#71717a",

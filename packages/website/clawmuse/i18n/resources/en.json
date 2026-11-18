@@ -284,7 +284,7 @@
   "support.copyThisTemplateAndSendItThroughTheContact": "Use the template below and email hello@clawmuse.com. You can also submit a public issue if it contains no private information.",
   "support.issueTemplate": "ISSUE TEMPLATE",
   "policy.browsingThisWebsite": "Browsing this website",
-  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "This website stores your light or dark theme preference in local browser storage. It does not actively integrate third-party analytics scripts or advertising trackers. Hosting servers may still process IP addresses, timestamps, and browser information needed to serve requests.",
+  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "This website stores your light or dark theme preference in local browser storage and uses Google Analytics with Google Signals and ad personalization disabled to measure aggregate page visits. It does not integrate advertising trackers. Hosting servers may still process IP addresses, timestamps, and browser information needed to serve requests.",
   "policy.accountsAndDevices": "Accounts and devices",
   "policy.registrationAndSignInAreHandledByTheClawmuse": "Registration and sign-in are handled by the ClawMuse account service, including email, profile details, password authentication information, and sessions. Device enrollment stores device identifiers, names, and encrypted connection information so the same account can discover and connect devices.",
   "policy.projectsAndTasks": "Projects and tasks",
@@ -420,7 +420,7 @@
   "updates.statusBody": "View live tasks and model usage right on your iOS Lock Screen, Dynamic Island, and widgets.",
   "policy.optionalServices": "Voice, status, and goals",
   "policy.optionalServicesBody": "Cloud speech services receive audio for recognition or text for spoken replies, depending on your configuration. If enabled, ClawMuse Status receives activity counts and quota data; Goals also stores goal text, repository identifiers, and structured reports. These services have separate data boundaries from the encrypted relay.",
-  "policy.updated": "Updated October 27, 2026 · Applies to ClawMuse",
+  "policy.updated": "Updated November 18, 2026 · Applies to ClawMuse",
   "tour.allow": "Allow once",
   "tour.approved": "Allowed · checks complete",
   "tour.attach": "Attach example image",
@@ -556,5 +556,9 @@
   "realShowcase.tabFiles": "Workspace file explorer",
   "realShowcase.tabFilesCaption": "Browse the real repository tree on your connected machine, see git status badges and jump straight to modified files.",
   "realShowcase.wideLabel": "Wide workspace view",
-  "realShowcase.phoneLabel": "iPhone companion"
+  "realShowcase.phoneLabel": "iPhone companion",
+  "downloads.channelStable": "Stable",
+  "downloads.channelBeta": "Beta",
+  "downloads.betaBadge": "Preview release",
+  "downloads.betaNotice": "Beta builds are preview releases users can opt into ahead of stable. Desktop users can switch in Settings → About → Release channel → Beta."
 }

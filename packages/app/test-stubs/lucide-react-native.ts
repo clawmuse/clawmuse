@@ -28,6 +28,7 @@ export function LucideProvider({ children }: { children?: ReactNode }) {
 export const Activity = StubIcon;
 export const AlertTriangle = StubIcon;
 export const Archive = StubIcon;
+export const ArrowDown = StubIcon;
 export const ArrowDownUp = StubIcon;
 export const ArrowLeft = StubIcon;
 export const ArrowLeftToLine = StubIcon;
@@ -99,6 +100,7 @@ export const PinOff = StubIcon;
 export const Play = StubIcon;
 export const Plug = StubIcon;
 export const Plus = StubIcon;
+export const Puzzle = StubIcon;
 export const QrCode = StubIcon;
 export const RefreshCcw = StubIcon;
 export const RefreshCw = StubIcon;
@@ -116,6 +118,7 @@ export const Smartphone = StubIcon;
 export const Split = StubIcon;
 export const Square = StubIcon;
 export const SquarePen = StubIcon;
+export const SquareSlash = StubIcon;
 export const SquareTerminal = StubIcon;
 export const Star = StubIcon;
 export const Sun = StubIcon;
@@ -128,8 +131,6 @@ export const Upload = StubIcon;
 export const Wrench = StubIcon;
 export const X = StubIcon;
 export const XCircle = StubIcon;
-
-export const ArrowDown = StubIcon;
 
 export const BookOpen = StubIcon;
 
@@ -174,3 +175,16 @@ export const Workflow = StubIcon;
 export const ZoomIn = StubIcon;
 
 export const ZoomOut = StubIcon;
+export const GripVertical = StubIcon;
+export const ListTodo = StubIcon;
+export const Power = StubIcon;
+export const ShieldEllipsis = StubIcon;
+export const ShieldPlus = StubIcon;
+export const Zap = StubIcon;
+export const CheckSquare = StubIcon;
+export const Circle = StubIcon;
+export const FileSymlink = StubIcon;
+export const MessageSquareCode = StubIcon;
+export const MicVocal = StubIcon;
+export const Scissors = StubIcon;
+export const TriangleAlertIcon = StubIcon;

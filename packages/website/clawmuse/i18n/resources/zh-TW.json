@@ -284,7 +284,7 @@
   "support.copyThisTemplateAndSendItThroughTheContact": "複製這份範本，寄信至 hello@clawmuse.com；不含敏感資訊的問題也可提交到公開回報倉庫。複製範本不會自動傳送訊息。",
   "support.issueTemplate": "問題描述範本",
   "policy.browsingThisWebsite": "官網瀏覽",
-  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "本官網的明暗主題偏好保存在你瀏覽器的本地儲存中。官網沒有主動整合第三方分析腳本或廣告追蹤；存取網站時，託管伺服器仍可能處理請求所需的 IP、時間與瀏覽器資訊。",
+  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "本官網將你的明暗主題偏好保存在瀏覽器本地儲存中，並使用已關閉 Google Signals 與廣告個人化的 Google Analytics 統計整體頁面造訪情況，不整合廣告追蹤器；存取網站時，託管伺服器仍可能處理回應請求所需的 IP、時間與瀏覽器資訊。",
   "policy.accountsAndDevices": "帳號與裝置",
   "policy.registrationAndSignInAreHandledByTheClawmuse": "註冊與登入由 ClawMuse 帳號服務處理，包括電子郵件地址、帳號資料、密碼認證資訊和工作階段。裝置綁定會保存裝置標識、名稱與加密的連線資訊，用於讓同一帳號發現裝置並建立連線。",
   "policy.projectsAndTasks": "專案與任務",
@@ -420,7 +420,7 @@
   "updates.statusBody": "在 iOS 鎖定畫面、動態島和主畫面小工具上隨時查看任務進度與模型額度。",
   "policy.optionalServices": "語音、狀態與目標",
   "policy.optionalServicesBody": "依你的設定，雲端語音服務會接收辨識用音訊或語音回覆用文字。啟用 ClawMuse Status 後，狀態服務接收活動計數與額度資料；Goals 另存目標文字、儲存庫識別碼及結構化報告。這些服務的資料邊界與加密中繼不同。",
-  "policy.updated": "更新於 2026 年 10 月 27 日 · 適用於 ClawMuse",
+  "policy.updated": "更新於 2026 年 11 月 18 日 · 適用於 ClawMuse",
   "tour.allow": "允許一次",
   "tour.approved": "已允許 · 檢查完成",
   "tour.attach": "加入範例圖片",
@@ -556,5 +556,9 @@
   "realShowcase.tabFiles": "工作區檔案與目錄",
   "realShowcase.tabFilesCaption": "直接瀏覽所連電腦上的真實儲存庫目錄樹，查看 Git 修改標記並一鍵定位變更檔案。",
   "realShowcase.wideLabel": "寬螢幕三欄視圖",
-  "realShowcase.phoneLabel": "iPhone 隨行端"
+  "realShowcase.phoneLabel": "iPhone 隨行端",
+  "downloads.channelStable": "穩定版",
+  "downloads.channelBeta": "Beta 測試版",
+  "downloads.betaBadge": "測試預覽版",
+  "downloads.betaNotice": "測試版供願意提前體驗新功能的使用者按需切換，不影響穩定版使用者。已安裝桌面端也可前往 設定 → 關於 → 發佈通道 → Beta 線上更新。"
 }

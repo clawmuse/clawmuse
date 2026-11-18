@@ -144,11 +144,10 @@ export function ClawMuseAccountProvider({ children }: { children: ReactNode }) {
     if (!loaded || !accountSupported) return;
     void model.refreshInBackground();
     const timer = setInterval(() => {
-      if (AppState.currentState === "active" && !model.getState().busy)
-        void model.refreshInBackground();
+      if (AppState.currentState === "active") void model.refreshInBackground();
     }, 30000);
     const subscription = AppState.addEventListener("change", (next) => {
-      if (next === "active" && !model.getState().busy) void model.refreshInBackground();
+      if (next === "active") void model.refreshInBackground();
     });
     return () => {
       clearInterval(timer);
@@ -156,7 +155,7 @@ export function ClawMuseAccountProvider({ children }: { children: ReactNode }) {
     };
   }, [loaded, model]);
   useEffect(() => {
-    if (state.account?.id && localId && connected) void model.connectLocal();
+    if (state.account?.id && localId && connected) void model.connectLocalInBackground();
   }, [state.account?.id, localId, connected, model]);
   return <Context.Provider value={model}>{children}</Context.Provider>;
 }

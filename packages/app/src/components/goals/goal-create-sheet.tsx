@@ -61,7 +61,7 @@ const AcceptancePresetChip = memo(function AcceptancePresetChip({
 }) {
   const handlePress = useCallback(() => onSelect(value), [onSelect, value]);
   return (
-    <Button size="xs" variant="outline" onPress={handlePress} testID={testID}>
+    <Button size="sm" variant="outline" onPress={handlePress} testID={testID}>
       {label}
     </Button>
   );

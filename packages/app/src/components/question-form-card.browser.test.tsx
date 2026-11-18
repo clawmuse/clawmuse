@@ -39,7 +39,10 @@ afterEach(() => {
   }
 });
 
-function buildPermission(question: Record<string, unknown>): PendingPermission {
+function buildPermission(
+  question: Record<string, unknown>,
+  following: Record<string, unknown>[] = [],
+): PendingPermission {
   return {
     key: "perm-1",
     agentId: "agent-1",
@@ -48,12 +51,21 @@ function buildPermission(question: Record<string, unknown>): PendingPermission {
       provider: "claude",
       name: "AskUserQuestion",
       kind: "question",
-      input: { questions: [question] },
+      input: { questions: [question, ...following] },
     },
   };
 }
 
-function mountCard(question: Record<string, unknown>, displayText?: ReadonlyMap<string, string>) {
+function mountCard(
+  question: Record<string, unknown>,
+  {
+    following = [],
+    displayText,
+  }: {
+    following?: Record<string, unknown>[];
+    displayText?: ReadonlyMap<string, string>;
+  } = {},
+) {
   const onRespond = vi.fn<(response: AgentPermissionResponse) => void>();
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -62,7 +74,7 @@ function mountCard(question: Record<string, unknown>, displayText?: ReadonlyMap<
     root.render(
       <QuestionFormCard
         displayText={displayText}
-        permission={buildPermission(question)}
+        permission={buildPermission(question, following)}
         onRespond={onRespond}
         isResponding={false}
         responseError={null}
@@ -72,10 +84,14 @@ function mountCard(question: Record<string, unknown>, displayText?: ReadonlyMap<
   mounted.push({ root, container });
 
   const view = within(container);
-  const optionRole = question.multiSelect ? "checkbox" : "radio";
   const otherInput = () =>
     view.getByRole<HTMLInputElement>("textbox", { name: String(question.question) });
-  const check = (label: string) => act(() => view.getByRole(optionRole, { name: label }).click());
+  const check = (label: string) =>
+    act(() =>
+      (
+        view.queryByRole("radio", { name: label }) ?? view.getByRole("checkbox", { name: label })
+      ).click(),
+    );
   const type = (text: string) => {
     const input = otherInput();
     const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
@@ -91,7 +107,7 @@ function mountCard(question: Record<string, unknown>, displayText?: ReadonlyMap<
     if (!response || response.behavior !== "allow") throw new Error("card did not submit");
     return (response.updatedInput as { answers: Record<string, string> }).answers;
   };
-  return { check, type, otherInput, submit, submittedAnswers, view };
+  return { check, type, otherInput, submit, submittedAnswers, view, onRespond };
 }
 
 const multiSelectQuestion = {
@@ -168,16 +184,15 @@ it("displays translated options but submits canonical headers and values", () =>
       },
     ],
   };
-  const card = mountCard(
-    question,
-    new Map([
+  const card = mountCard(question, {
+    displayText: new Map([
       ["Where registered?", "在哪里注册？"],
       ["Entity", "主体"],
       ["Mainland China", "中国大陆"],
       ["Needs an EU representative", "需要欧盟代表"],
       ["const entity = 'CN';", "不要修改代码"],
     ]),
-  );
+  });
   expect(card.view.getByText("在哪里注册？").textContent).toBe("在哪里注册？");
   expect(card.view.getByText("需要欧盟代表").textContent).toBe("需要欧盟代表");
   expect(card.view.getByTestId("question-form-option-preview").textContent).toBe(
@@ -186,4 +201,32 @@ it("displays translated options but submits canonical headers and values", () =>
   card.check("中国大陆");
   card.submit();
   expect(card.submittedAnswers()).toEqual({ Entity: "Mainland China" });
+});
+
+describe("QuestionFormCard explicit navigation", () => {
+  it("keeps a picked option visible until Next and submits only on Submit", () => {
+    const card = mountCard(singleSelectQuestion, { following: [multiSelectQuestion] });
+    card.check("Codex");
+    expect(card.view.getByRole("radio", { name: "Codex" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(card.onRespond).not.toHaveBeenCalled();
+    act(() => card.view.getByRole("button", { name: "Next" }).click());
+    card.check("Apple");
+    expect(card.onRespond).not.toHaveBeenCalled();
+    card.submit();
+    expect(card.submittedAnswers()).toEqual({ Provider: "Codex", Fruits: "Apple" });
+  });
+
+  it("selects an option when its description is clicked without submitting", () => {
+    const card = mountCard({
+      ...singleSelectQuestion,
+      options: [{ label: "Codex", description: "Use this provider" }],
+    });
+    act(() => card.view.getByText("Use this provider").click());
+    expect(card.view.getByRole("radio", { name: "Codex" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(card.onRespond).not.toHaveBeenCalled();
+  });
 });

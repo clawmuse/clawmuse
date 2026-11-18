@@ -284,7 +284,7 @@
   "support.copyThisTemplateAndSendItThroughTheContact": "このテンプレートをコピーして hello@clawmuse.com に送信してください。機密情報を含まない問題は公開の課題管理にも投稿できます。コピーだけでは送信されません。",
   "support.issueTemplate": "発行テンプレート",
   "policy.browsingThisWebsite": "このウェブサイトを閲覧する",
-  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "この Web サイトは、明るいテーマまたは暗いテーマの設定をローカルのブラウザー ストレージに保存します。サードパーティの分析スクリプトや広告トラッカーを積極的に統合することはありません。ホスティング サーバーは、リクエストを処理するために必要な IP アドレス、タイムスタンプ、ブラウザ情報を処理する場合があります。",
+  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "この Web サイトは、ライトまたはダークテーマの設定をローカルのブラウザーストレージに保存し、全体のページ閲覧数を計測するために Google シグナルおよび広告のパーソナライズを無効にした Google アナリティクスを使用します。広告トラッカーは統合していません。ホスティングサーバーは、リクエストを処理するために必要な IP アドレス、タイムスタンプ、ブラウザー情報を引き続き処理する場合があります。",
   "policy.accountsAndDevices": "アカウントとデバイス",
   "policy.registrationAndSignInAreHandledByTheClawmuse": "登録とサインインは、電子メール、プロファイルの詳細、パスワード認証情報、セッションなどの ClawMuse アカウント サービスによって処理されます。デバイスの登録では、デバイスの識別子、名前、暗号化された接続情報が保存されるため、同じアカウントでデバイスを検出して接続できます。",
   "policy.projectsAndTasks": "プロジェクトとタスク",
@@ -420,7 +420,7 @@
   "updates.statusBody": "ClawMuse Status は Agent の状態と使用枠をアプリ、iOS ライブアクティビティ、ホーム画面ウィジェットに表示。サービス設定と対応ビルドが必要です。",
   "policy.optionalServices": "音声・ステータス・目標",
   "policy.optionalServicesBody": "設定に応じ、クラウド音声サービスへ認識用の音声や読み上げ用テキストを送信します。有効化した ClawMuse Status には活動数と使用枠、Goals には目標文、リポジトリ識別子、構造化レポートも保存されます。暗号化リレーとはデータの扱いが異なります。",
-  "policy.updated": "2026年10月27日更新 · ClawMuse に適用",
+  "policy.updated": "2026年11月18日更新 · ClawMuse に適用",
   "tour.allow": "今回のみ許可",
   "tour.approved": "許可済み · チェック完了",
   "tour.attach": "サンプル画像を添付",
@@ -556,5 +556,9 @@
   "realShowcase.tabFiles": "ファイルエクスプローラー",
   "realShowcase.tabFilesCaption": "接続したマシン上の実際のリポジトリツリーを参照し、Git ステータスバッジから変更ファイルへ直接移動できます。",
   "realShowcase.wideLabel": "ワイド3ペイン表示",
-  "realShowcase.phoneLabel": "iPhone コンパニオン"
+  "realShowcase.phoneLabel": "iPhone コンパニオン",
+  "downloads.channelStable": "安定版",
+  "downloads.channelBeta": "Beta 版",
+  "downloads.betaBadge": "プレビュー版",
+  "downloads.betaNotice": "Beta 版は安定版に先駆けて新機能を試したい方向けの任意アップデートです。デスクトップアプリでは 設定 → このアプリについて → リリースチャンネル → Beta から切り替えられます。"
 }

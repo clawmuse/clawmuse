@@ -108,6 +108,22 @@ describe("preload sandbox safety", () => {
     await expect(bridge.invoke("read_file")).rejects.toThrow(pathError);
     ipcInvoke.mockResolvedValueOnce("Paseo user project");
     await expect(bridge.invoke("read_file")).resolves.toBe("Paseo user project");
+    ipcInvoke.mockRejectedValueOnce(
+      new Error(
+        "Error invoking remote method 'clawmuse:account': TimeoutError: The operation was aborted due to timeout",
+      ),
+    );
+    await expect(bridge.clawmuseAccount({ path: "/sign-in/email" })).rejects.toMatchObject({
+      name: "TimeoutError",
+      message: "The operation was aborted due to timeout",
+    });
+    ipcInvoke.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'clawmuse:account': TypeError: fetch failed"),
+    );
+    await expect(bridge.clawmuseAccount({ path: "/sign-in/email" })).rejects.toMatchObject({
+      name: "TypeError",
+      message: "fetch failed",
+    });
   });
 
   it("only loads Electron's sandbox allowlist at runtime", () => {

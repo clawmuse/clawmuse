@@ -186,12 +186,10 @@ function DaemonCliStatusModal({
           {cliStatusOutput ?? ""}
         </Text>
         <View style={styles.modalActions}>
-          <Button variant="outline" size="sm" onPress={onClose}>
+          <Button variant="outline" onPress={onClose}>
             {t("common.actions.close")}
           </Button>
-          <Button size="sm" onPress={onCopy}>
-            {t("common.actions.copy")}
-          </Button>
+          <Button onPress={onCopy}>{t("common.actions.copy")}</Button>
         </View>
       </View>
     </AdaptiveModalSheet>
@@ -283,13 +281,12 @@ function DaemonInfoCard(props: DaemonInfoCardProps) {
         </View>
         <View style={styles.actionGroup}>
           {daemonLogs?.logPath ? (
-            <Button variant="outline" size="sm" leftIcon={copyIcon} onPress={handleCopyLogPath}>
+            <Button variant="outline" leftIcon={copyIcon} onPress={handleCopyLogPath}>
               {t("desktop.daemon.logs.copyPath")}
             </Button>
           ) : null}
           <Button
             variant="outline"
-            size="sm"
             leftIcon={fileTextIcon}
             onPress={handleOpenLogs}
             disabled={!daemonLogs}
@@ -305,7 +302,6 @@ function DaemonInfoCard(props: DaemonInfoCardProps) {
         </View>
         <Button
           variant="outline"
-          size="sm"
           leftIcon={activityIcon}
           onPress={handleRunCliStatus}
           disabled={isLoadingCliStatus}
@@ -440,7 +436,7 @@ export function LocalDaemonSection() {
                   </Text>
                   <Text style={settingsStyles.rowHint}>{daemonStatus.home}</Text>
                 </View>
-                <Button variant="outline" size="sm" onPress={handleStop} disabled={isStopping}>
+                <Button variant="outline" onPress={handleStop} disabled={isStopping}>
                   {isStopping
                     ? t("desktop.daemon.lifecycle.stopping")
                     : t("desktop.daemon.lifecycle.stop")}

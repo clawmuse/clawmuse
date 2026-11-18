@@ -284,7 +284,7 @@
   "support.copyThisTemplateAndSendItThroughTheContact": "Copia esta plantilla y envíala a hello@clawmuse.com, o usa las incidencias públicas para problemas sin datos sensibles. Copiar la plantilla no envía ningún mensaje.",
   "support.issueTemplate": "PLANTILLA DE PROBLEMA",
   "policy.browsingThisWebsite": "Navegando por este sitio web",
-  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "Este sitio web almacena su preferencia de tema claro u oscuro en el almacenamiento local del navegador. No integra activamente scripts de análisis ni rastreadores de publicidad de terceros. Los servidores de alojamiento aún pueden procesar direcciones IP, marcas de tiempo e información del navegador necesarias para atender las solicitudes.",
+  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "Este sitio web almacena tu preferencia de tema claro u oscuro en el almacenamiento local del navegador y utiliza Google Analytics con Google Signals y la personalización de anuncios desactivados para medir las visitas agregadas a las páginas. No integra rastreadores publicitarios. Los servidores de alojamiento aún pueden procesar direcciones IP, marcas de tiempo e información del navegador necesarias para atender las solicitudes.",
   "policy.accountsAndDevices": "Cuentas y dispositivos",
   "policy.registrationAndSignInAreHandledByTheClawmuse": "El registro y el inicio de sesión son manejados por el servicio de cuenta ClawMuse, incluido el correo electrónico, los detalles del perfil, la información de autenticación de contraseña y las sesiones. La inscripción de dispositivos almacena identificadores de dispositivos, nombres e información de conexión cifrada para que la misma cuenta pueda descubrir y conectar dispositivos.",
   "policy.projectsAndTasks": "Proyectos y tareas",
@@ -420,7 +420,7 @@
   "updates.statusBody": "ClawMuse Status muestra actividad y cuotas en la app, Live Activities de iOS y un widget. Requiere el servicio de estado configurado y una versión iOS compatible.",
   "policy.optionalServices": "Voz, estado y objetivos",
   "policy.optionalServicesBody": "Los servicios de voz reciben audio para reconocimiento o texto para respuestas según tu configuración. ClawMuse Status recibe recuentos de actividad y cuotas si está habilitado; Goals guarda objetivos, identificadores de repositorios e informes. Sus límites de datos son distintos del relay cifrado.",
-  "policy.updated": "Actualizado el 27 de octubre de 2026 · Aplicable a ClawMuse",
+  "policy.updated": "Actualizado el 18 de noviembre de 2026 · Aplicable a ClawMuse",
   "tour.allow": "Permitir una vez",
   "tour.approved": "Permitido · comprobaciones completas",
   "tour.attach": "Adjuntar imagen de ejemplo",
@@ -556,5 +556,9 @@
   "realShowcase.tabFiles": "Explorador de archivos",
   "realShowcase.tabFilesCaption": "Explora el árbol real del repositorio en tu equipo conectado, mira el estado de Git y salta a los archivos modificados.",
   "realShowcase.wideLabel": "Vista panorámica",
-  "realShowcase.phoneLabel": "App en iPhone"
+  "realShowcase.phoneLabel": "App en iPhone",
+  "downloads.channelStable": "Estable",
+  "downloads.channelBeta": "Beta",
+  "downloads.betaBadge": "Versión preliminar",
+  "downloads.betaNotice": "Las compilaciones Beta son versiones preliminares opcionales previas a la estable. En escritorio puedes activarlas en Ajustes → Acerca de → Canal de versión → Beta."
 }

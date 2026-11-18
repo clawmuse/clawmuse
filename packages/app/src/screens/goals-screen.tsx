@@ -83,7 +83,7 @@ const RepoChip = memo(function RepoChip({
   const handlePress = useCallback(() => onSelect(repoKey), [onSelect, repoKey]);
   return (
     <Button
-      size="xs"
+      size="sm"
       variant={selected ? "secondary" : "ghost"}
       onPress={handlePress}
       testID={testID}

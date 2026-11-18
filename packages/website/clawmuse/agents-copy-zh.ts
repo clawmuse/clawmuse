@@ -65,11 +65,12 @@ export const chineseAgentCopy = {
     about:
       "Antigravity CLI 是 Google 的 Agent 开发平台 Antigravity 的命令行工具，命令叫 agy。ClawMuse 自带它的插件，装好 CLI 就能用。",
     setup: "运行 agy，按提示登录 Google 账号。",
-    connectNote: "这个集成只有完整访问模式，工具执行时不会停下来询问，建议先从范围小的任务开始。",
-    useCase: "任务交给 agy 之后就可以离开电脑，在手机上看进度，随时补充要求。",
-    question: "有哪些权限与历史限制？",
+    connectNote:
+      "通过 agy acp --stdio 连接，支持 Default、Accept edits、Plan 与 Full access 四种模式。",
+    useCase: "任务交给 agy 后离开电脑，在手机上审批工具权限、回答问题并跟进子代理进度。",
+    question: "权限与历史记录如何工作？",
     answer:
-      "ClawMuse 启动 agy 时会跳过权限询问。后台服务重启后 Agent 能保留对话状态，但历史记录不会回放到 ClawMuse。ClawMuse 内置的 MCP 工具不可用。",
+      "默认模式会在改文件和跑命令前询问，也可随时切换到自动改文件、Plan 或完整访问模式。后台服务重启后对话历史、斜杠命令与子代理记录会自动恢复。",
   },
   "muse-code": {
     intro: "Meta 的编程 Agent，用 Muse 系列模型写代码。",

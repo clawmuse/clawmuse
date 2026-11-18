@@ -1,19 +1,24 @@
+import { useOverlayRegistration, type KeyboardInputEvent } from "@/keyboard";
 import { Modal } from "@/components/ui/modal";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StyleSheet } from "react-native-unistyles";
-import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import type { AttachmentMetadata } from "@/attachments/types";
-import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
-import { isNative, isWeb } from "@/constants/platform";
+import {
+  type AttachmentPreviewUrl,
+  useAttachmentPreviewUrl,
+} from "@/attachments/use-attachment-preview-url";
+import { isNative } from "@/constants/platform";
 import { SPACING } from "@/styles/theme";
 import { WindowChromeRootRegion } from "@/utils/desktop-window";
 import { ZoomableImage } from "@/components/zoomable-viewport/image";
 import type { ViewportSize } from "@/components/zoomable-viewport/geometry";
-import { useGlobalWebOverlayLayer, useWebOverlayRegistration } from "@/lib/overlay-root";
+import { useGlobalOverlayLayer } from "@/lib/overlay-root";
+import { WindowSafeArea } from "@/window-layout";
 
 export type ImageLightboxSource =
   | { type: "attachment"; metadata: AttachmentMetadata }
@@ -30,33 +35,21 @@ const LIGHTBOX_FIT = { padding: SPACING[4], maxWidth: 960, maxHeight: 640 };
 export function AttachmentLightbox({ source, onClose }: AttachmentLightboxProps) {
   const { t } = useTranslation();
   const metadata = source?.type === "attachment" ? source.metadata : null;
-  const previewState = useAttachmentPreviewUrl(metadata);
-  let url: string | null;
-  if (source?.type === "uri") {
-    url = source.uri;
-  } else if (previewState.status === "ready") {
-    url = previewState.url;
-  } else {
-    url = null;
-  }
+  const attachmentPreview = useAttachmentPreviewUrl(metadata);
+  const image: AttachmentPreviewUrl =
+    source?.type === "uri" ? { status: "ready", url: source.uri } : attachmentPreview;
+  const url = image.status === "ready" ? image.url : null;
   const contentSize = source?.type === "uri" ? source.contentSize : undefined;
   const [errored, setErrored] = useState(false);
-  const modalLayer = useGlobalWebOverlayLayer("modal", isWeb && source !== null);
-
-  // A missing attachment means the blob is gone — close the lightbox rather than showing an
-  // error for content that isn't there. Load failures and missing are different states.
-  useEffect(() => {
-    if (previewState.status === "missing") {
-      onClose();
-    }
-  }, [previewState.status, onClose]);
+  const failed = errored || image.status === "failed";
+  const modalLayer = useGlobalOverlayLayer("modal", source !== null);
 
   useEffect(() => {
     setErrored(false);
   }, [metadata?.id, url]);
 
-  const handleWebOverlayKeyDown = useCallback(
-    (event: KeyboardEvent) => {
+  const handleOverlayKeyDown = useCallback(
+    (event: KeyboardInputEvent) => {
       if (event.key !== "Escape") return false;
       event.preventDefault();
       event.stopPropagation();
@@ -65,10 +58,11 @@ export function AttachmentLightbox({ source, onClose }: AttachmentLightboxProps)
     },
     [onClose],
   );
-  const setWebOverlayScope = useWebOverlayRegistration({
-    active: isWeb && source !== null,
+  const setOverlayScope = useOverlayRegistration({
+    keys: ["Escape"],
+    active: source !== null,
     layer: modalLayer,
-    onKeyDown: handleWebOverlayKeyDown,
+    onKeyDown: handleOverlayKeyDown,
   });
 
   const actions = useMemo(
@@ -90,16 +84,14 @@ export function AttachmentLightbox({ source, onClose }: AttachmentLightboxProps)
     return null;
   }
 
-  const hasError = errored || previewState.status === "error";
-
   return (
     <Modal transparent animationType="fade" statusBarTranslucent visible onRequestClose={onClose}>
       <ModalRoot style={styles.root}>
-        {/* The modal is its own window: its insets are the window's, not the ones left where the
-            image was opened (inside a sheet tab, the bottom one is already spent). */}
-        <SafeAreaProvider>
+        {/* The modal draws over the whole window: its insets are the window's, not the ones left
+            where the image was opened (inside a sheet tab, the bottom one is already spent). */}
+        <WindowSafeArea>
           <WindowChromeRootRegion corners="both">
-            <View ref={setWebOverlayScope} style={styles.root}>
+            <View ref={setOverlayScope} style={styles.root}>
               <Pressable
                 testID="attachment-lightbox-backdrop"
                 accessibilityRole="button"
@@ -108,37 +100,26 @@ export function AttachmentLightbox({ source, onClose }: AttachmentLightboxProps)
                 style={styles.backdrop}
               />
               <LightboxImageArea>
-                {(() => {
-                  if (hasError) {
-                    return (
-                      <Text style={styles.errorText}>
-                        {t("message.attachments.imageLoadFailed")}
-                      </Text>
-                    );
-                  }
-                  if (url) {
-                    return (
-                      <ZoomableImage
-                        accessibilityLabel={t("composer.attachments.openImage")}
-                        actions={actions}
-                        contentSize={contentSize}
-                        fit={LIGHTBOX_FIT}
-                        onError={handleImageError}
-                        onPressOutsideContent={onClose}
-                        style={styles.imageViewport}
-                        testID="attachment-lightbox"
-                        uri={url}
-                      />
-                    );
-                  }
-                  // Still resolving — empty area so the lightbox stays open and the backdrop
-                  // shows the image is coming. Don't hand ZoomableImage a null uri.
-                  return <View />;
-                })()}
+                {failed ? (
+                  <Text style={styles.errorText}>{t("message.attachments.imageLoadFailed")}</Text>
+                ) : null}
+                {!failed && url ? (
+                  <ZoomableImage
+                    accessibilityLabel={t("composer.attachments.openImage")}
+                    actions={actions}
+                    contentSize={contentSize}
+                    fit={LIGHTBOX_FIT}
+                    onError={handleImageError}
+                    onPressOutsideContent={onClose}
+                    style={styles.imageViewport}
+                    testID="attachment-lightbox"
+                    uri={url}
+                  />
+                ) : null}
               </LightboxImageArea>
             </View>
           </WindowChromeRootRegion>
-        </SafeAreaProvider>
+        </WindowSafeArea>
       </ModalRoot>
     </Modal>
   );

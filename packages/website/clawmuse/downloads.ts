@@ -1,4 +1,5 @@
 import manifest from "./releases.json";
+import betaManifest from "./beta-releases.json";
 
 export type DownloadPlatform = "windows" | "macos" | "linux" | "android";
 export interface DownloadFile {
@@ -12,21 +13,45 @@ export interface DownloadFile {
   version?: string;
 }
 
-export const release = manifest as {
+export interface ReleaseManifest {
   version: string;
   checksumsUrl: string;
   publishedAt: string | null;
+  mirrored?: boolean;
   files: DownloadFile[];
-  ios: typeof manifest.ios;
-};
-
-export function fileVersion(file: DownloadFile): string {
-  return file.version ?? release.version;
+  ios?: typeof manifest.ios;
 }
 
-export function platformVersion(platform: DownloadPlatform): string {
-  const match = release.files.find((file) => file.platform === platform);
-  return match ? fileVersion(match) : release.version;
+export const release = manifest as ReleaseManifest & { ios: typeof manifest.ios };
+export const betaRelease = betaManifest as ReleaseManifest;
+
+function parseCoreTriplet(version: string): [number, number, number] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version.trim());
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+export function hasActiveBetaRelease(): boolean {
+  if (betaRelease.files.length === 0) return false;
+  const betaCore = parseCoreTriplet(betaRelease.version);
+  const stableCore = parseCoreTriplet(release.version);
+  if (!betaCore || !stableCore) return false;
+  for (let i = 0; i < 3; i += 1) {
+    if (betaCore[i] !== stableCore[i]) return betaCore[i] > stableCore[i];
+  }
+  return release.version.includes("-beta.");
+}
+
+export function fileVersion(file: DownloadFile, manifestVersion = release.version): string {
+  return file.version ?? manifestVersion;
+}
+
+export function platformVersion(
+  platform: DownloadPlatform,
+  target: ReleaseManifest = release,
+): string {
+  const match = target.files.find((file) => file.platform === platform);
+  return match ? fileVersion(match, target.version) : target.version;
 }
 
 export function primaryPlatformInstaller(
@@ -62,7 +87,11 @@ export function installerMirrorUrl(file: DownloadFile): string {
   return `${INSTALLER_MIRROR_BASE}/v${fileVersion(file)}/${encodeURIComponent(file.filename)}`;
 }
 
+export function installerDownloadUrl(file: DownloadFile, mirrored = true): string {
+  return mirrored ? installerMirrorUrl(file) : file.url;
+}
+
 // The release page lists every installer with its checksums for anyone who wants them.
-export function githubReleaseUrl(): string {
-  return `https://github.com/endvin/clawmuse-releases/releases/tag/v${release.version}`;
+export function githubReleaseUrl(version = release.version): string {
+  return `https://github.com/endvin/clawmuse-releases/releases/tag/v${version}`;
 }

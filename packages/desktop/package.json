@@ -1,6 +1,6 @@
 {
   "name": "@getpaseo/desktop",
-  "version": "1.5.10",
+  "version": "1.6.0-beta.1",
   "private": true,
   "description": "ClawMuse desktop app (Electron wrapper)",
   "homepage": "https://clawmuse.com",
@@ -42,7 +42,6 @@
     "@types/node": "24.6.0",
     "@types/ws": "^8.5.14",
     "electron": "44.2.0",
-    "electron-builder": "26.8.1",
     "typescript": "5.9.3",
     "unzip-crx-3": "^0.2.0",
     "vitest": "^4.1.6",

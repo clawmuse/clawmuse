@@ -1,5 +1,5 @@
-import { forwardRef, useMemo } from "react";
-import { Text, type View } from "react-native";
+import { forwardRef, useCallback, useMemo } from "react";
+import { Text, type PressableStateCallbackType, type View } from "react-native";
 import type { LucideIcon } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { PressHighlight } from "@/components/ui/press-highlight";
@@ -61,12 +61,13 @@ export const FloatingActionButton = forwardRef<View, FloatingActionButtonProps>(
       () => [styles.label, variant === "primary" && styles.primaryGlyph],
       [variant],
     );
-    const buttonStyle = useMemo(
-      () => [
+    const buttonStyle = useCallback(
+      ({ pressed }: PressableStateCallbackType) => [
         styles.button,
         compact && styles.compact,
         variant === "primary" && styles.primary,
         label && styles.labeled,
+        pressed && styles.pressed,
         disabled && styles.disabled,
         { bottom: FLOATING_ACTION_BUTTON_INSET + bottomInset },
       ],
@@ -81,7 +82,6 @@ export const FloatingActionButton = forwardRef<View, FloatingActionButtonProps>(
         disabled={disabled}
         onPress={onPress}
         style={buttonStyle}
-        highlightStyle={styles.pressed}
         testID={testID}
       >
         <ThemedFloatingActionGlyph
@@ -122,7 +122,7 @@ const styles = StyleSheet.create((theme) => ({
   label: { color: theme.colors.foreground, fontSize: theme.fontSize.base },
   disabled: { opacity: theme.opacity[50] },
   pressed: {
-    backgroundColor: theme.colors.interactionHighlight,
+    backgroundColor: theme.colors.surface2,
   },
   primary: { backgroundColor: theme.colors.foreground },
   primaryGlyph: { color: theme.colors.surface0 },

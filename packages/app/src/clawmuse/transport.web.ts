@@ -20,12 +20,22 @@ export async function accountRequest(
   return browserRequest(path, body);
 }
 
+async function readResponseJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch (error) {
+    if (response.ok) throw error;
+    return null;
+  }
+}
+
 /** The Hub serves the browser client a bearer session only; cookies are never sent. */
 async function browserRequest(
   path: string,
   body?: unknown,
 ): Promise<{ status: number; data: unknown }> {
   const token = localStorage.getItem(key);
+  if (path === "/get-session" && !token) return { status: 200, data: null };
   if (path === "/sign-out") localStorage.removeItem(key);
   const response = await fetch(`${brand.hubOrigin}/api/auth${path}`, {
     credentials: "omit",
@@ -42,5 +52,5 @@ async function browserRequest(
   if (response.ok && next) localStorage.setItem(key, next);
   if (response.status === 401 || ((path === "/sign-out" || path === "/delete-user") && response.ok))
     localStorage.removeItem(key);
-  return { status: response.status, data: await response.json() };
+  return { status: response.status, data: await readResponseJson(response) };
 }

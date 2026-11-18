@@ -1,7 +1,8 @@
 {
   "name": "@getpaseo/protocol",
-  "version": "1.5.10",
+  "version": "1.6.0-beta.1",
   "description": "Paseo shared protocol schemas and wire types",
+  "license": "Apache-2.0",
   "files": [
     "dist",
     "!dist/**/*.map",

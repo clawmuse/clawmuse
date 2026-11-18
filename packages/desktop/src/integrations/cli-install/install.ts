@@ -136,6 +136,24 @@ export async function installCli(): Promise<InstallStatus> {
   return getCliInstallStatus();
 }
 
+/**
+ * Removes the CLI only when the file at the target is the one this app installs, so a binary the
+ * user put there some other way survives. The shell rc PATH line stays: it is harmless and other
+ * tools in ~/.local/bin rely on it.
+ */
+export async function uninstallCli(): Promise<InstallStatus> {
+  const { targets } = await inspectCliInstall();
+  for (const name of cliCommandNames()) {
+    const targetPath = getCliTargetPath(name);
+    if (targets[name] === "ours") {
+      await fs.unlink(targetPath);
+    } else if (targets[name] === "foreign") {
+      log.warn(`[integrations] Left a ${name} CLI this app did not install`, { targetPath });
+    }
+  }
+  return getCliInstallStatus();
+}
+
 export async function getCliInstallStatus(): Promise<InstallStatus> {
   const { targets, plan } = await inspectCliInstall();
   return {

@@ -35,6 +35,10 @@ import type {
   PluginUsageSourceMetadata,
 } from "./plugin-process-protocol.js";
 import { PluginProcessMessageSchema } from "./plugin-process-protocol.js";
+import {
+  BufferedPluginSubscription,
+  type PluginRuntimeSubscription,
+} from "./runtime-subscription.js";
 import { PluginSessionSocket } from "./session-socket.js";
 import { InternalPluginChild } from "./internal-child.js";
 import { evaluateBundle } from "./bundle-evaluator.js";
@@ -78,6 +82,8 @@ interface LoadedPlugin {
   /** Lets a client that already holds this bundle skip downloading it again. */
   clientBundleHash: string;
   methods: ReadonlySet<string>;
+  subscriptionMethods: ReadonlySet<string>;
+  subscriptions: Map<string, BufferedPluginSubscription>;
   hooks: string[];
   providers: readonly PluginProviderMetadata[];
   usageSources: readonly PluginUsageSourceMetadata[];
@@ -245,8 +251,9 @@ function spawnPluginChild(): PluginChild {
   }) as PluginChild;
 }
 
+// Kill only. Node never emits "close" for a child whose IPC channel the parent disconnected, and
+// "close" is how the runtime learns that a plugin exited; the channel closes with the process.
 function terminatePluginChild(child: PluginChild): void {
-  if (child.connected) child.disconnect();
   if (!child.killed) child.kill();
 }
 
@@ -518,6 +525,40 @@ export class PluginRuntime {
     return this.request(loaded, { type: "invoke", requestId: randomUUID(), method, input });
   }
 
+  /** Starts one subscriber's handler in the plugin process. */
+  startSubscription(pluginId: string, method: string, input: unknown): PluginRuntimeSubscription {
+    const loaded = this.plugins.get(pluginId);
+    if (!loaded) throw new Error(`Plugin is not available: ${pluginId}`);
+    if (!loaded.subscriptionMethods.has(method))
+      throw new Error(`Plugin ${pluginId} does not contribute subscription ${method}`);
+    const subscriptionId = randomUUID();
+    const subscription = new BufferedPluginSubscription();
+    loaded.subscriptions.set(subscriptionId, subscription);
+    const ready = this.request(loaded, {
+      type: "subscribe",
+      requestId: randomUUID(),
+      subscriptionId,
+      method,
+      input,
+    }).then(
+      () => undefined,
+      (error: unknown) => {
+        loaded.subscriptions.delete(subscriptionId);
+        throw error;
+      },
+    );
+    return {
+      ready,
+      attach: (sink) => subscription.attach(sink),
+      release: () => {
+        subscription.released();
+        if (!loaded.subscriptions.delete(subscriptionId)) return;
+        if (loaded.child?.connected)
+          void send(loaded.child, { type: "unsubscribe", subscriptionId }).catch(() => undefined);
+      },
+    };
+  }
+
   emit<Name extends keyof PluginHookEvents>(name: Name, event: PluginHookEvents[Name]): void {
     for (const loaded of this.plugins.values()) {
       if (!loaded.hooks.includes(name)) {
@@ -527,7 +568,7 @@ export class PluginRuntime {
         type: "hook",
         requestId: randomUUID(),
         name,
-        input: event,
+        input: wireEvent(name, event),
       })
         .then(() => undefined)
         .catch((error) => {
@@ -731,6 +772,11 @@ export class PluginRuntime {
           if (message.type === "hook") {
             void send(child, { type: "hook.cancel", requestId }).catch(() => {});
           }
+          // The handler may still start after the daemon gave up on it.
+          if (message.type === "subscribe") {
+            const { subscriptionId } = message;
+            void send(child, { type: "unsubscribe", subscriptionId }).catch(() => {});
+          }
           reject(new Error(`Plugin RPC timed out: ${pluginId}.${message.type}`));
         },
         message.type === "tool.call" ? TOOL_CALL_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
@@ -785,6 +831,8 @@ export class PluginRuntime {
         clientBundleHash: hashClientBundle(clientBundle),
         requirements: manifest.requirements,
         methods: new Set(),
+        subscriptionMethods: new Set(),
+        subscriptions: new Map(),
         hooks: [],
         providers: [],
         usageSources: [],
@@ -917,6 +965,8 @@ export class PluginRuntime {
       clientBundleHash: hashClientBundle(clientBundle),
       requirements,
       methods: new Set(ready.methods),
+      subscriptionMethods: new Set(ready.subscriptions ?? []),
+      subscriptions: new Map(),
       hooks: ready.hooks ?? [],
       providers: ready.providers ?? [],
       usageSources: ready.usageSources ?? [],
@@ -997,47 +1047,52 @@ export class PluginRuntime {
     );
   }
 
-  private handleChildMessage(loaded: LoadedPlugin, message: PluginProcessMessage): void {
+  private handleTextMessage(loaded: LoadedPlugin, message: PluginProcessMessage): boolean {
     if (message.type === "text.cancel") {
       loaded.textRequests.get(message.requestId)?.controller.abort();
-      return;
+      return true;
     }
-    if (message.type === "text.generate" || message.type === "text.prepare") {
-      const child = loaded.child;
-      if (!child) return;
-      const controller = new AbortController();
-      const done = (async () => {
-        try {
-          if (this.plugins.get(loaded.id) !== loaded) throw new Error("Plugin is stopping");
-          if (!this.sessionHost?.generatePluginText)
-            throw new Error("Host text generation is unavailable");
-          const text = await this.sessionHost.generatePluginText(
-            {
-              ...message.request,
-              prompt: message.type === "text.prepare" ? "" : message.request.prompt,
-            },
-            {
-              prepareOnly: message.type === "text.prepare",
-              signal: controller.signal,
-              sessionPool: loaded.textSessionPool,
-            },
-          );
-          await send(child, { type: "text.result", requestId: message.requestId, text });
-        } catch {
-          // Provider diagnostics can contain prompt text and credentials.
-          if (child.connected)
-            await send(child, {
-              type: "text.error",
-              requestId: message.requestId,
-              error: "模型调用失败或超时，请检查主机上的 Provider 登录、模型和网络",
-            }).catch(() => undefined);
-        } finally {
-          loaded.textRequests.delete(message.requestId);
-        }
-      })();
-      loaded.textRequests.set(message.requestId, { controller, done });
-      return;
+    if (message.type !== "text.generate" && message.type !== "text.prepare") {
+      return false;
     }
+    const child = loaded.child;
+    if (!child) return true;
+    const controller = new AbortController();
+    const done = (async () => {
+      try {
+        if (this.plugins.get(loaded.id) !== loaded) throw new Error("Plugin is stopping");
+        if (!this.sessionHost?.generatePluginText)
+          throw new Error("Host text generation is unavailable");
+        const text = await this.sessionHost.generatePluginText(
+          {
+            ...message.request,
+            prompt: message.type === "text.prepare" ? "" : message.request.prompt,
+          },
+          {
+            prepareOnly: message.type === "text.prepare",
+            signal: controller.signal,
+            sessionPool: loaded.textSessionPool,
+          },
+        );
+        await send(child, { type: "text.result", requestId: message.requestId, text });
+      } catch {
+        // Provider diagnostics can contain prompt text and credentials.
+        if (child.connected)
+          await send(child, {
+            type: "text.error",
+            requestId: message.requestId,
+            error: "模型调用失败或超时，请检查主机上的 Provider 登录、模型和网络",
+          }).catch(() => undefined);
+      } finally {
+        loaded.textRequests.delete(message.requestId);
+      }
+    })();
+    loaded.textRequests.set(message.requestId, { controller, done });
+    return true;
+  }
+
+  private handleChildMessage(loaded: LoadedPlugin, message: PluginProcessMessage): void {
+    if (this.handleTextMessage(loaded, message)) return;
     if (message.type === "hooks.changed") {
       const hadSessionOpen = loaded.hooks.includes("agent.open.before");
       loaded.hooks = message.hooks;
@@ -1055,6 +1110,16 @@ export class PluginRuntime {
     }
     if (message.type.startsWith("provider.")) {
       this.handleProviderMessage(loaded, message);
+      return;
+    }
+    if (message.type === "subscription.event") {
+      loaded.subscriptions.get(message.subscriptionId)?.event(message.event);
+      return;
+    }
+    if (message.type === "subscription.closed") {
+      const subscription = loaded.subscriptions.get(message.subscriptionId);
+      loaded.subscriptions.delete(message.subscriptionId);
+      subscription?.closed(message.error);
       return;
     }
     if (message.type !== "result" && message.type !== "error") return;
@@ -1418,12 +1483,16 @@ export class PluginRuntime {
     this.appendLog(loaded.id, "stdout", "[paseo] Plugin stopped");
   }
 
+  /** Rejects in-flight requests and closes open subscriptions with the reason. */
   private rejectPending(loaded: LoadedPlugin, message: string): void {
     for (const invocation of loaded.pending.values()) {
       clearTimeout(invocation.timeout);
       invocation.reject(new Error(message));
     }
     loaded.pending.clear();
+    const subscriptions = [...loaded.subscriptions.values()];
+    loaded.subscriptions.clear();
+    for (const subscription of subscriptions) subscription.closed(message);
   }
 
   private async cancelTextRequests(loaded: LoadedPlugin): Promise<void> {
@@ -1477,4 +1546,12 @@ function readConnectionId(value: unknown): string | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const connectionId = Reflect.get(value, "connectionId");
   return typeof connectionId === "string" ? connectionId : null;
+}
+
+// COMPAT(pluginTurnTimeline): added in v0.16.0-beta.3; plugins built before the field left the SDK type read `timeline`; remove after 2027-05-31
+function wireEvent<Name extends keyof PluginHookEvents>(
+  name: Name,
+  event: PluginHookEvents[Name],
+): PluginHookEvents[Name] {
+  return name === "agent.turn.after" ? { ...event, timeline: [] } : event;
 }

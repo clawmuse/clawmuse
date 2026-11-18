@@ -97,7 +97,6 @@ export function DesktopNotificationsSection() {
     () => (
       <Button
         variant="ghost"
-        size="sm"
         leftIcon={refreshIcon}
         onPress={handleRefreshPress}
         disabled={isPermissionBusy}

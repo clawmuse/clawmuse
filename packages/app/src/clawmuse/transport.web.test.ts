@@ -48,6 +48,21 @@ describe("browser account transport", () => {
     expect(new Headers(discover?.headers).get("authorization")).toBe("Bearer signed-token");
   });
 
+  it("skips network requests for session checks when signed out and handles HTML gateway errors", async () => {
+    await expect(accountRequest("/get-session")).resolves.toEqual({ status: 200, data: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(
+      new Response("<html>502 Bad Gateway</html>", {
+        status: 502,
+        headers: { "content-type": "text/html" },
+      }),
+    );
+    await expect(
+      accountRequest("/sign-in/email", { email: "a@example.test", password: "secret" }),
+    ).resolves.toEqual({ status: 502, data: null });
+  });
+
   it("forgets the session when the Hub rejects it or the user signs out", async () => {
     storage.set("clawmuse.account.session", "expired");
     respond(401, { error: "unauthorized" });

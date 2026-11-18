@@ -22,23 +22,64 @@ export interface StatusProbe {
   invalidate(launch: ProviderLaunch): void;
 }
 
-const modes: readonly ProviderMode[] = [
+export type AntigravityModeId = "default" | "accept-edits" | "plan" | "full-access";
+
+export const DEFAULT_MODE: AntigravityModeId = "default";
+
+export const modes: readonly ProviderMode[] = [
+  {
+    id: "default",
+    icon: "ShieldCheck",
+    colorTier: "safe",
+    label: "Default",
+    description: "Asks for permission before running shell commands or editing files.",
+  },
+  {
+    id: "accept-edits",
+    icon: "ShieldAlert",
+    colorTier: "moderate",
+    label: "Accept edits",
+    description: "Automatically approves file edits and asks before running shell commands.",
+  },
+  {
+    id: "plan",
+    icon: "ShieldCheck",
+    colorTier: "planning",
+    label: "Plan",
+    description: "Plans carefully before executing a task.",
+  },
   {
     id: "full-access",
     icon: "ShieldOff",
     colorTier: "dangerous",
     label: "Full access",
-    description:
-      "Antigravity cannot ask for permission when another app drives it. Paseo starts it with --dangerously-skip-permissions.",
+    description: "Automatically approves all tool calls and shell commands without asking.",
     isUnattended: true,
   },
 ];
 
-export function launchCacheKey(launch: ProviderLaunch): string {
+export function launchCacheKey(launch: ProviderLaunch, credential?: unknown): string {
   const env = Object.entries(launch.env).sort(([left], [right]) => left.localeCompare(right));
   return createHash("sha256")
-    .update(JSON.stringify([launch.command, launch.args, env]))
+    .update(
+      JSON.stringify(
+        credential === undefined
+          ? [launch.command, launch.args, env]
+          : [launch.command, launch.args, env, credential],
+      ),
+    )
     .digest("hex");
+}
+
+export function inferModelContextWindowMaxTokens(
+  modelId: string | null | undefined,
+): number | undefined {
+  if (!modelId) return undefined;
+  const normalized = modelId.trim().toLowerCase();
+  if (normalized.startsWith("gemini-")) return 1_048_576;
+  if (normalized.startsWith("claude-")) return 200_000;
+  if (normalized.startsWith("gpt-oss-")) return 131_072;
+  return undefined;
 }
 
 export async function getCatalog(launch: ProviderLaunch, cwd?: string): Promise<ProviderCatalog> {
@@ -50,12 +91,25 @@ export async function getCatalog(launch: ProviderLaunch, cwd?: string): Promise<
       throw new AntigravityError("Invalid `agy models` output", "INVALID_CATALOG");
     if (models.some((model) => model.id === id))
       throw new AntigravityError(`Duplicate Antigravity model: ${id}`, "INVALID_CATALOG");
-    models.push({ id, label });
+    const contextWindowMaxTokens = inferModelContextWindowMaxTokens(id);
+    const isFirst = models.length === 0;
+    models.push({
+      id,
+      label,
+      ...(isFirst ? { isDefault: true } : {}),
+      ...(contextWindowMaxTokens !== undefined ? { contextWindowMaxTokens } : {}),
+    });
   }
-  return { models, modes, thinkingOptions: [], defaultMode: "full-access" };
+  return {
+    models,
+    modes,
+    thinkingOptions: [],
+    ...(models[0] ? { defaultModel: models[0].id } : {}),
+    defaultMode: DEFAULT_MODE,
+  };
 }
 
-async function probeStatus(launch: ProviderLaunch): Promise<ProviderStatus> {
+export async function getStatus(launch: ProviderLaunch): Promise<ProviderStatus> {
   try {
     const version = (await probe({ launch, args: ["--version"] })).trim();
     const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
@@ -109,7 +163,7 @@ export function createStatusProbe(options: StatusProbeOptions = {}): StatusProbe
       }
       const existing = inFlight.get(key);
       if (existing) return existing;
-      const pending = probeStatus(launch)
+      const pending = getStatus(launch)
         .then((status) => {
           if (status.available) rememberAvailable(key, now());
           else positiveCache.delete(key);

@@ -4,11 +4,21 @@ import { brand } from "@/brand.generated";
 const key = "clawmuse.account.session";
 export const accountSupported = true;
 
+async function readResponseJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch (error) {
+    if (response.ok) throw error;
+    return null;
+  }
+}
+
 export async function accountRequest(
   path: string,
   body?: unknown,
 ): Promise<{ status: number; data: unknown }> {
   const token = await SecureStore.getItemAsync(key);
+  if (path === "/get-session" && !token) return { status: 200, data: null };
   if (path === "/sign-out") await SecureStore.deleteItemAsync(key);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), path === "/delete-user" ? 90000 : 20000);
@@ -34,7 +44,7 @@ export async function accountRequest(
       ((path === "/sign-out" || path === "/delete-user") && response.ok)
     )
       await SecureStore.deleteItemAsync(key);
-    return { status: response.status, data: await response.json() };
+    return { status: response.status, data: await readResponseJson(response) };
   } finally {
     clearTimeout(timeout);
   }

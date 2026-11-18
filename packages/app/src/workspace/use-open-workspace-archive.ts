@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import { toWorktreeArchiveRisk } from "@/git/worktree-archive-warning";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-archive-redirect";
 import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
@@ -14,10 +13,9 @@ export function useOpenWorkspaceArchive(input: { serverId: string; workspaceId: 
     id: candidate.id,
     name: candidate.name,
     workspaceKind: candidate.workspaceKind,
+    workspaceDirectory: candidate.workspaceDirectory,
     archivingAt: candidate.archivingAt,
     diffStat: candidate.diffStat,
-    isDirty: candidate.gitRuntime?.isDirty ?? null,
-    aheadOfOrigin: candidate.gitRuntime?.aheadOfOrigin ?? null,
   }));
   const [isHiding, setIsHiding] = useState(false);
   const isArchiving = workspace?.archivingAt != null || isHiding;
@@ -37,12 +35,9 @@ export function useOpenWorkspaceArchive(input: { serverId: string; workspaceId: 
     serverId,
     workspaceId: workspace?.id ?? workspaceId ?? "",
     workspaceKind: workspace?.workspaceKind ?? "directory",
+    workspaceDirectory: workspace?.workspaceDirectory ?? "",
     name: workspace?.name ?? "",
-    ...toWorktreeArchiveRisk({
-      archiveHasUncommittedChanges: workspace?.isDirty,
-      archiveUnpushedCommitCount: workspace?.aheadOfOrigin,
-      diffStat: workspace?.diffStat ?? null,
-    }),
+    diffStat: workspace?.diffStat ?? null,
     onArchiveStarted: redirectAfterArchive,
     onSetHiding: setIsHiding,
   });

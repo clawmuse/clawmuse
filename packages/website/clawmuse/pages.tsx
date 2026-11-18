@@ -12,13 +12,16 @@ import {
   type SyntheticEvent,
 } from "react";
 import {
+  betaRelease,
   release,
   fileVersion,
   formatSize,
-  installerMirrorUrl,
+  hasActiveBetaRelease,
+  installerDownloadUrl,
   githubReleaseUrl,
   platformVersion,
   type DownloadFile,
+  type ReleaseManifest,
 } from "./downloads";
 import {
   ArrowRight,
@@ -149,8 +152,32 @@ function Downloads({ language }: Localized) {
   const { t } = useSiteTranslation(language);
   const [checksumsOpen, setChecksumsOpen] = useState(false);
   const openChecksums = useCallback(() => setChecksumsOpen(true), []);
-  const macVersion = platformVersion("macos");
-  const hasSplitDesktopVersion = macVersion !== release.version;
+  const betaAvailable = hasActiveBetaRelease();
+  const [channel, setChannel] = useState<"stable" | "beta">(() => {
+    if (!betaAvailable || typeof window === "undefined") return "stable";
+    return new URLSearchParams(window.location.search).get("channel") === "beta"
+      ? "beta"
+      : "stable";
+  });
+  const selectChannel = useCallback(
+    (next: "stable" | "beta") => {
+      const resolved = next === "beta" && betaAvailable ? "beta" : "stable";
+      setChannel(resolved);
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      if (resolved === "beta") url.searchParams.set("channel", "beta");
+      else url.searchParams.delete("channel");
+      window.history.replaceState(null, "", url.toString());
+    },
+    [betaAvailable],
+  );
+  const selectStable = useCallback(() => selectChannel("stable"), [selectChannel]);
+  const selectBeta = useCallback(() => selectChannel("beta"), [selectChannel]);
+  const onBeta = betaAvailable && channel === "beta";
+  const activeRelease: ReleaseManifest = onBeta ? betaRelease : release;
+  const mirrored = !onBeta || betaRelease.mirrored !== false;
+  const macVersion = platformVersion("macos", activeRelease);
+  const hasSplitDesktopVersion = macVersion !== activeRelease.version;
   useEffect(() => {
     if (window.location.hash === "#checksums") setChecksumsOpen(true);
   }, []);
@@ -183,25 +210,57 @@ function Downloads({ language }: Localized) {
   return (
     <>
       <PageIntro title={t("downloads.chooseYourMachineMakeYourFirstConnection")} />
-      {release.files.length > 0 && (
+      {(activeRelease.files.length > 0 || betaAvailable) && (
         <div className="container release-summary">
+          {betaAvailable && (
+            <div
+              className="download-channel-switch"
+              role="group"
+              aria-label={t("downloads.platformInstallers")}
+            >
+              <button
+                type="button"
+                className={`button download-channel-tab${!onBeta ? " is-active" : ""}`}
+                aria-pressed={!onBeta}
+                onClick={selectStable}
+              >
+                {t("downloads.channelStable")}
+              </button>
+              <button
+                type="button"
+                className={`button download-channel-tab${onBeta ? " is-active" : ""}`}
+                aria-pressed={onBeta}
+                onClick={selectBeta}
+              >
+                {t("downloads.channelBeta")}
+              </button>
+            </div>
+          )}
           {hasSplitDesktopVersion ? (
             <>
               <span className="pill">macOS v{macVersion}</span>
-              <span className="pill">Windows · Linux · Android v{release.version}</span>
+              <span className="pill">Windows · Linux · Android v{activeRelease.version}</span>
             </>
           ) : (
-            <span className="pill">ClawMuse v{release.version}</span>
+            <span className="pill">ClawMuse v{activeRelease.version}</span>
           )}
-          <a className="text-link checksums-jump" href="#checksums" onClick={openChecksums}>
-            <ShieldCheck size={15} />
-            {t("downloads.checksumsTitle")}
-          </a>
+          {onBeta && <span className="pill">{t("downloads.betaBadge")}</span>}
+          {activeRelease.files.length > 0 && (
+            <a className="text-link checksums-jump" href="#checksums" onClick={openChecksums}>
+              <ShieldCheck size={15} />
+              {t("downloads.checksumsTitle")}
+            </a>
+          )}
+        </div>
+      )}
+      {onBeta && (
+        <div className="container">
+          <Note>{t("downloads.betaNotice")}</Note>
         </div>
       )}
       <section className="container download-grid" aria-label={t("downloads.platformInstallers")}>
         {platforms.map(({ id, name, icon: Icon, description }) => {
-          const files = release.files.filter((file) => file.platform === id);
+          const files = activeRelease.files.filter((file) => file.platform === id);
           const { primaryFiles, secondaryFiles, triggerFile } = partitionPlatformFiles(id, files);
           return (
             <article className="download-card" key={id}>
@@ -210,19 +269,22 @@ function Downloads({ language }: Localized) {
               </div>
               <div className="download-card-title">
                 <h2>{name}</h2>
-                <span className="pill download-version-pill">v{platformVersion(id)}</span>
+                <span className="pill download-version-pill">
+                  v{platformVersion(id, activeRelease)}
+                </span>
               </div>
               {description && <p>{description}</p>}
               {files.length > 0 ? (
                 <div className="installer-list">
                   {primaryFiles.map((file) => (
-                    <Installer file={file} key={file.filename} />
+                    <Installer file={file} mirrored={mirrored} key={file.filename} />
                   ))}
                   {triggerFile && (
                     <SecondaryDownloads
                       id={id}
                       files={secondaryFiles}
                       triggerFile={triggerFile}
+                      mirrored={mirrored}
                       moreLabel={t("downloads.moreFormats")}
                     />
                   )}
@@ -252,8 +314,13 @@ function Downloads({ language }: Localized) {
         </article>
         <WebDownloadCard language={language} />
       </section>
-      {release.files.length > 0 && (
-        <ChecksumsSection language={language} open={checksumsOpen} onToggle={setChecksumsOpen} />
+      {activeRelease.files.length > 0 && (
+        <ChecksumsSection
+          language={language}
+          manifest={activeRelease}
+          open={checksumsOpen}
+          onToggle={setChecksumsOpen}
+        />
       )}
       <section className="container download-footer">
         <PageLink page="/docs" language={language}>
@@ -261,7 +328,7 @@ function Downloads({ language }: Localized) {
         </PageLink>
         <a
           className="text-link"
-          href={githubReleaseUrl()}
+          href={githubReleaseUrl(activeRelease.version)}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -274,9 +341,10 @@ function Downloads({ language }: Localized) {
 
 function ChecksumsSection({
   language,
+  manifest,
   open,
   onToggle,
-}: Localized & { open: boolean; onToggle: (next: boolean) => void }) {
+}: Localized & { manifest: ReleaseManifest; open: boolean; onToggle: (next: boolean) => void }) {
   const { t } = useSiteTranslation(language);
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
   const handleToggle = useCallback(
@@ -311,13 +379,13 @@ function ChecksumsSection({
           <ChevronDown size={17} aria-hidden="true" />
         </summary>
         <div className="checksums-list" dir="ltr">
-          {release.files.map((file) => {
+          {manifest.files.map((file) => {
             const isCopied = copiedFile === file.filename;
             return (
               <div className="checksum-row" key={file.filename}>
                 <div className="checksum-file">
                   <code>{file.filename}</code>
-                  <span className="pill">v{fileVersion(file)}</span>
+                  <span className="pill">v{fileVersion(file, manifest.version)}</span>
                 </div>
                 <div className="checksum-hash">
                   <code>{file.sha256}</code>
@@ -386,11 +454,13 @@ function SecondaryDownloads({
   id,
   files,
   triggerFile,
+  mirrored,
   moreLabel,
 }: {
   id: string;
   files: DownloadFile[];
   triggerFile: DownloadFile;
+  mirrored: boolean;
   moreLabel: string;
 }) {
   if (id === "linux") {
@@ -407,7 +477,7 @@ function SecondaryDownloads({
           {files.map((file) => (
             <a
               className="arm-download-item"
-              href={installerMirrorUrl(file)}
+              href={installerDownloadUrl(file, mirrored)}
               download
               key={file.filename}
             >
@@ -423,7 +493,11 @@ function SecondaryDownloads({
   }
   return (
     <div className="arm-download">
-      <a className="button arm-download-trigger" href={installerMirrorUrl(triggerFile)} download>
+      <a
+        className="button arm-download-trigger"
+        href={installerDownloadUrl(triggerFile, mirrored)}
+        download
+      >
         <Download size={16} />
         {triggerFile.format} · {triggerFile.arch} <span>{formatSize(triggerFile.size)}</span>
       </a>
@@ -431,10 +505,10 @@ function SecondaryDownloads({
   );
 }
 
-function Installer({ file }: { file: DownloadFile }) {
+function Installer({ file, mirrored }: { file: DownloadFile; mirrored: boolean }) {
   return (
     <div className="installer">
-      <a className="button primary" href={installerMirrorUrl(file)} download>
+      <a className="button primary" href={installerDownloadUrl(file, mirrored)} download>
         <Download size={17} />
         {file.format} · {file.arch} <span>{formatSize(file.size)}</span>
       </a>

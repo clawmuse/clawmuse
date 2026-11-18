@@ -58,6 +58,19 @@ export async function saveLinkedHostBeforeLoad(page: Page, host: LinkedHost): Pr
   });
 }
 
+/** Reopens a link from a fresh document while retaining hosts saved through the UI. */
+export async function reopenPairingLinkWithSavedHosts(page: Page, link: string): Promise<void> {
+  for (const target of ["/", link]) {
+    // The fixture otherwise replaces the registry on every document load.
+    await page.evaluate(() => {
+      const nonce = localStorage.getItem("@paseo:e2e-seed-nonce");
+      if (!nonce) throw new Error("Expected the e2e seed nonce before reopening a pairing link.");
+      localStorage.setItem("@paseo:e2e-disable-default-seed-once", nonce);
+    });
+    await page.goto(target);
+  }
+}
+
 export function hostConfirmation(page: Page): Locator {
   return page.getByTestId("host-confirmation");
 }

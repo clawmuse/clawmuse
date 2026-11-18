@@ -45,7 +45,11 @@ const SCAN_WINDOW_MS = 12 * 3_600_000;
 const SCAN_TIMELINE_ITEMS = 20;
 
 export type ResumerApi = Pick<PaseoApi, "agents" | "config" | "providers">;
-type TurnEnded = PluginLifecycleEvents["agent.turn_ended"];
+// COMPAT(plugin-turn-timeline): added in v0.13, remove after 2027-04-22.
+// Older hosts and unit fixtures include `timeline` on the hook payload; v0.16+ omits it.
+export type TurnEnded = PluginLifecycleEvents["agent.turn_ended"] & {
+  readonly timeline?: readonly AgentTimelineItem[];
+};
 
 function log(message: string): void {
   console.log(`[usage-auto-resume] ${message}`);
@@ -218,8 +222,10 @@ export function createResumer(options: {
     }
     const observedAt = now();
     // COMPAT(plugin-turn-timeline): added in v0.13, remove after 2027-04-22.
-    // New hosts leave hook timelines empty; older hosts still include the completed turn.
-    const timeline = event.timeline.length ? event.timeline : await timelineTail(api, agent.id);
+    // Older hosts and unit fixtures still include the completed turn; v0.16+ omits it.
+    const timeline = event.timeline?.length
+      ? [...event.timeline]
+      : await timelineTail(api, agent.id);
     if (await queues?.handled(agent.id, event.turnId, timeline)) return;
     const stop = detectLimitStop(event.outcome, timeline, observedAt);
     if (!stop) {

@@ -133,6 +133,7 @@ test("fixed footer line keeps its actions and expands compact summary rows", asy
   await leaveSettings(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await openCompactSidebar(page);
+  await expectCompactSidebarOpen(page);
   await expectFooterSeparator(page, false);
   await page.getByTestId("sidebar-footer-rows-toggle").click();
   await expectFooterSeparator(page, true);
@@ -146,6 +147,7 @@ test.describe("Sidebar items in Appearance settings", () => {
 
     await test.step("the sidebar starts in the default order", async () => {
       await expectSidebarOrder(page, ["new-workspace", "history", "search", "schedules"]);
+      await expect(page.locator('[data-testid="sidebar-nav-separator"]:visible')).toHaveCount(1);
     });
 
     await test.step("the Sidebar section lists every item in the same order", async () => {
@@ -232,6 +234,9 @@ test.describe("Sidebar items in Appearance settings", () => {
     await expectSidebarItemHidden(page, "history");
     await expectSidebarItemHidden(page, "search");
     await expectSidebarItemHidden(page, "schedules");
+    // Nothing is left above the Workspaces section: no drag strip, no empty divider.
+    await expect(page.locator('[data-testid="sidebar-nav-drag-strip"]:visible')).toHaveCount(0);
+    await expect(page.locator('[data-testid="sidebar-nav-separator"]:visible')).toHaveCount(0);
   });
 });
 

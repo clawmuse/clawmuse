@@ -77,12 +77,12 @@ export const englishAgentCopy = {
       "Antigravity CLI is the command-line tool for Google Antigravity, Google’s agent development platform. The command is agy. ClawMuse ships with its plugin, so it works once the CLI is installed.",
     setup: "Run agy and sign in with your Google account.",
     connectNote:
-      "This integration only has full access mode, so tools run without stopping to ask. Start with a small task.",
+      "Connects over agy acp --stdio with Default, Accept edits, Plan, and Full access modes.",
     useCase:
-      "Hand a task to agy, leave your desk, and follow progress on your phone. Add instructions whenever you like.",
-    question: "What are the permission and history limits?",
+      "Hand a task to agy, leave your desk, and approve permissions or answer questions from your phone.",
+    question: "How do permissions and history work?",
     answer:
-      "ClawMuse starts agy with permission prompts skipped. The agent keeps conversation state after a background service restart, but history isn’t replayed into ClawMuse. ClawMuse’s built-in MCP tools aren’t available.",
+      "Default mode asks before file edits and shell commands; switch to Accept edits, Plan, or Full access anytime. Conversation history, slash commands, and subagent tracks restore across restarts.",
   },
   "muse-code": {
     intro: "Meta’s coding agent, powered by the Muse models.",

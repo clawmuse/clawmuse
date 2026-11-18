@@ -179,6 +179,8 @@ it("shows duplicate registration feedback with a path back to sign in", async ()
 it.each([
   [new TypeError("Failed to fetch"), "无法连接账号服务，请检查网络后重试。"],
   [new DOMException("Aborted", "AbortError"), "请求超时，请重试。"],
+  [new Error("TimeoutError: The operation was aborted due to timeout"), "请求超时，请重试。"],
+  [new Error("TypeError: fetch failed"), "无法连接账号服务，请检查网络后重试。"],
 ])("shows network failure and allows password recovery to retry: %s", async (failure, message) => {
   respond = async () => {
     throw failure;
@@ -290,4 +292,30 @@ it("shows pending cloud configuration after login without offering a paid start"
   expect(element("clawmuse-cloud-space").textContent).toContain("等待平台配置模型");
   expect(container.querySelector('[data-testid="clawmuse-cloud-start"]')).toBeNull();
   expect(calls.some((call) => call.path === "/clawmuse/cloud/start")).toBe(false);
+});
+
+it("does not show a red error or lock inputs when background startup refresh times out", async () => {
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  respond = async () => {
+    markStarted();
+    await gate;
+    throw new Error("TimeoutError: The operation was aborted due to timeout");
+  };
+  const pending = account.current!.refreshInBackground();
+  await started;
+  expect(element<HTMLInputElement>("clawmuse-email").readOnly).toBe(false);
+  expect(element<HTMLInputElement>("clawmuse-password").readOnly).toBe(false);
+  await act(async () => {
+    finish();
+    await pending;
+  });
+  expect(container.querySelector('[data-testid="clawmuse-auth-error"]')).toBeNull();
+  expect(container.textContent).not.toContain("TimeoutError");
 });

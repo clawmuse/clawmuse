@@ -1,25 +1,29 @@
+import {
+  bySizing,
+  iconSizeFor,
+  TOOLBAR_CONTROL_HEIGHT,
+  TOUCH_TARGET,
+  type IconSize,
+} from "@/components/ui/control-geometry";
 import { isCompactBreakpoint } from "@/constants/layout";
 import {
-  ICON_SIZE,
-  SPACING,
   MOBILE_CONTENT_FONT_SIZE,
   MOBILE_TYPOGRAPHY,
   MOBILE_UI_FONT_SIZE,
+  SPACING,
   type Theme,
 } from "@/styles/theme";
 
 /**
- * Density sizes for surfaces that opt into touch sizing: rows and icons grow on compact
- * layouts and keep their desktop sizes from the `md` breakpoint up. Plain theme tokens stay
- * desktop-sized everywhere, so a surface migrates by swapping its sizes for these.
+ * Density sizes for surfaces that opt into touch sizing: rows and icons take their touch sizes
+ * where controls do (see `resolveControlSizing`) and their pointer sizes elsewhere. Plain theme
+ * tokens stay pointer-sized everywhere, so a surface migrates by swapping its sizes for these.
  *
  * Style values are Unistyles breakpoint values, resolved inside `StyleSheet.create`. Icon sizes
  * are props, so icons take them through `DensityIcon` or a `densityIconProps` mapping.
  */
 
-export type DensityIconSize = keyof typeof ICON_SIZE;
-
-const COMPACT_ICON_SIZE: Record<DensityIconSize, number> = { xs: 14, sm: 18, md: 20, lg: 24 };
+export type DensityIconSize = IconSize;
 
 // Compact layouts end where `md` begins; see `isCompactBreakpoint`.
 function byLayout<T>(compact: T, desktop: T) {
@@ -28,14 +32,14 @@ function byLayout<T>(compact: T, desktop: T) {
 
 export const density = {
   /** A list row such as a sidebar entry. */
-  rowHeight: byLayout(44, 36),
-  /** A row in a tight group, such as the sidebar's navigation rows. */
-  tightRowHeight: byLayout(36, 28),
+  rowHeight: bySizing({ touch: TOUCH_TARGET, pointer: 36 }),
+  /** A row in a tight group, such as the sidebar's navigation rows. Touch-sized it is a full row. */
+  tightRowHeight: bySizing({ touch: TOUCH_TARGET, pointer: 28 }),
   /** A square icon-only button that sits in a row or toolbar. */
-  iconButton: byLayout(44, 28),
+  iconButton: TOOLBAR_CONTROL_HEIGHT,
   /** The sidebar's top icon navigation line: compact and balanced on desktop. */
-  navIconButton: byLayout(44, 30),
-  navIconGlyph: byLayout(COMPACT_ICON_SIZE.md, 17),
+  navIconButton: bySizing({ touch: TOUCH_TARGET, pointer: 30 }),
+  navIconGlyph: bySizing({ touch: iconSizeFor("md").touch, pointer: 17 }),
   /**
    * Sidebar list rows on the phone trade padding for rows on screen. Rows sit flush, so the whole
    * row is still the tap target.
@@ -46,7 +50,10 @@ export const density = {
   listRowLineGap: byLayout(SPACING[0.5], SPACING[1]),
   /** Under an expanded group, before the next group's header. */
   listGroupGap: byLayout(SPACING[1.5], SPACING[2]),
-  /** The space between two blocks of rich text, such as Markdown paragraphs, code and images. */
+  /**
+   * The space between two blocks of rich text, such as Markdown paragraphs, code and images.
+   * Reading rhythm, not a touch target, so it follows the layout alone.
+   */
   blockGap: byLayout(20, 20),
 };
 
@@ -78,7 +85,7 @@ export function densityText(theme: Theme, role: keyof typeof MOBILE_TYPOGRAPHY) 
 
 /** The width or height of a slot that holds an icon of `size`. */
 export function densityIconBox(size: DensityIconSize) {
-  return byLayout(COMPACT_ICON_SIZE[size], ICON_SIZE[size]);
+  return bySizing(iconSizeFor(size));
 }
 
 export function densityIconSize(rt: { breakpoint?: string }, size: DensityIconSize): number {

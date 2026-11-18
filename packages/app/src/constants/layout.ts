@@ -1,15 +1,20 @@
 import { useUnistyles } from "react-native-unistyles";
+import { bySizing, TOUCH_TARGET } from "@/components/ui/control-sizing";
 import { isWeb } from "@/constants/platform";
 
 export const FOOTER_HEIGHT = 75;
 
-// Shared header inner height (excluding safe area insets and border)
+// A bar of icon buttons: touch-sized it is one touch target tall, like an iOS navigation bar.
+const BAR_HEIGHT = { touch: TOUCH_TARGET, pointer: 36 };
+
+// Shared header inner height from `md` up (excluding safe area insets and border).
 // Used by both agent header (ScreenHeader) and explorer sidebar header
 // This ensures both headers have the same visual height
-export const HEADER_INNER_HEIGHT = 36;
+export const HEADER_INNER_HEIGHT = bySizing(BAR_HEIGHT).md;
 // Match the compact header buttons' 48pt touch targets without adding vertical slack.
 export const HEADER_INNER_HEIGHT_MOBILE = 48;
-export const WORKSPACE_SECONDARY_HEADER_HEIGHT = 36;
+/** The tab rail and pane toolbars under the header. A breakpoint value for stylesheets. */
+export const WORKSPACE_SECONDARY_HEADER_HEIGHT = bySizing(BAR_HEIGHT);
 // Safe-area insets own the status-bar clearance; compact headers add no outer vertical gap.
 export const HEADER_TOP_PADDING_MOBILE = 0;
 

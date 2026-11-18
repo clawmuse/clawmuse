@@ -65,18 +65,21 @@ export async function getClaudeModelsWithSettings(
   gateway?: { env: NodeJS.ProcessEnv; signal?: AbortSignal },
 ): Promise<AgentModelDefinition[]> {
   const hardcodedModels = getClaudeManifestModels(claudeCodeVersion, discoveredModelIds);
-  const { models: settingsModels, env: settingsEnv } = await readClaudeSettingsModels(
-    logger,
-    configDir,
-  );
+  const {
+    models: settingsModels,
+    env: settingsEnv,
+    pickerModelIds,
+  } = await readClaudeSettingsModels(logger, configDir);
   if (settingsModels.length === 0) {
     return hardcodedModels;
   }
 
+  const gatewayEnv = gateway ? { ...settingsEnv, ...gateway.env } : settingsEnv;
+  const hasGatewayUrl = Boolean(gateway && gatewayEnv.ANTHROPIC_BASE_URL?.trim());
   if (gateway) {
     await applyGatewayModelCapabilities(logger, settingsModels, {
       ...gateway,
-      env: { ...settingsEnv, ...gateway.env },
+      env: gatewayEnv,
     });
   }
 
@@ -94,7 +97,14 @@ export async function getClaudeModelsWithSettings(
     const manifestModel = getClaudeModels(claudeCodeVersion).find(
       (candidate) => candidate.id === model.id,
     );
-    models.push({ ...manifestModel, ...model });
+    const mergedModel = { ...manifestModel, ...model };
+    // Gateway pickers and ANTHROPIC_BASE_URL gateways own effort capabilities for
+    // custom models; do not invent standard Claude levels when discovery omits them.
+    models.push(
+      pickerModelIds.has(model.id) || hasGatewayUrl
+        ? mergedModel
+        : resolveConfiguredClaudeModel(mergedModel),
+    );
   }
 
   return models;
@@ -171,7 +181,11 @@ function gatewayThinkingOptions(entry: Record<string, unknown>): AgentSelectOpti
 async function readClaudeSettingsModels(
   logger: Logger,
   configDir: string,
-): Promise<{ models: AgentModelDefinition[]; env: NodeJS.ProcessEnv }> {
+): Promise<{
+  models: AgentModelDefinition[];
+  env: NodeJS.ProcessEnv;
+  pickerModelIds: ReadonlySet<string>;
+}> {
   const settingsPath = path.join(configDir, "settings.json");
 
   let parsed: unknown;
@@ -180,39 +194,44 @@ async function readClaudeSettingsModels(
     parsed = JSON.parse(rawSettings);
   } catch (error) {
     logger.debug({ err: error, settingsPath }, "Failed to read Claude settings models");
-    return { models: [], env: {} };
+    return { models: [], env: {}, pickerModelIds: new Set() };
   }
 
   if (!isRecord(parsed)) {
     logger.debug({ settingsPath }, "Claude settings.json is not an object");
-    return { models: [], env: {} };
+    return { models: [], env: {}, pickerModelIds: new Set() };
   }
 
   const models: AgentModelDefinition[] = [];
+  const pickerModelIds = new Set<string>();
   // Gateways publish their selected models here; the main model and tier
   // aliases alone do not describe what Claude Code's picker can select.
   const picker = parsed.modelPicker;
   if (isRecord(picker) && Array.isArray(picker.options)) {
     for (const option of picker.options) {
       if (!isRecord(option)) continue;
-      addSettingsModel({
-        models,
-        value: option.model,
-        settingsKey: "modelPicker.options",
-        label: option.label,
-        description: option.description,
-      });
+      if (
+        addSettingsModel({
+          models,
+          value: option.model,
+          settingsKey: "modelPicker.options",
+          label: option.label,
+          description: option.description,
+        })
+      ) {
+        pickerModelIds.add(String(option.model).trim());
+      }
     }
   }
   addSettingsModel({ models, value: parsed.model, settingsKey: "model" });
 
   const env = parsed.env;
   if (env === undefined) {
-    return { models, env: {} };
+    return { models, env: {}, pickerModelIds };
   }
   if (!isRecord(env)) {
     logger.debug({ settingsPath }, "Claude settings.json env is not an object");
-    return { models, env: {} };
+    return { models, env: {}, pickerModelIds };
   }
 
   for (const envKey of CLAUDE_SETTINGS_MODEL_ENV_KEYS) {
@@ -226,6 +245,7 @@ async function readClaudeSettingsModels(
         (entry): entry is [string, string] => typeof entry[1] === "string",
       ),
     ),
+    pickerModelIds,
   };
 }
 
@@ -241,14 +261,14 @@ function addSettingsModel({
   settingsKey: string;
   label?: unknown;
   description?: unknown;
-}): void {
+}): boolean {
   if (typeof value !== "string") {
-    return;
+    return false;
   }
 
   const id = value.trim();
   if (id.length === 0 || models.some((model) => model.id === id)) {
-    return;
+    return false;
   }
 
   models.push({
@@ -260,6 +280,7 @@ function addSettingsModel({
         ? description.trim()
         : `From Claude settings.json ${settingsKey}`,
   });
+  return true;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

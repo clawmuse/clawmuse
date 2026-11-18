@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttachmentMetadata } from "@/attachments/types";
+import type { AttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
 import { AttachmentLightbox, type ImageLightboxSource } from "./attachment-lightbox";
 
 const { theme, imageMetadata, useAttachmentPreviewUrlMock } = vi.hoisted(() => {
@@ -11,6 +12,7 @@ const { theme, imageMetadata, useAttachmentPreviewUrlMock } = vi.hoisted(() => {
     spacing: { 1: 4, 2: 8, 3: 12, 4: 16 },
     iconSize: { sm: 14, md: 18, lg: 22 },
     borderWidth: { 1: 1 },
+    opacity: { 50: 0.5 },
     borderRadius: { full: 999, md: 6, lg: 8 },
     fontSize: { xs: 11, sm: 13, base: 15 },
     fontWeight: { normal: "400" },
@@ -38,7 +40,7 @@ const { theme, imageMetadata, useAttachmentPreviewUrlMock } = vi.hoisted(() => {
     theme: hoistedTheme,
     imageMetadata: hoistedImageMetadata,
     useAttachmentPreviewUrlMock: vi.fn<
-      (metadata: AttachmentMetadata | null) => { status: string; url?: string }
+      (metadata: AttachmentMetadata | null) => AttachmentPreviewUrl
     >(() => ({ status: "ready", url: "blob:preview" })),
   };
 });
@@ -72,8 +74,11 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("react-native-safe-area-context", () => ({
-  SafeAreaProvider: ({ children }: { children?: React.ReactNode }) => children,
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
+vi.mock("@/window-layout", () => ({
+  WindowSafeArea: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
 vi.mock("react-native-gesture-handler", () => ({
@@ -228,20 +233,19 @@ describe("AttachmentLightbox", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows error text when the preview resolution fails", () => {
-    useAttachmentPreviewUrlMock.mockReturnValue({ status: "error" });
+  it("shows error text when the preview URL fails to resolve", () => {
+    useAttachmentPreviewUrlMock.mockReturnValue({ status: "failed" });
     render(<AttachmentLightbox source={attachmentSource} onClose={vi.fn()} />);
 
     expect(queryByTestId("attachment-lightbox-image")).toBeNull();
     expect(document.body.textContent ?? "").toContain("Couldn't load image");
   });
 
-  it("closes itself when the attachment is missing rather than showing an error", () => {
-    useAttachmentPreviewUrlMock.mockReturnValue({ status: "missing" });
-    const onClose = vi.fn();
-    render(<AttachmentLightbox source={attachmentSource} onClose={onClose} />);
+  it("shows neither the image nor an error while the preview URL resolves", () => {
+    useAttachmentPreviewUrlMock.mockReturnValue({ status: "loading" });
+    render(<AttachmentLightbox source={attachmentSource} onClose={vi.fn()} />);
 
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(queryByTestId("attachment-lightbox-image")).toBeNull();
     expect(document.body.textContent ?? "").not.toContain("Couldn't load image");
   });
 

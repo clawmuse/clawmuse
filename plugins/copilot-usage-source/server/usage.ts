@@ -6,10 +6,12 @@ import { z } from "zod";
 import {
   unavailable,
   toneFromUsedPct,
+  windowFromUsedPct,
   type UsageAccount,
   type UsageReport,
   type UsageDetail,
   type UsageBalance,
+  type UsageWindow,
 } from "@getpaseo/plugin/server/usage";
 
 const ApiOptionalStringSchema = z.preprocess(
@@ -23,9 +25,17 @@ const QuotaSchema = z.object({
   unlimited: z.boolean().nullish(),
   has_quota: z.boolean().nullish(),
 });
+const PremiumQuotaSchema = z.object({
+  entitlement: z.number().nonnegative().nullish(),
+  remaining: z.number().nonnegative().nullish(),
+  percent_remaining: z.number().min(0).max(100).nullish(),
+  unlimited: z.boolean().optional(),
+  has_quota: z.boolean().nullish(),
+});
 const CopilotUsageResponseSchema = z.object({
   copilot_plan: ApiOptionalStringSchema,
   quota_reset_date: ApiOptionalStringSchema,
+  quota_reset_date_utc: ApiOptionalStringSchema,
   quota_snapshots: z.record(z.string(), z.unknown()).nullish(),
 });
 
@@ -151,12 +161,34 @@ export async function fetchUsage(
     },
   ];
   const balances = quotaBalances(resp.quota_snapshots, resetsAt, details);
+  const windows: UsageWindow[] = [];
+  const premiumParsed = PremiumQuotaSchema.safeParse(resp.quota_snapshots?.premium_interactions);
+  const premium = premiumParsed.success ? premiumParsed.data : undefined;
+  if (premium && !premium.unlimited && premium.has_quota !== false) {
+    if (premium.percent_remaining != null) {
+      windows.push(
+        windowFromUsedPct({
+          id: "premium_interactions",
+          label: "Premium requests",
+          utilizationPct: 100 - premium.percent_remaining,
+          resetsAt: resp.quota_reset_date_utc || resp.quota_reset_date,
+        }),
+      );
+    }
+    if (premium.remaining != null && premium.entitlement != null) {
+      details.push({
+        id: "premium_remaining",
+        label: "Premium requests remaining",
+        value: `${premium.remaining} / ${premium.entitlement}`,
+      });
+    }
+  }
   if (resp.quota_reset_date)
     details.push({ id: "reset", label: "Quota reset", value: resp.quota_reset_date });
   return {
     status: "available",
     planLabel: resp.copilot_plan || undefined,
-    windows: [],
+    windows,
     balances,
     details,
   };

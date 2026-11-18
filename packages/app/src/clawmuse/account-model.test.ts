@@ -202,6 +202,51 @@ describe("ClawMuse account discovery", () => {
     expect(sample.model.getState().error).toBeNull();
   });
 
+  it("keeps background sync silent on timeout and translates IPC timeout and network errors on user actions", async () => {
+    let entered = false;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const sample = fixture(async () => {
+      if (!entered) {
+        entered = true;
+        markStarted();
+        await gate;
+      }
+      throw new Error("TimeoutError: The operation was aborted due to timeout");
+    });
+    const bg = sample.model.refreshInBackground();
+    await started;
+    expect(sample.model.getState()).toMatchObject({ busy: false, error: null });
+    finish();
+    await bg;
+    expect(sample.model.getState()).toMatchObject({
+      initialized: true,
+      busy: false,
+      error: null,
+    });
+
+    await sample.model.signIn("alice@example.test", "password");
+    expect(sample.model.getState()).toMatchObject({
+      busy: false,
+      error: "The request timed out. Please try again.",
+    });
+
+    sample.deps.request = async () => {
+      throw new Error("TypeError: fetch failed");
+    };
+    await sample.model.signIn("alice@example.test", "password");
+    expect(sample.model.getState()).toMatchObject({
+      busy: false,
+      error: "Could not connect. Check your internet connection and try again.",
+    });
+  });
+
   it("reports incorrect login credentials and keeps the form error after background refresh", async () => {
     const sample = fixture(async (path) =>
       path === "/sign-in/email"

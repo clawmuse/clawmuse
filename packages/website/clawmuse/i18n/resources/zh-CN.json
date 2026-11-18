@@ -284,7 +284,7 @@
   "support.copyThisTemplateAndSendItThroughTheContact": "按下方模板描述问题，发邮件至 hello@clawmuse.com。不含私人信息的问题也可以公开提交。",
   "support.issueTemplate": "问题描述模板",
   "policy.browsingThisWebsite": "官网浏览",
-  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "本官网的明暗主题偏好保存在你浏览器的本地存储中。官网没有主动集成第三方分析脚本或广告追踪；访问网站时，托管服务器仍可能处理请求所需的 IP、时间与浏览器信息。",
+  "policy.thisWebsiteStoresYourLightOrDarkThemePreference": "本官网将你的明暗主题偏好保存在浏览器本地存储中，并使用已关闭 Google Signals 与广告个性化的 Google Analytics 统计整体页面访问情况，不集成广告追踪器；访问网站时，托管服务器仍可能处理响应请求所需的 IP、时间与浏览器信息。",
   "policy.accountsAndDevices": "账号与设备",
   "policy.registrationAndSignInAreHandledByTheClawmuse": "注册与登录由 ClawMuse 账号服务处理，包括邮箱、账号资料、密码认证信息和会话。设备绑定会保存设备标识、名称与加密的连接信息，用于让同一账号发现设备并建立连接。",
   "policy.projectsAndTasks": "项目与任务",
@@ -420,7 +420,7 @@
   "updates.statusBody": "在 iOS 锁屏、灵动岛和小组件上随时查看任务进度与模型额度。",
   "policy.optionalServices": "语音、状态与目标",
   "policy.optionalServicesBody": "按你的配置，云端语音服务会接收用于识别的音频或用于语音回复的文字。启用 ClawMuse Status 后，状态服务接收活动计数与额度数据；Goals 还会保存目标文本、仓库标识和结构化报告。这些服务的数据边界与加密中继不同。",
-  "policy.updated": "更新于 2026 年 10 月 27 日 · 适用于 ClawMuse",
+  "policy.updated": "更新于 2026 年 11 月 18 日 · 适用于 ClawMuse",
   "tour.allow": "允许一次",
   "tour.approved": "已允许 · 检查完成",
   "tour.attach": "添加示例图片",
@@ -556,5 +556,9 @@
   "realShowcase.tabFiles": "工作区文件与目录",
   "realShowcase.tabFilesCaption": "直接浏览所连电脑上的真实仓库目录树，查看 Git 修改标记并一键定位变更文件。",
   "realShowcase.wideLabel": "宽屏三栏视图",
-  "realShowcase.phoneLabel": "iPhone 随行端"
+  "realShowcase.phoneLabel": "iPhone 随行端",
+  "downloads.channelStable": "稳定版",
+  "downloads.channelBeta": "Beta 测试版",
+  "downloads.betaBadge": "测试预览版",
+  "downloads.betaNotice": "测试版供愿意提前体验新功能的用户按需切换，不影响稳定版用户。已安装桌面端也可前往 设置 → 关于 → 发布通道 → Beta 在线更新。"
 }

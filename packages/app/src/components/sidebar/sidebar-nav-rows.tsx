@@ -35,19 +35,28 @@ interface SidebarNavRowsProps {
   /** Style for the group wrapper, which the sidebar owns. */
   style?: StyleProp<ViewStyle>;
   /** End of the icon line, such as the phone sidebar's close button. */
-  trailing?: ReactNode;
+  firstRowTrailing?: ReactNode;
 }
 
-/** Top-level icon navigation, ordered and filtered by the user's sidebar preferences. */
-export function SidebarNavRows({ style, onBeforeNavigate, trailing }: SidebarNavRowsProps) {
+/** The top-level items the user keeps visible, in display order. */
+export function useVisibleSidebarNavItems() {
+  const { items } = useSidebarNavItems("header");
+  return useMemo(() => items.filter((item) => item.visible), [items]);
+}
+
+/**
+ * Top-level sidebar navigation, ordered and filtered by the user's
+ * `sidebarNavItems` preference. Renders nothing — not even the bordered group
+ * wrapper — when every item is hidden and there is no `firstRowTrailing`.
+ */
+export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: SidebarNavRowsProps) {
   const { t } = useTranslation();
   const setAssistantOpen = useAssistantPanel((s) => s.setOpen);
   const openAssistant = useCallback(() => {
     onBeforeNavigate?.();
     setAssistantOpen(true);
   }, [onBeforeNavigate, setAssistantOpen]);
-  const { items } = useSidebarNavItems("header");
-  const visibleItems = useMemo(() => items.filter((item) => item.visible), [items]);
+  const visibleItems = useVisibleSidebarNavItems();
   const groupRef = useRef<View | null>(null);
 
   const renderPlugin = (item: Extract<(typeof visibleItems)[number], { kind: "plugin" }>) => (
@@ -75,8 +84,8 @@ export function SidebarNavRows({ style, onBeforeNavigate, trailing }: SidebarNav
           testID="sidebar-voice-assistant"
         />
         <AiAgentArchiveButton />
-        {trailing ? <View style={styles.iconLineSpacer} /> : null}
-        {trailing}
+        {firstRowTrailing ? <View style={styles.iconLineSpacer} /> : null}
+        {firstRowTrailing}
       </View>
     </View>
   );

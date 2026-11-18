@@ -89,6 +89,8 @@ function shouldIncludeLocalProviderConfig(params: {
       params.providers.voiceStt.provider === "local") ||
     (params.providers.voiceTts.enabled !== false &&
       params.providers.voiceTts.provider === "local") ||
+    // Turn detection is always local, so an enabled local turn detector
+    // needs the local provider config even when no speech site uses it.
     (params.providers.voiceTurnDetection.enabled !== false &&
       params.providers.voiceTurnDetection.provider === "local");
 

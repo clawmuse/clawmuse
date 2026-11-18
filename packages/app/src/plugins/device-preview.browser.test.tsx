@@ -1,7 +1,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { PluginRpcProvider } from "@getpaseo/plugin/client/host";
+import { PluginRpcProvider, type PluginSubscribe } from "@getpaseo/plugin/client/host";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PreviewPanel } from "../../../../plugins/device-preview/client/panel";
 import { darkTheme } from "@/styles/theme";
@@ -50,11 +50,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const noSubscribe: PluginSubscribe = () =>
+  Object.assign(() => undefined, { ready: Promise.resolve(), release: () => Promise.resolve() });
+
 function render(invoke: (method: string, input: unknown) => Promise<unknown>) {
   act(() =>
     root.render(
       <QueryClientProvider client={queries}>
-        <PluginRpcProvider invoke={invoke}>
+        <PluginRpcProvider invoke={invoke} subscribe={noSubscribe}>
           <PreviewPanel {...props} />
         </PluginRpcProvider>
       </QueryClientProvider>,

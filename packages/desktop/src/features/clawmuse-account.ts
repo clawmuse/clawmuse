@@ -30,13 +30,52 @@ function requestTimeout(path: string): number {
 }
 
 async function readAccountResponse(response: Response): Promise<unknown> {
-  const data: unknown = await response.json();
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch (error) {
+    if (response.ok) throw error;
+  }
   if (data && typeof data === "object" && "token" in data) delete data.token;
   return data;
 }
 
 function rejectControlledAccount(path: string): boolean {
   return path !== "/sign-out" && readControlledOnlyPolicy(resolvePaseoHome(process.env));
+}
+
+function assertKeychainAvailable(): void {
+  if (
+    !safeStorage.isEncryptionAvailable() ||
+    (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text")
+  ) {
+    throw new Error("请先启用系统钥匙串，再登录 ClawMuse");
+  }
+}
+
+async function readEncryptedSession(file: string): Promise<Buffer | undefined> {
+  try {
+    return await readFile(file);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+async function persistResponseSession(
+  file: string,
+  path: string,
+  response: Response,
+): Promise<void> {
+  const nextToken = response.headers.get("set-auth-token");
+  if (response.ok && nextToken) {
+    await writeFile(`${file}.tmp`, safeStorage.encryptString(nextToken), { mode: 0o600 });
+    await rename(`${file}.tmp`, file);
+  }
+  if (response.status === 401 || ((path === "/sign-out" || path === "/delete-user") && response.ok))
+    await rm(file, { force: true });
 }
 
 export function registerClawMuseAccount(devOrigin: string): void {
@@ -65,17 +104,11 @@ export function registerClawMuseAccount(devOrigin: string): void {
           },
         };
       }
-      if (
-        !safeStorage.isEncryptionAvailable() ||
-        (process.platform === "linux" && safeStorage.getSelectedStorageBackend() === "basic_text")
-      )
-        throw new Error("请先启用系统钥匙串，再登录 ClawMuse");
-      let token: string | undefined;
-      try {
-        token = safeStorage.decryptString(await readFile(file));
-      } catch (error) {
-        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-      }
+      const encrypted = await readEncryptedSession(file);
+      if (path === "/get-session" && !encrypted) return { status: 200, data: null };
+      assertKeychainAvailable();
+      const token = encrypted ? safeStorage.decryptString(encrypted) : undefined;
+      if (path === "/get-session" && !token) return { status: 200, data: null };
       if (path === "/sign-out") await rm(file, { force: true });
       const response = await fetch(`${brand.hubOrigin}/api/auth${path}`, {
         method: body === undefined ? "GET" : "POST",
@@ -92,16 +125,7 @@ export function registerClawMuseAccount(devOrigin: string): void {
         await rm(file, { force: true });
         return { status: 403, data: { error: "controlled_only" } };
       }
-      const nextToken = response.headers.get("set-auth-token");
-      if (response.ok && nextToken) {
-        await writeFile(`${file}.tmp`, safeStorage.encryptString(nextToken), { mode: 0o600 });
-        await rename(`${file}.tmp`, file);
-      }
-      if (
-        response.status === 401 ||
-        ((path === "/sign-out" || path === "/delete-user") && response.ok)
-      )
-        await rm(file, { force: true });
+      await persistResponseSession(file, path, response);
       const data = await readAccountResponse(response);
       return { status: response.status, data };
     };

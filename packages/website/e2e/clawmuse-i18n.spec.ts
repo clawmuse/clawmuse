@@ -251,7 +251,7 @@ test("phone scaling and voice waveform work under the production content securit
   page.on("console", (message) => {
     if (
       message.type() === "error" &&
-      /Content Security Policy|style-src|script-src/i.test(message.text())
+      /Content Security Policy|style-src|script-src|connect-src|img-src/i.test(message.text())
     )
       violations.push(message.text());
   });
@@ -276,6 +276,20 @@ test("phone scaling and voice waveform work under the production content securit
   await demo.getByRole("button", { name: "暂停转写", exact: true }).click();
   await expect(demo.locator(".demo-waveform i").first()).toHaveCSS("height", "7px");
   await expect(demo.locator(".demo-waveform i").nth(5)).toHaveCSS("height", "28px");
+  await expect
+    .poll(() =>
+      page
+        .locator('script[src="https://www.googletagmanager.com/gtag/js?id=G-DLXRL4ECV5"]')
+        .count(),
+    )
+    .toBe(1);
+  expect(
+    await page.evaluate(
+      () =>
+        Array.isArray((window as unknown as { dataLayer?: unknown[] }).dataLayer) &&
+        (window as unknown as { dataLayer: unknown[] }).dataLayer.length >= 2,
+    ),
+  ).toBe(true);
   expect(violations).toEqual([]);
 });
 

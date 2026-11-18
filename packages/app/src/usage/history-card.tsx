@@ -289,7 +289,7 @@ function DayDetailPanel({
         <Text style={styles.summaryCaption}>{detail.caption}</Text>
         <Button
           variant="ghost"
-          size="xs"
+          size="sm"
           leftIcon={X}
           accessibilityLabel={closeLabel}
           onPress={onClose}

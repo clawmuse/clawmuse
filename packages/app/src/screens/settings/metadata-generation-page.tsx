@@ -155,7 +155,6 @@ function AuxiliaryModelSettings({ serverId, config, patchConfig }: SettingsProps
             ]}
             value={state.mode}
             onValueChange={model.setMode}
-            size="sm"
             testID="metadata-generation-mode"
           />
         </SettingsRow>

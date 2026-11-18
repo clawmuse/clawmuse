@@ -74,7 +74,7 @@ export function TaskReviewForm({ goalId, runId }: { goalId: string; runId: strin
   return (
     <View style={styles.content}>
       <View style={styles.quickRow}>
-        <Button size="xs" variant="ghost" onPress={quickFill} testID="task-review-quick-fill">
+        <Button size="sm" variant="ghost" onPress={quickFill} testID="task-review-quick-fill">
           {t("clawmuseStatus.goals.tasks.quickVerifyFill")}
         </Button>
       </View>

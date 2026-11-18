@@ -74,6 +74,12 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
     url: "https://github.com/gorhom/react-native-portal",
   },
   {
+    name: "@legendapp/list",
+    version: "3.7.1",
+    license: "MIT",
+    url: "https://github.com/LegendApp/legend-list",
+  },
+  {
     name: "@marijn/find-cluster-break",
     version: "1.0.2",
     license: "MIT",
@@ -153,7 +159,7 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
   },
   {
     name: "@xterm/addon-image",
-    version: "0.10.0-beta.213",
+    version: "0.10.0-beta.331",
     license: "MIT",
     url: "https://github.com/xtermjs/xterm.js/tree/master/addons/addon-image",
   },
@@ -170,6 +176,12 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
     url: "https://github.com/xtermjs/xterm.js/tree/master/addons/addon-search",
   },
   {
+    name: "@xterm/addon-unicode-graphemes",
+    version: "0.5.0-beta.330",
+    license: "MIT",
+    url: "https://github.com/xtermjs/xterm.js/tree/master/addons/addon-unicode-graphemes",
+  },
+  {
     name: "@xterm/addon-unicode11",
     version: "0.10.0-beta.213",
     license: "MIT",
@@ -183,13 +195,13 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
   },
   {
     name: "@xterm/addon-webgl",
-    version: "0.20.0-beta.291",
+    version: "0.20.0-beta.329",
     license: "MIT",
     url: "https://github.com/xtermjs/xterm.js/tree/master/addons/addon-webgl",
   },
   {
     name: "@xterm/xterm",
-    version: "6.1.0-beta.292",
+    version: "6.1.0-beta.336",
     license: "MIT",
     url: "https://github.com/xtermjs/xterm.js",
   },
@@ -321,7 +333,7 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
   },
   {
     name: "expo-media-library",
-    version: "57.0.5",
+    version: "57.0.6",
     license: "MIT",
     url: "https://github.com/expo/expo",
   },
@@ -369,7 +381,7 @@ export const THIRD_PARTY_PACKAGES: readonly ThirdPartyPackage[] = [
   },
   {
     name: "expo-updates",
-    version: "57.0.26",
+    version: "57.0.28",
     license: "MIT",
     url: "https://github.com/expo/expo",
   },

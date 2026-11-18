@@ -27,10 +27,10 @@ import {
   HEADER_TOP_PADDING_MOBILE,
 } from "@/constants/layout";
 import { buildSettingsHostSectionRoute } from "@/utils/host-routes";
+import { WINDOW_CONTENT_DATASET } from "@/components/desktop/titlebar-drag-region";
 import { MobileHomeScreen } from "./mobile-home-screen";
 import { Button } from "@/components/ui/button";
 
-const WINDOW_CONTENT_DATASET = { "window-content": "" };
 /** Reading width for the welcome column; wider than a form, narrower than settings. */
 const ONBOARDING_COLUMN_WIDTH = 560;
 const STEP_MARKER_SIZE = 24;

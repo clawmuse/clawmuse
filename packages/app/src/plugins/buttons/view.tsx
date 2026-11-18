@@ -16,6 +16,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
   AlertCircle,
   ChevronDown,
+  ChevronUp,
   MoreHorizontal,
   LucideProvider,
 } from "@/components/icons/app-icons";
@@ -277,11 +278,14 @@ function ButtonControl({ view }: { view: ButtonView }) {
   const composer = entry.placement === "composer";
   const disabled = button.disabled || entry.pending;
   const expanded = button.behavior.kind !== "action";
-  const chevron = !composer && !props.layout.compact && expanded;
   const label = buttonLabel(view);
   const iconOnlyComposer = composer && label === null;
   let iconSize = composer ? 14 : 16;
   if (iconOnlyComposer) iconSize = isWeb ? ICON_SIZE.md : ICON_SIZE.lg;
+  // A chevron marks a button that opens something. Composer pills with labels open their surface
+  // above, so theirs points up; icon-only composer buttons and compact headers drop the chevron.
+  const chevron = expanded && (composer ? !iconOnlyComposer : !props.layout.compact);
+  const Chevron = composer ? ChevronUp : ChevronDown;
   const press = useCallback(() => pressButton(view, []), [view]);
   const setOpen = useCallback(
     (open: boolean) => pluginButtonStore.setOpen(entry.key, open),
@@ -316,7 +320,7 @@ function ButtonControl({ view }: { view: ButtonView }) {
       ) : null}
       {chevron ? (
         <View testID="plugin-button-chevron">
-          <ChevronDown size={12} color={props.theme.colors.foregroundMuted} />
+          <Chevron size={12} color={props.theme.colors.foregroundMuted} />
         </View>
       ) : null}
     </>
@@ -591,14 +595,6 @@ function useButtons(serverId: string, workspaceId: string, agentId: string | nul
   );
 }
 
-export function useHasPluginComposerPills(
-  serverId: string,
-  workspaceId: string,
-  agentId: string,
-): boolean {
-  return useButtons(serverId, workspaceId, agentId).length > 0;
-}
-
 export function PluginComposerPills({
   serverId,
   workspaceId,
@@ -692,8 +688,8 @@ const styles = StyleSheet.create((theme) => ({
     gap: { xs: theme.spacing[1], md: theme.spacing[2] },
   },
   headerButton: {
-    height: { xs: 32, md: HEADER_CONTROL_HEIGHT },
-    minWidth: { xs: 32, md: HEADER_CONTROL_HEIGHT },
+    height: HEADER_CONTROL_HEIGHT,
+    minWidth: HEADER_CONTROL_HEIGHT,
     paddingHorizontal: theme.spacing[2],
     flexDirection: "row",
     alignItems: "center",

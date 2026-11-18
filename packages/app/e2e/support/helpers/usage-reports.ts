@@ -14,6 +14,8 @@ export interface UsageReportsFixture {
   waitForListRequests(count: number): Promise<void>;
   /** The agent IDs the composer strip has read usage for, in order. */
   stripRequests(): string[];
+  /** Runs `action`, then waits until the app has received the agent's next usage scope. */
+  untilUsageScopeChanges(agentId: string, action: () => Promise<unknown>): Promise<void>;
 }
 
 // Matches AGENT_USAGE_STRIP_REQUEST_PREFIX in src/usage/queries.ts.
@@ -108,6 +110,26 @@ function withUsageSupportFeature(
   });
 }
 
+function agentUsageScope(message: WebSocketMessage): { agentId: string; key: string } | null {
+  const envelope = parseJson(message) as {
+    type?: unknown;
+    message?: {
+      type?: unknown;
+      payload?: { kind?: unknown; agent?: { id?: unknown; usageScopeKey?: unknown } };
+    };
+  } | null;
+  const agent = envelope?.message?.payload?.agent;
+  if (
+    envelope?.message?.type !== "agent_update" ||
+    envelope.message.payload?.kind !== "upsert" ||
+    typeof agent?.id !== "string" ||
+    typeof agent.usageScopeKey !== "string"
+  ) {
+    return null;
+  }
+  return { agentId: agent.id, key: agent.usageScopeKey };
+}
+
 function pick<T>(values: T[], index: number): T {
   const value = values[Math.min(index, values.length - 1)];
   if (value === undefined) throw new Error("Usage fixture requires at least one response.");
@@ -139,6 +161,16 @@ export async function installUsageReportsFixture(
   const listRequests: UsageListRequest[] = [];
   const stripRequests: string[] = [];
   const listCounter = createCounter();
+  const usageScopes = new Map<string, string>();
+  const usageScopeChanges = new Map<string, ReturnType<typeof createCounter>>();
+  const usageScopeCounts = new Map<string, number>();
+  const usageScopeCounter = (agentId: string) => {
+    const existing = usageScopeChanges.get(agentId);
+    if (existing) return existing;
+    const created = createCounter();
+    usageScopeChanges.set(agentId, created);
+    return created;
+  };
   const usageSupported = options.usageSupported ?? true;
   const isUsageSupported = () =>
     typeof usageSupported === "function" ? usageSupported() : usageSupported;
@@ -261,6 +293,15 @@ export async function installUsageReportsFixture(
               options.usageSettingSupported ?? true,
             )
           : null;
+      const scope = agentUsageScope(message);
+      if (scope && usageScopes.get(scope.agentId) !== scope.key) {
+        usageScopes.set(scope.agentId, scope.key);
+        usageScopeCounts.set(scope.agentId, (usageScopeCounts.get(scope.agentId) ?? 0) + 1);
+        // The app must hold the new scope before a test acts on it.
+        ws.send(serverInfo ?? message);
+        usageScopeCounter(scope.agentId).increment();
+        return;
+      }
       ws.send(serverInfo ?? message);
     });
   });
@@ -269,5 +310,10 @@ export async function installUsageReportsFixture(
     listRequests: () => [...listRequests],
     waitForListRequests: (count) => listCounter.waitFor(count),
     stripRequests: () => [...stripRequests],
+    untilUsageScopeChanges: async (agentId, action) => {
+      const next = (usageScopeCounts.get(agentId) ?? 0) + 1;
+      await action();
+      await usageScopeCounter(agentId).waitFor(next);
+    },
   };
 }
