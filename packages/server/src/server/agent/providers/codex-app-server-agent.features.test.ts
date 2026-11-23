@@ -110,6 +110,10 @@ function createCapturedLogger(): { logger: pino.Logger; entries: CapturedLogEntr
   return { logger, entries };
 }
 
+function countCapturedMessages(entries: readonly CapturedLogEntry[], msg: string): number {
+  return entries.filter((entry) => entry.msg === msg).length;
+}
+
 function createConfig(overrides: Partial<AgentSessionConfig> = {}): AgentSessionConfig {
   return {
     provider: CODEX_PROVIDER,
@@ -986,5 +990,63 @@ describe("Codex app-server provider controls", () => {
         mode: "plan",
       }),
     });
+  });
+
+  test("ignores Codex Desktop always_allowed_app_ids configWarning while logging genuine config warnings", async () => {
+    const capture = createCapturedLogger();
+    const { session, appServer } = await createConnectedSession({}, { logger: capture.logger });
+
+    try {
+      appServer.child.stdout.write(
+        `${JSON.stringify({
+          method: "configWarning",
+          params: {
+            summary: [
+              "Codex is ignoring 1 unrecognized configuration setting. Check for typos or deprecated settings.",
+              "  user (C:\\Users\\Administrator\\.codex\\config.toml): `computer_use.windows.always_allowed_app_ids` is ignored.",
+            ].join("\n"),
+            details: null,
+          },
+        })}\n`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(countCapturedMessages(capture.entries, "Codex reported configuration warning")).toBe(
+        0,
+      );
+      expect(countCapturedMessages(capture.entries, "provider.codex.event_unhandled")).toBe(0);
+
+      appServer.child.stdout.write(
+        `${JSON.stringify({
+          method: "configWarning",
+          params: {
+            summary: [
+              "Codex is ignoring 2 unrecognized configuration settings. Check for typos or deprecated settings.",
+              "  user (C:\\Users\\Administrator\\.codex\\config.toml): `computer_use.windows.always_allowed_app_ids` is ignored.",
+              "  user (C:\\Users\\Administrator\\.codex\\config.toml): `experimental_typo` is ignored.",
+            ].join("\n"),
+            details: null,
+          },
+        })}\n`,
+      );
+      await vi.waitFor(() => {
+        expect(countCapturedMessages(capture.entries, "Codex reported configuration warning")).toBe(
+          1,
+        );
+      });
+
+      const warning = capture.entries.find(
+        (entry) => entry.msg === "Codex reported configuration warning",
+      );
+      expect(warning).toMatchObject({
+        level: 40,
+        summary: [
+          "Codex is ignoring 1 unrecognized configuration setting. Check for typos or deprecated settings.",
+          "  user (C:\\Users\\Administrator\\.codex\\config.toml): `experimental_typo` is ignored.",
+        ].join("\n"),
+      });
+    } finally {
+      await session.close();
+    }
   });
 });

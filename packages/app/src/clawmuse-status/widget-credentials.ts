@@ -1,4 +1,5 @@
 const STORAGE_KEY = "@paseo:clawmuse-status-widget-token";
+const LIVE_ACTIVITY_PUSH_STORAGE_KEY = "clawmuse.status.live-activity-push-token.v1";
 // Why: renew well before expiry so a phone that stays in a pocket for a week
 // keeps a working widget; tokens last 30 days by default.
 const RENEW_BEFORE_MS = 7 * 24 * 60 * 60_000;
@@ -97,5 +98,45 @@ export async function ensureClawMuseStatusWidgetCredentials(
     expiresAt: now + issued.expiresIn * 1_000,
   };
   await input.storage.setItem(STORAGE_KEY, JSON.stringify(next));
+  await input.publish({ baseUrl: input.baseUrl, token: next.token });
+}
+
+export interface EnsureClawMuseStatusLiveActivityPushCredentialsInput {
+  baseUrl: string;
+  installationId: string | null;
+  issueToken: () => Promise<{ accessToken: string; expiresIn: number } | null>;
+  storage: WidgetCredentialStorage;
+  publish: (credentials: { baseUrl: string; token: string } | null) => Promise<void>;
+  now?: () => number;
+}
+
+export async function ensureClawMuseStatusLiveActivityPushCredentials(
+  input: EnsureClawMuseStatusLiveActivityPushCredentialsInput,
+): Promise<void> {
+  const now = (input.now ?? Date.now)();
+  const current = parseClawMuseStatusWidgetToken(
+    await input.storage.getItem(LIVE_ACTIVITY_PUSH_STORAGE_KEY),
+  );
+  if (!input.installationId) {
+    if (current) {
+      await input.storage.removeItem(LIVE_ACTIVITY_PUSH_STORAGE_KEY);
+    }
+    await input.publish(null);
+    return;
+  }
+  if (current && !widgetTokenNeedsRenewal(current, input.installationId, now)) {
+    await input.publish({ baseUrl: input.baseUrl, token: current.token });
+    return;
+  }
+  const issued = await input.issueToken();
+  if (!issued) {
+    return;
+  }
+  const next: ClawMuseStatusWidgetToken = {
+    installationId: input.installationId,
+    token: issued.accessToken,
+    expiresAt: now + issued.expiresIn * 1_000,
+  };
+  await input.storage.setItem(LIVE_ACTIVITY_PUSH_STORAGE_KEY, JSON.stringify(next));
   await input.publish({ baseUrl: input.baseUrl, token: next.token });
 }

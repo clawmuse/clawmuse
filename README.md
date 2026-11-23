@@ -1,232 +1,184 @@
 <p align="center">
-  <img src="packages/website/public/logo.svg" width="64" height="64" alt="Paseo logo">
+  <img src="https://clawmuse.com/brand/clawmuse-mark.svg" width="72" height="72" alt="ClawMuse logo">
 </p>
 
-<h1 align="center">Paseo</h1>
+<h1 align="center">ClawMuse</h1>
 
 <p align="center">
   <a href="README.md">English</a> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
-  <a href="README.ja.md">日本語</a> ·
-  <a href="README.ko.md">한국어</a>
+  <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/getpaseo/paseo/stargazers">
-    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
+  <a href="https://github.com/clawmuse/clawmuse/stargazers">
+    <img src="https://img.shields.io/github/stars/clawmuse/clawmuse?style=flat-square&logo=github" alt="GitHub stars">
   </a>
-  <a href="https://github.com/getpaseo/paseo/releases">
-    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/badge/License-Apache_2.0-5eead4?style=flat-square" alt="Apache-2.0 License">
   </a>
-  <a href="https://x.com/moboudra">
-    <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
+  <a href="https://clawmuse.com">
+    <img src="https://img.shields.io/badge/Website-clawmuse.com-102827?style=flat-square" alt="ClawMuse Website">
   </a>
-  <a href="https://discord.gg/jz8T2uahpH">
-    <img src="https://img.shields.io/badge/Discord-555?logo=discord" alt="Discord">
+  <a href="https://apps.apple.com/app/clawmuse/id6810076165">
+    <img src="https://img.shields.io/badge/iOS-App_Store-0ea5e9?style=flat-square&logo=apple" alt="Download on the App Store">
   </a>
-  <a href="https://www.reddit.com/r/PaseoAI/">
-    <img src="https://img.shields.io/badge/Reddit-555?logo=reddit" alt="Reddit">
+  <a href="https://clawmuse.com/download/">
+    <img src="https://img.shields.io/badge/Platforms-macOS_%7C_Windows_%7C_Linux_%7C_iOS_%7C_Android_%7C_Web-2ea44f?style=flat-square" alt="Supported Platforms">
   </a>
-</p>
-
-<p align="center">One interface for Claude Code, Codex, Copilot, OpenCode, Pi, Antigravity, and Muse Code agents.</p>
-
-<p align="center">
-  <img src="https://paseo.sh/hero-mockup.png" alt="Paseo app screenshot" width="100%">
 </p>
 
 <p align="center">
-  <img src="https://paseo.sh/mobile-mockup.png" alt="Paseo mobile app" width="100%">
+  <strong>Control Claude Code, Codex, Copilot, OpenCode, Pi, Antigravity, and Muse Code on your own computer — from desktop, iPhone, Android, web, voice, or CLI. Your code never leaves your machine.</strong>
 </p>
 
-Paseo is an open source agentic development environment for desktop, mobile, web, and CLI. Open the desktop app and work: agents, editor, terminals, diffs, pull requests, and a browser in one window. Run many agents at once, each in its own worktree, on one machine or several. The mobile app is the full app, native on iOS and Android.
+<p align="center">
+  <a href="https://clawmuse.com/"><strong>Website</strong></a>
+  ·
+  <a href="https://clawmuse.com/download/"><strong>Download</strong></a>
+  ·
+  <a href="https://clawmuse.com/docs/"><strong>Docs</strong></a>
+  ·
+  <a href="https://clawmuse.com/plugins/"><strong>Plugins</strong></a>
+</p>
 
-- **Parallel agents:** Run many agents at once, each in its own worktree.
-- **Built-in orchestration:** Agents in Paseo can create worktrees, launch other agents, and talk to them, across providers.
-- **Complete development workflow:** Edit files, review diffs, open pull requests, and run terminals, in split panes you arrange how you want.
-- **Self-hosted:** Agents run on your machine with your full dev environment. Use your tools, your configs, and your skills.
-- **Multi-provider:** Claude Code, Codex, Copilot, OpenCode, Pi, Antigravity, and Muse Code through the same interface. Pick the right model for each job.
-- **Voice control:** Dictate tasks or talk through problems in voice mode. Hands-free when you need it.
-- **Cross-device:** iOS, Android, desktop, web, and CLI. Start work at your desk, check in from your phone, script it from the terminal.
-- **Privacy-first:** Paseo doesn't have any telemetry, tracking, or forced log-ins.
+<p align="center">
+  <img src="https://clawmuse.com/screenshots/en-wide-diff.webp" alt="ClawMuse desktop three-pane workspace with side-by-side code diff and agent stream" width="100%">
+</p>
 
-[Run parallel tasks in Paseo](https://paseo.sh/docs/parallel-development): start agents in separate worktrees, review their diffs, run each app, and check it in the built-in browser.
-
-## Sponsors
-
-<!-- Sponsors: one cell per sponsor in the order of packages/website/src/data/sponsors.ts, then "become a sponsor" cells up to three. -->
 <table>
   <tr>
-    <td align="center" width="33%"><a href="https://hoplite.sh/?utm_source=paseo&utm_medium=readme&utm_campaign=sponsor"><picture><source media="(prefers-color-scheme: dark)" srcset="packages/website/public/sponsors/hoplite-on-dark.svg"><img src="packages/website/public/sponsors/hoplite-on-light.svg" alt="Hoplite" height="56"></picture></a><br><sub>Cloud coding agents</sub></td>
-    <td align="center" width="33%"><a href="https://paseo.sh/sponsor">Become a sponsor</a></td>
-    <td align="center" width="33%"><a href="https://paseo.sh/sponsor">Become a sponsor</a></td>
+    <td width="50%" align="center">
+      <img src="https://clawmuse.com/screenshots/en-phone-chat.webp" alt="ClawMuse mobile chat and tool verification" width="280">
+      <br><sub>Mobile chat, tool checks, and voice dispatch</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="https://clawmuse.com/screenshots/en-phone-diff.webp" alt="ClawMuse mobile diff review" width="280">
+      <br><sub>Compact line-by-line code diff review on iOS & Android</sub>
+    </td>
   </tr>
 </table>
 
-## Plugins
+---
 
-Plugins run on the daemon and show up in every client you connect, with the same UI on desktop, web,
-iOS, and Android. Write a plugin once and it is on your phone.
+## Why ClawMuse
 
-- **UI:** screens, sidebar items, workspace panels, Command Center items, slash commands, composer pills, attachment sources, timeline items, themes.
-- **Agent lifecycle:** change configuration, environment, and MCP servers, answer permissions, follow up when a turn ends.
-- **Providers:** add a coding agent as a provider.
+ClawMuse is an open-source, local-first control plane for AI coding agents. A daemon runs on your Mac, Linux, or Windows machine, manages agent processes and isolated Git worktrees, and streams structured timelines, diffs, files, and persistent terminals to every device you use.
 
-Install from the registry with `paseo plugin add owner/slug`, or from Git or a local directory.
+- **Multi-Agent Structured Workspace** — Native adapters for **Claude Code**, **Codex**, **GitHub Copilot**, **OpenCode**, **Pi / OMP**, **Antigravity**, and **Muse Code**, plus ACP agents including **Cursor**, **Kimi**, **Kiro**, and **TRAE**. Thinking steps, tool calls, diffs, and permission requests normalize into one clear timeline alongside detached persistent terminals.
+- **Desktop, Native Mobile, Web & CLI** — Start at your desk in the Electron desktop app, follow progress from native **iOS** ([App Store](https://apps.apple.com/app/clawmuse/id6810076165)) and **Android**, open **Web** (`app.clawmuse.com`), or automate workflows from the CLI (`clawmuse` / `paseo`).
+- **Realtime Voice Assistant & Dictation** — Talk hands-free across active tasks on a host: hear what is running, needs approval, or finished, archive completed sessions, and dispatch new tasks without touching a keyboard.
+- **Tasks & Goals Board (`localGoals`)** — Let a planner propose goals for a repository, approve them from your phone or desktop, run unattended rounds inside isolated Git worktrees with path-scope guards and SHA-pinned verification, and merge PRs cleanly when ready.
+- **Quota Tracking & 30-Day Usage History** — Monitor 5h / 7d provider quotas and merged 30-day token usage across connected machines (including iOS Lock Screen Live Activities and home-screen widgets when paired with a status endpoint).
+- **Daemon-Hosted Plugin System & SDK** — Install plugins once on the daemon (`conversation-translation`, `capacity-retry`, `device-preview`, custom providers, usage sources) and their UI surfaces appear automatically on desktop, mobile, and web.
+- **Local-First Boundaries** — Repositories, agent credentials, MCP configs, and command execution stay on your own host.
 
-**[Browse plugins](https://paseo.sh/plugins)** · **[Plugin docs](https://paseo.sh/docs/plugins)**
-
-Plugins run with access to your daemon machine and inside connected clients; install only code you trust.
+---
 
 ## Getting Started
 
-Paseo runs a local server called the daemon that manages your coding agents. Clients like the desktop app, mobile app, web app, and CLI connect to it.
-
 ### Prerequisites
 
-You need at least one agent CLI installed and configured with your credentials:
+Install and authenticate at least one supported agent CLI on the machine running your code:
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [Codex](https://github.com/openai/codex)
-- [GitHub Copilot](https://github.com/features/copilot/cli/)
+- [GitHub Copilot CLI](https://github.com/features/copilot/cli/)
 - [OpenCode](https://github.com/anomalyco/opencode)
 - [Pi](https://pi.dev)
-- [Antigravity](https://paseo.sh/docs/supported-providers#antigravity)
-- [Muse Code](https://paseo.sh/docs/muse-code)
+- Antigravity CLI / Muse Code / ACP-compatible CLIs (Cursor, Kimi, Kiro, TRAE)
 
-### Desktop app (recommended)
+### 1. Official Installers (Fastest)
 
-Download it from [paseo.sh/download](https://paseo.sh/download) or the [GitHub releases page](https://github.com/getpaseo/paseo/releases). Open the app and the daemon starts automatically. Nothing else to install.
+- **Desktop & Android**: Download signed installers for macOS (Apple Silicon & Intel), Windows, Linux (`.deb`, `.rpm`, `.tar.gz`, `AppImage`), and Android APK from [clawmuse.com/download](https://clawmuse.com/download/).
+- **iOS & iPadOS**: Download from the [App Store](https://apps.apple.com/app/clawmuse/id6810076165).
 
-To connect from your phone, open **Settings → your host → Pair Device**.
+### 2. Build & Run from This Open-Source Repository
 
-### Server
+> **Open-source snapshot scope:** This public repository contains the full open-source desktop client, mobile/web app, daemon, CLI, protocol, client SDK, relay package, and built-in plugins under **Apache-2.0**. ClawMuse's hosted services (managed relay endpoints, account hub, hosted status service, and cloud containers) are excluded.
+>
+> Self-hosted setups connect directly over **LAN**, **SSH tunnel**, **Tailscale / WireGuard**, or your own self-hosted relay instance from `packages/relay` configured via `PASEO_RELAY_ENDPOINT`.
 
-For a server, a VM, or any machine without the desktop app. Install the CLI and start the daemon:
-
-```bash
-npm install -g @getpaseo/cli
-paseo
-```
-
-Paseo starts, then asks whether to enable the end-to-end encrypted relay for device pairing. If you decline, connect directly over TCP, Tailscale, or another VPN. The desktop, mobile, and web apps connect to this daemon like any other host.
-
-For full setup and configuration, see:
-
-- [Docs](https://paseo.sh/docs)
-- [Connectivity guide](https://paseo.sh/docs/connectivity)
-- [Configuration reference](https://paseo.sh/docs/configuration)
-
-### Docker
-
-Run the Paseo daemon and self-hosted web UI in Docker:
+Requires **Node.js 22+** and **npm**:
 
 ```bash
-docker run -d --name paseo \
-  -p 6767:6767 \
-  -e PASEO_PASSWORD=change-me \
-  -v "$PWD/paseo-home:/home/paseo" \
-  -v "$PWD:/workspace" \
-  ghcr.io/getpaseo/paseo:latest
-```
+git clone https://github.com/clawmuse/clawmuse.git
+cd clawmuse
+npm ci
 
-Open `http://localhost:6767` after it starts. Extend the base image with the agent CLIs you use, then provide credentials through environment variables or the persistent `/home/paseo` volume. See the [Docker documentation](docs/docker.md) for full setup details.
-
-## CLI
-
-Everything you can do in the app, you can do from the terminal.
-
-```bash
-paseo run --provider claude/opus-4.6 "implement user authentication"
-paseo run --provider codex/gpt-5.5 --worktree feature-x "implement feature X"
-
-paseo ls                           # list running agents
-paseo attach abc123                # stream live output
-paseo send abc123 "also add tests" # follow-up task
-
-# run on a remote daemon; --cwd is a path on that host
-paseo run --host workstation.local:6767 --cwd /workspace "run the full test suite"
-```
-
-See the [full CLI reference](https://paseo.sh/docs/cli) for more.
-
-## TypeScript SDK
-
-Build issue integrations, dashboards, and orchestration services with `@getpaseo/client`:
-
-```ts
-import { createPaseoClient } from "@getpaseo/client";
-
-const client = createPaseoClient({ url: "ws://127.0.0.1:6767/ws" });
-await client.connect();
-
-const agent = await client.agents.create({
-  config: { provider: "codex/gpt-5.5" },
-  cwd: "/Users/me/dev/storefront",
-  prompt: "Review the current diff and name the riskiest change.",
-});
-
-const result = await agent.waitForFinish();
-console.log(result.lastMessage);
-
-await client.close();
-```
-
-See the [SDK quickstart](https://paseo.sh/docs/sdk/quickstart), [recipes](https://paseo.sh/docs/sdk/recipes), and [API reference](https://paseo.sh/docs/sdk/reference).
-
-## Skills
-
-Skills teach your agent to use Paseo to orchestrate other agents.
-
-```bash
-npx skills add getpaseo/paseo
-```
-
-Then use them in any agent conversation:
-
-- `/paseo-handoff` — hand off work between agents. I use this to plan with Claude and then handoff to Codex to implement.
-- `/paseo-advisor` — spin up a single agent as an advisor for a second opinion, without delegating the work itself.
-- `/paseo-committee` — form a committee of two contrasting agents to step back, do root cause analysis, and produce a plan.
-
-## Development
-
-Quick monorepo package map:
-
-- `packages/server`: Paseo daemon (agent process orchestration, WebSocket API, MCP server)
-- `packages/app`: Expo client (iOS, Android, web)
-- `packages/cli`: `paseo` CLI for daemon and agent workflows
-- `packages/desktop`: Electron desktop app
-- `packages/relay`: Relay transport and encryption used by the daemon and clients
-- `packages/website`: Marketing site and documentation (`paseo.sh`)
-
-Common commands:
-
-```bash
-# run all local dev services
-npm run dev
-
-# run individual surfaces
-npm run dev:server
-npm run dev:app
-npm run dev:desktop
-npm run dev:website
-
-# build the server stack
+# Build protocol, client SDK, server daemon, and CLI declarations
 npm run build:server
 
-# repo-wide checks
-npm run typecheck
+# Start the local dev daemon (uses checkout-local .dev/paseo-home on port 6768)
+npm run dev
+
+# In another terminal, launch the Electron desktop app or CLI
+npm run dev:desktop
+npm run cli -- ls -a -g
 ```
 
-## Support Paseo
+To build app dependencies (for Expo mobile / web):
 
-Paseo is an independent project used by tens of thousands of developers daily, built by one person and funded by the people who use it. Support the work on [GitHub Sponsors](https://github.com/sponsors/boudra). Companies can [sponsor Paseo](https://paseo.sh/sponsor#spot) monthly and have their logo shown at the top of this README and on the paseo.sh homepage and docs.
+```bash
+npm run build:app-deps
+npm run web
+```
 
-## Related projects
+---
 
-- [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay) — official distributed relay, written in Elixir
-- [paseo-vscode](https://marketplace.visualstudio.com/items?itemName=hinnes.paseo-vscode) — VS Code extension
+## CLI Quick Reference
 
-## License
+Every operation in the desktop or mobile UI works through the CLI against the same WebSocket daemon:
 
-Apache-2.0
+```bash
+# Run agents in isolated worktrees or directories
+npm run cli -- run --provider claude/sonnet-4.6 "review auth middleware and add unit tests"
+npm run cli -- run --provider codex/gpt-5.4 --worktree feat-cache "implement cache eviction"
+
+# Inspect, stream, follow up, or handle permissions
+npm run cli -- ls
+npm run cli -- logs <agent-id>
+npm run cli -- send <agent-id> "run the vitest suite and summarize"
+npm run cli -- permit allow <request-id>
+
+# Persistent terminals & cron schedules
+npm run cli -- terminal ls
+npm run cli -- schedule ls
+
+# Connect to a remote daemon directly over LAN / Tailscale / SSH tunnel
+npm run cli -- --host my-workstation.ts.net:6768 ls
+```
+
+---
+
+## Repository Structure
+
+| Path                                | Description                                                                                                                                         |
+| :---------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/server`                   | Local Node.js daemon: agent lifecycle, WebSocket API, MCP tools, Git/worktree orchestration, local Goals, detached terminal worker                  |
+| `packages/app`                      | Cross-platform Expo / React Native client for iOS, Android, Web, and Desktop UI                                                                     |
+| `packages/desktop`                  | Electron desktop wrapper managing the local daemon, native menus, multi-window, and built-in browser                                                |
+| `packages/cli`                      | Commander.js CLI (`clawmuse` / `paseo`) for headless servers, scripting, and daemon control                                                         |
+| `packages/protocol`                 | Append-only Zod wire schemas and binary terminal/file stream codecs                                                                                 |
+| `packages/client`                   | TypeScript SDK (`PaseoClient` / `PaseoApi`) shared across clients and plugins                                                                       |
+| `packages/relay`                    | Noise `NK` zero-knowledge E2EE relay transport and legacy Cloudflare worker reference                                                               |
+| `packages/plugin`                   | Plugin runtime, manifest contracts, and host IPC facade                                                                                             |
+| `packages/highlight`                | Syntax highlighting and diff tokenization engine                                                                                                    |
+| `packages/expo-agent-live-activity` | Native iOS ActivityKit / WidgetKit module for Lock Screen capsules and quota widgets                                                                |
+| `packages/expo-two-way-audio`       | Native duplex audio module for iOS/Android realtime voice                                                                                           |
+| `packages/website`                  | Website source powering [clawmuse.com](https://clawmuse.com)                                                                                        |
+| `plugins/`                          | Built-in plugins (`antigravity-provider`, `conversation-translation`, `capacity-retry`, `device-preview`, `usage-auto-resume`, usage sources, etc.) |
+
+---
+
+## License & Acknowledgments
+
+- **License**: Licensed under the [Apache License, Version 2.0](./LICENSE). See [NOTICE](./NOTICE) for full copyright and attribution details.
+- **Upstream & Attributions**:
+  - Derived from [Paseo](https://github.com/getpaseo/paseo) (Copyright (c) 2025-present Mohamed Boudra, Apache-2.0).
+  - Includes prompt recommendation components adapted from [Cindy](https://github.com/makecindy/cindy) (Copyright 2026 XD Inc., Apache-2.0).
+
+## Feedback & Contact
+
+- Bug reports & feature requests: [GitHub Issues](https://github.com/clawmuse/clawmuse/issues)
+- Email: [hello@clawmuse.com](mailto:hello@clawmuse.com)
+- Website: [clawmuse.com](https://clawmuse.com)

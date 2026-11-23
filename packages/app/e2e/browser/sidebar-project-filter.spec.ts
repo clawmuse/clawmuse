@@ -51,6 +51,7 @@ test.describe("Sidebar project filter", () => {
         /^Title/,
         "Show",
         "Project",
+        "Project icon",
         "Show background",
       ]);
       await closeSidebarDisplayPreferences(page);

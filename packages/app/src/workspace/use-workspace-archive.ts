@@ -39,7 +39,8 @@ export interface ArchiveWorkspaceInput {
 }
 
 export interface WorkspaceArchiveController {
-  archive: () => void;
+  /** Resolves to `true` when the workspace archive ran, or `false` when canceled or aborted. */
+  archive: () => Promise<boolean>;
 }
 
 export function useWorkspaceArchive(input: ArchiveWorkspaceInput): WorkspaceArchiveController {
@@ -62,11 +63,11 @@ export function useWorkspaceArchive(input: ArchiveWorkspaceInput): WorkspaceArch
   const onArchiveStartedRef = useRef(onArchiveStarted);
   onArchiveStartedRef.current = onArchiveStarted;
 
-  const archiveWorkspaceRecord = useCallback(async () => {
+  const archiveWorkspaceRecord = useCallback(async (): Promise<boolean> => {
     const client = getHostRuntimeStore().getClient(serverId);
     if (!client) {
       toast.error(t("sidebar.workspace.toasts.hostDisconnected"));
-      return;
+      return false;
     }
     const workspace = { serverId, workspaceId };
     onSetHiding?.(true);
@@ -84,10 +85,12 @@ export function useWorkspaceArchive(input: ArchiveWorkspaceInput): WorkspaceArch
         await archiveWorkspaceOptimistically({ client, workspace });
         purgeArchivedWorkspaceState(workspace);
       }
+      return true;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t("sidebar.workspace.toasts.archiveFailed"),
       );
+      return false;
     } finally {
       onSetHiding?.(false);
     }
@@ -118,26 +121,24 @@ export function useWorkspaceArchive(input: ArchiveWorkspaceInput): WorkspaceArch
     );
   }, [diffStat, name, serverId, t, toast, warningLabels, workspaceDirectory]);
 
-  const archive = useCallback(() => {
+  const archive = useCallback(async (): Promise<boolean> => {
     // A second press while the host answers or the warning is open would ask twice.
     if (confirmingRef.current) {
-      return;
+      return false;
     }
-    void (async () => {
-      if (workspaceKind === "worktree") {
-        confirmingRef.current = true;
-        let confirmed: boolean;
-        try {
-          confirmed = await confirmWorktreeArchive();
-        } finally {
-          confirmingRef.current = false;
-        }
-        if (!confirmed) {
-          return;
-        }
+    if (workspaceKind === "worktree") {
+      confirmingRef.current = true;
+      let confirmed: boolean;
+      try {
+        confirmed = await confirmWorktreeArchive();
+      } finally {
+        confirmingRef.current = false;
       }
-      await archiveWorkspaceRecord();
-    })();
+      if (!confirmed) {
+        return false;
+      }
+    }
+    return await archiveWorkspaceRecord();
   }, [archiveWorkspaceRecord, confirmWorktreeArchive, workspaceKind]);
 
   return {

@@ -191,16 +191,18 @@ export function PluginActionsMenu({
               {t("settings.plugins.gallery.actions.repository")}
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem
-            destructive
-            leading={removeIcon}
-            onSelect={remove}
-            disabled={pendingAction !== undefined}
-            status={pendingAction === "remove" ? "pending" : "idle"}
-            pendingLabel={t("settings.plugins.actions.removing")}
-          >
-            {t("settings.plugins.actions.remove")}
-          </DropdownMenuItem>
+          {!plugin.bundled ? (
+            <DropdownMenuItem
+              destructive
+              leading={removeIcon}
+              onSelect={remove}
+              disabled={pendingAction !== undefined}
+              status={pendingAction === "remove" ? "pending" : "idle"}
+              pendingLabel={t("settings.plugins.actions.removing")}
+            >
+              {t("settings.plugins.actions.remove")}
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       {logsOpen ? (

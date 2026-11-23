@@ -1,16 +1,22 @@
 import { X } from "@/components/icons/app-icons";
-import type { StyleProp, ViewStyle } from "react-native";
-import { withUnistyles } from "react-native-unistyles";
+import { View, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
+import { GlassSurface } from "@/components/ui/glass-surface";
 import {
+  foregroundIconColorMapping,
   IconButtonChromeProvider,
   iconButtonChromeGlyphSize,
   mutedIconColorMapping,
 } from "@/components/ui/icon-button-chrome";
+import { compactChrome } from "@/constants/compact-chrome";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 
 const ThemedX = withUnistyles(X);
 const NO_SHORTCUT: ShortcutKey[] = [];
+const closeIconColorMapping = compactChrome.nativeGlass
+  ? foregroundIconColorMapping
+  : mutedIconColorMapping;
 
 interface SidebarCloseButtonProps {
   label: string;
@@ -33,14 +39,14 @@ export function SidebarCloseButton({
   accessibilityState,
   style,
 }: SidebarCloseButtonProps) {
-  return (
+  const button = (
     <IconButtonChromeProvider value="header-island">
       <HeaderToggleButton
         onPress={onPress}
         tooltipLabel={label}
         tooltipKeys={NO_SHORTCUT}
         tooltipSide="bottom"
-        style={style}
+        style={compactChrome.nativeGlass ? undefined : style}
         testID={testID}
         nativeID={nativeID}
         accessible
@@ -48,8 +54,37 @@ export function SidebarCloseButton({
         accessibilityLabel={label}
         accessibilityState={accessibilityState}
       >
-        <ThemedX size={iconButtonChromeGlyphSize("large")} uniProps={mutedIconColorMapping} />
+        <ThemedX size={iconButtonChromeGlyphSize("large")} uniProps={closeIconColorMapping} />
       </HeaderToggleButton>
     </IconButtonChromeProvider>
   );
+
+  if (!compactChrome.nativeGlass) {
+    return button;
+  }
+
+  return (
+    <View style={[styles.islandHost, style]}>
+      <GlassSurface
+        style={[StyleSheet.absoluteFill, styles.island]}
+        pointerEvents="none"
+        isInteractive
+      />
+      {button}
+    </View>
+  );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  islandHost: {
+    width: compactChrome.controlSize,
+    height: compactChrome.controlSize,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  island: {
+    borderRadius: compactChrome.controlSize / 2,
+    borderCurve: "continuous",
+    backgroundColor: theme.colors.surface2,
+  },
+}));

@@ -28,16 +28,17 @@ describe("sidebar footer layout", () => {
     }
   });
 
-  it("keeps every action inline at the minimum width with pointer sizing", () => {
-    expect(layout(MIN_SIDEBAR_WIDTH, POINTER).overflow).toEqual([]);
-  });
-
-  // The iPhone Duo report: the folded sidebar column is about the minimum width, and touch
-  // sizing makes five 44pt buttons plus padding 236pt wide.
-  it("moves Help and Usage behind the caret at the minimum width with touch sizing", () => {
-    expect(layout(MIN_SIDEBAR_WIDTH, TOUCH)).toEqual({
+  it("keeps Add project, Hosts, and Settings inline at the minimum pointer width", () => {
+    expect(layout(MIN_SIDEBAR_WIDTH, POINTER)).toEqual({
       inline: ["add-project", "hosts", "settings"],
       overflow: ["usage", "help"],
+    });
+  });
+
+  it("keeps Settings inline at the minimum touch width", () => {
+    expect(layout(MIN_SIDEBAR_WIDTH, TOUCH)).toEqual({
+      inline: ["settings"],
+      overflow: ["add-project", "usage", "hosts", "help"],
     });
   });
 

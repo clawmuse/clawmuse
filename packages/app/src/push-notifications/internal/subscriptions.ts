@@ -3,6 +3,10 @@ import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { z } from "zod";
+import {
+  getClawMuseStatusBindingSnapshot,
+  subscribeClawMuseStatusBindings,
+} from "@/clawmuse-status/binding-state";
 import { notificationPreferencesStore, toDaemonPushPreferences } from "@/notifications/preferences";
 import { readValidatedString } from "@/storage/validated-storage";
 import type { RevokePushNotificationsInput, StartPushNotificationsInput } from "./types";
@@ -97,7 +101,20 @@ export function startSubscription(input: StartPushNotificationsInput): () => voi
     if (!hydrated || !preferences.pushEnabled) {
       return;
     }
-    const daemonPrefs = toDaemonPushPreferences(preferences);
+    const baseDaemonPrefs = toDaemonPushPreferences(preferences);
+    const statusOwnsTaskAlerts =
+      Platform.OS === "ios" &&
+      !preferences.singleTaskChannelPriority &&
+      getClawMuseStatusBindingSnapshot().hosts[input.serverId]?.kind === "bound";
+    const daemonPrefs = statusOwnsTaskAlerts
+      ? {
+          ...baseDaemonPrefs,
+          permission: false,
+          finished: false,
+          error: false,
+          running: false,
+        }
+      : baseDaemonPrefs;
     const registrationKey = `${token}:${JSON.stringify(daemonPrefs)}`;
     if (registrationKey === lastRegisteredKey) {
       return;
@@ -160,6 +177,7 @@ export function startSubscription(input: StartPushNotificationsInput): () => voi
     }
   });
   const unsubscribePrefs = notificationPreferencesStore.subscribe(sync);
+  const unsubscribeStatusBindings = subscribeClawMuseStatusBindings(sync);
 
   void notificationPreferencesStore.ensureLoaded().then(() => {
     sync();
@@ -170,6 +188,7 @@ export function startSubscription(input: StartPushNotificationsInput): () => voi
     stopped = true;
     unsubscribeConnection();
     unsubscribePrefs();
+    unsubscribeStatusBindings();
   };
 }
 

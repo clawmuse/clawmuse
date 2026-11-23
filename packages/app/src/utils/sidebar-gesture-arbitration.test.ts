@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   decideLongPressMove,
+  getWorkspaceArchiveSwipeThreshold,
   shouldArchiveWorkspaceSwipe,
   shouldOpenContextMenuOnPressOut,
 } from "./sidebar-gesture-arbitration";
 
 describe("workspace archive swipe", () => {
+  it("caps the commit threshold for wide sidebars and scales down on narrow widths", () => {
+    expect(getWorkspaceArchiveSwipeThreshold(390)).toBe(88);
+    expect(getWorkspaceArchiveSwipeThreshold(240)).toBe(72);
+  });
+
   it("archives a deliberate left swipe or flick after release", () => {
     expect(
       shouldArchiveWorkspaceSwipe({ translationX: -120, velocityX: 0, width: 320, success: true }),

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ensureClawMuseStatusLiveActivityPushCredentials,
   ensureClawMuseStatusWidgetCredentials,
   parseClawMuseStatusWidgetToken,
   widgetTokenNeedsRenewal,
@@ -113,6 +114,47 @@ describe("ensureClawMuseStatusWidgetCredentials", () => {
       now: () => 0,
     });
     expect(publish).toHaveBeenCalledWith(null);
+    expect(storage.values.size).toBe(0);
+  });
+});
+
+describe("ensureClawMuseStatusLiveActivityPushCredentials", () => {
+  it("stores and publishes native background push credentials and skips unsupported servers", async () => {
+    const storage = createStorage();
+    const publish = vi.fn(async () => {});
+    await ensureClawMuseStatusLiveActivityPushCredentials({
+      baseUrl: "https://status.example",
+      installationId: "i",
+      issueToken: async () => null,
+      storage,
+      publish,
+      now: () => 0,
+    });
+    expect(publish).not.toHaveBeenCalled();
+    expect(storage.values.size).toBe(0);
+
+    await ensureClawMuseStatusLiveActivityPushCredentials({
+      baseUrl: "https://status.example",
+      installationId: "i",
+      issueToken: async () => ({ accessToken: "la-push-token", expiresIn: 2_592_000 }),
+      storage,
+      publish,
+      now: () => 0,
+    });
+    expect(publish).toHaveBeenCalledWith({
+      baseUrl: "https://status.example",
+      token: "la-push-token",
+    });
+
+    await ensureClawMuseStatusLiveActivityPushCredentials({
+      baseUrl: "https://status.example",
+      installationId: null,
+      issueToken: async () => null,
+      storage,
+      publish,
+      now: () => 0,
+    });
+    expect(publish).toHaveBeenLastCalledWith(null);
     expect(storage.values.size).toBe(0);
   });
 });

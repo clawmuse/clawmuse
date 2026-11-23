@@ -1,4 +1,5 @@
 import { getServerId } from "../support/helpers/server-id";
+import { notOnMobileHome } from "../support/helpers/sidebar";
 import { runWorkspaceActionFromCommandCenter } from "../support/helpers/command-center-workspace-actions";
 import { spawnSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
@@ -567,7 +568,10 @@ async function openPhoneInputCapture(page: Page, mode: "alternate" | "mouse") {
 async function openPhoneTerminal(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Open menu", exact: true }).click();
-  await page.getByTestId(`sidebar-workspace-row-${getServerId()}:${harness.workspaceId}`).click();
+  await page
+    .getByTestId(`sidebar-workspace-row-${getServerId()}:${harness.workspaceId}`)
+    .and(notOnMobileHome(page))
+    .click();
   await expect(page.getByRole("textbox", { name: "Terminal input" })).toBeVisible();
   await expect(page.getByTestId("terminal-surface").filter({ visible: true })).toBeVisible();
 }

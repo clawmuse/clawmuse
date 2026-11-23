@@ -1393,6 +1393,7 @@ export const ru: TranslationResources = {
         newAgentHere: "Новый агент на этом хосте",
         settings: "Настройки хоста",
         more: "Другие хосты",
+        reorderHost: "Переместить {{name}}",
         shownCount: "Показано хостов: {{count}}",
         clear: "Сбросить",
         running: "Выполняется: {{count}}",
@@ -2753,6 +2754,14 @@ export const ru: TranslationResources = {
         label: "Буфер прокрутки терминала",
         description: "Количество строк, сохраняемых во встроенном буфере терминала",
         accessibilityLabel: "Количество строк в буфере прокрутки терминала",
+      },
+      showReasoning: {
+        label: "Показывать рассуждения",
+        description: "Показывать этапы размышлений в чате",
+      },
+      showToolCalls: {
+        label: "Показывать вызовы инструментов",
+        description: "Показывать вызовы Shell, поиск и другие инструменты в чате",
       },
       autoExpandReasoning: {
         label: "Всегда разворачивать размышления",

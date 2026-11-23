@@ -3,6 +3,8 @@ import { Text, type PressableStateCallbackType, type View } from "react-native";
 import type { LucideIcon } from "@/components/icons/app-icons";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { PressHighlight } from "@/components/ui/press-highlight";
+import { GlassSurface } from "@/components/ui/glass-surface";
+import { compactChrome } from "@/constants/compact-chrome";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { COMPACT_ACTION_BUTTON_SIZE } from "./control-geometry";
 
@@ -61,17 +63,19 @@ export const FloatingActionButton = forwardRef<View, FloatingActionButtonProps>(
       () => [styles.label, variant === "primary" && styles.primaryGlyph],
       [variant],
     );
+    const useGlass = compactChrome.nativeGlass && variant === "default";
     const buttonStyle = useCallback(
       ({ pressed }: PressableStateCallbackType) => [
         styles.button,
+        useGlass && styles.glassButton,
         compact && styles.compact,
         variant === "primary" && styles.primary,
         label && styles.labeled,
-        pressed && styles.pressed,
+        pressed && (useGlass ? styles.glassPressed : styles.pressed),
         disabled && styles.disabled,
         { bottom: FLOATING_ACTION_BUTTON_INSET + bottomInset },
       ],
-      [bottomInset, compact, disabled, label, variant],
+      [bottomInset, compact, disabled, label, useGlass, variant],
     );
     return (
       <PressHighlight
@@ -84,6 +88,13 @@ export const FloatingActionButton = forwardRef<View, FloatingActionButtonProps>(
         style={buttonStyle}
         testID={testID}
       >
+        {useGlass ? (
+          <GlassSurface
+            style={[StyleSheet.absoluteFill, styles.glassSurface]}
+            pointerEvents="none"
+            isInteractive
+          />
+        ) : null}
         <ThemedFloatingActionGlyph
           icon={Icon}
           uniProps={variant === "primary" ? primaryGlyph : foregroundGlyph}
@@ -106,6 +117,20 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.surface3,
     ...theme.shadow.md,
+  },
+  glassButton: {
+    backgroundColor: "transparent",
+    borderCurve: "continuous",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  glassSurface: {
+    borderRadius: theme.borderRadius.full,
+    borderCurve: "continuous",
+    backgroundColor: theme.colors.surface3,
+  },
+  glassPressed: {
+    backgroundColor: theme.colors.interactionHighlight,
   },
   labeled: {
     width: "auto",

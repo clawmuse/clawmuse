@@ -21,13 +21,14 @@ const ALL_INLINE = [
   "sidebar-add-project",
   "sidebar-usage-icon",
   "sidebar-hosts-trigger",
+  "clawmuse-open-account",
   "sidebar-help",
   "sidebar-settings",
 ];
-// Five 44pt buttons and the row's padding need 236pt; 200pt holds three and the caret.
+// Six 44pt buttons (including Account) and the row's padding need 280pt; 200pt holds three and the caret.
 const NARROW_TOUCH_LINE = [
   "sidebar-add-project",
-  "sidebar-hosts-trigger",
+  "clawmuse-open-account",
   "sidebar-footer-overflow",
   "sidebar-settings",
 ];
@@ -46,9 +47,9 @@ test.describe("Sidebar footer on a touch screen", () => {
 
     await test.step("Help opens as a page of the overflow menu", async () => {
       await openFooterOverflow(page);
-      await expectFooterOverflowActions(page, ["Usage", "Help and support"]);
+      await expectFooterOverflowActions(page, ["Usage", "Hosts", "Help and support"]);
       await chooseFooterOverflowAction(page, "Help and support");
-      await expect(page.getByRole("menuitem", { name: "What's new" })).toBeVisible();
+      await expect(page.getByRole("menuitem", { name: "Run diagnostics" })).toBeVisible();
       await expect(page.getByTestId("sidebar-help-menu")).toHaveCount(0);
       await page.keyboard.press("Escape");
       await expect(footerOverflowMenu(page)).toBeHidden();
@@ -89,13 +90,13 @@ test.describe("Sidebar footer in a compact overlay narrower than the footer", ()
     await expectFooterLine(page, { testIDs: NARROW_TOUCH_LINE, controlSize: TOUCH_CONTROL });
     await expectFooterNeverClipped(page);
     await openFooterOverflow(page);
-    await expectFooterOverflowActions(page, ["Usage", "Help and support"]);
+    await expectFooterOverflowActions(page, ["Usage", "Hosts", "Help and support"]);
     await expectFooterMenusInsideViewport(page);
   });
 });
 
 test.describe("Sidebar footer on a short, narrow phone", () => {
-  // 164pt for buttons holds Settings, Add project and the caret, so Hosts moves behind it.
+  // 164pt for buttons holds Settings, Account and the caret, so Add project and Hosts move behind it.
   test.use({ viewport: { width: 180, height: 360 }, hasTouch: true });
 
   test("the overflow Hosts page scrolls to its last host and Add host", async ({ page }) => {
@@ -109,11 +110,11 @@ test.describe("Sidebar footer on a short, narrow phone", () => {
     );
     await openCompactSidebar(page);
     await expectFooterLine(page, {
-      testIDs: ["sidebar-add-project", "sidebar-footer-overflow", "sidebar-settings"],
+      testIDs: ["clawmuse-open-account", "sidebar-footer-overflow", "sidebar-settings"],
       controlSize: TOUCH_CONTROL,
     });
     await openFooterOverflow(page);
-    await expectFooterOverflowActions(page, ["Usage", "Hosts", "Help and support"]);
+    await expectFooterOverflowActions(page, ["Add project", "Usage", "Hosts", "Help and support"]);
     await expectFooterMenusInsideViewport(page);
     await chooseFooterOverflowAction(page, "Hosts");
     await expectFooterMenusInsideViewport(page);

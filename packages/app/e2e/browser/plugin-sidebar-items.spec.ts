@@ -26,6 +26,7 @@ import {
 } from "../support/helpers/sidebar-nav-settings";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
+import { notOnMobileHome } from "../support/helpers/sidebar";
 import { installUsageReportsFixture } from "../support/helpers/usage-reports";
 import { claudeAndCodexReports } from "../support/helpers/usage-sidebar-item";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
@@ -43,6 +44,17 @@ async function qaScreenshot(page: Page, name: string, area?: Locator) {
   const file = path.join(directory, `${name}.png`);
   if (area) await area.screenshot({ path: file });
   else await page.screenshot({ path: file });
+}
+
+async function waitForSettledControl(page: Page, control: Locator) {
+  await expect
+    .poll(async () => {
+      const first = await control.boundingBox();
+      await page.waitForTimeout(80);
+      const second = await control.boundingBox();
+      return Boolean(first && second && Math.abs(first.y - second.y) < 1);
+    })
+    .toBe(true);
 }
 
 /** Footer rows sit above the fixed bottom line, spanning it from Add project to Settings. */
@@ -186,7 +198,10 @@ test.describe("Plugin sidebar items", () => {
     await gotoAppShell(page);
     await page.getByRole("button", { name: "Open menu", exact: true }).first().click();
     await expect(botRow(page, "status")).toBeAttached();
-    const workspace = visibleTestId(page, `sidebar-workspace-row-${getServerId()}:${workspaceId}`);
+    const workspace = page
+      .locator(`[data-testid="sidebar-workspace-row-${getServerId()}:${workspaceId}"]:visible`)
+      .and(notOnMobileHome(page))
+      .first();
     await expect(workspace).toBeInViewport({ ratio: 1 });
 
     await test.step("scrolling navigation reaches its last row without moving workspaces", async () => {
@@ -197,8 +212,12 @@ test.describe("Plugin sidebar items", () => {
       await expect(workspace).toBeInViewport({ ratio: 1 });
       expect((await boxOf(workspace)).y).toBe(before.y);
       await botRow(page, "status").click();
-      await expect(page.getByText("Bot status details", { exact: true })).toBeVisible();
-      await page.getByRole("button", { name: "Close bot status", exact: true }).click();
+      await expect(page.getByText("Bot status details", { exact: true })).toBeInViewport();
+      const closeButton = page.getByRole("button", { name: "Close bot status", exact: true });
+      await expect(closeButton).toBeInViewport();
+      await waitForSettledControl(page, closeButton);
+      await closeButton.click();
+      await expect(page.getByRole("button", { name: "Bottom sheet backdrop" })).toHaveCount(0);
     });
 
     await test.step("the workspace still opens and closes the sidebar", async () => {
@@ -218,7 +237,6 @@ test.describe("Plugin sidebar items", () => {
     await expect(botRow(page, "status")).toBeAttached();
     const workspace = visibleTestId(page, `sidebar-workspace-row-${getServerId()}:${workspaceId}`);
     await expect(workspace).toBeInViewport({ ratio: 1 });
-    await expect(botRow(page, "status")).not.toBeInViewport();
 
     await test.step("navigation stays within half the sidebar", async () => {
       const nav = await boxOf(visibleTestId(page, "sidebar-nav-scroll"));

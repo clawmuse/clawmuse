@@ -8,6 +8,7 @@ import { fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { defaultHostAppearance } from "@/hosts/appearance";
+import { useHostOrderStore } from "@/hosts/host-order";
 import { i18n as testI18n } from "@/i18n/i18next";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
@@ -132,6 +133,7 @@ describe("SidebarHostStrip", () => {
 
     useCreateFlowStore.setState({ pendingByDraftId: {} });
     useSidebarViewStore.getState().clearHostFilters();
+    useHostOrderStore.setState({ hostOrder: [], pendingAccountOrder: null });
 
     setHostProfiles([makeHost("local", "Local"), makeHost("gd32", "GD32"), makeHost("sg", "SG")]);
 
@@ -171,6 +173,7 @@ describe("SidebarHostStrip", () => {
     container?.remove();
     document.getElementById("overlay-root")?.remove();
     useSidebarViewStore.getState().clearHostFilters();
+    useHostOrderStore.setState({ hostOrder: [], pendingAccountOrder: null });
     for (const id of ["local", "gd32", "sg"]) {
       useSessionStore.getState().clearSession(id);
     }
@@ -261,6 +264,85 @@ describe("SidebarHostStrip", () => {
     act(() => {
       fireEvent.click(allChip!);
     });
+    expect(useSidebarViewStore.getState().hostFilters).toEqual([]);
+  });
+
+  it("renders hosts in deterministic default order and updates DOM when hostOrder changes", () => {
+    const readRenderedChipIds = () =>
+      Array.from(
+        container?.querySelectorAll('[data-testid^="sidebar-host-strip-chip-"]') ?? [],
+      ).map((node) => node.getAttribute("data-testid")?.replace("sidebar-host-strip-chip-", ""));
+
+    expect(readRenderedChipIds()).toEqual(["gd32", "local", "sg"]);
+
+    act(() => {
+      useHostOrderStore.getState().setHostOrder(["sg", "local", "gd32"]);
+    });
+
+    expect(readRenderedChipIds()).toEqual(["sg", "local", "gd32"]);
+  });
+
+  it("reorders host chips on horizontal mouse drag without changing the active host filter", () => {
+    const gd32Chip = container?.querySelector(
+      '[data-testid="sidebar-host-strip-chip-gd32"]',
+    ) as HTMLElement | null;
+    const localChip = container?.querySelector(
+      '[data-testid="sidebar-host-strip-chip-local"]',
+    ) as HTMLElement | null;
+    const sgChip = container?.querySelector(
+      '[data-testid="sidebar-host-strip-chip-sg"]',
+    ) as HTMLElement | null;
+    expect(gd32Chip).not.toBeNull();
+    expect(localChip).not.toBeNull();
+    expect(sgChip).not.toBeNull();
+
+    const setRect = (el: HTMLElement | null, left: number, width: number) => {
+      const wrapper = el?.closest("[aria-roledescription='sortable']") as HTMLElement | null;
+      if (!wrapper) throw new Error("missing sortable wrapper");
+      Object.defineProperty(wrapper, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({
+          left,
+          right: left + width,
+          top: 0,
+          bottom: 26,
+          width,
+          height: 26,
+          x: left,
+          y: 0,
+          toJSON: () => {},
+        }),
+      });
+    };
+
+    setRect(gd32Chip, 0, 60);
+    setRect(localChip, 64, 60);
+    setRect(sgChip, 128, 60);
+
+    act(() => {
+      sgChip!.dispatchEvent(
+        new window.MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 158, clientY: 13 }),
+      );
+    });
+    act(() => {
+      document.dispatchEvent(
+        new window.MouseEvent("mousemove", { bubbles: true, clientX: 148, clientY: 13 }),
+      );
+    });
+    act(() => {
+      document.dispatchEvent(
+        new window.MouseEvent("mousemove", { bubbles: true, clientX: 20, clientY: 13 }),
+      );
+    });
+    act(() => {
+      document.dispatchEvent(new window.MouseEvent("mouseup", { bubbles: true }));
+    });
+    // Simulate trailing click event that browsers emit after mouseup.
+    act(() => {
+      fireEvent.click(sgChip!);
+    });
+
+    expect(useHostOrderStore.getState().hostOrder).toEqual(["sg", "gd32", "local"]);
     expect(useSidebarViewStore.getState().hostFilters).toEqual([]);
   });
 });

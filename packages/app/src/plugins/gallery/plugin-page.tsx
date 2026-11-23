@@ -216,7 +216,12 @@ function DetailValue({ children }: { children: ReactNode }) {
   );
 }
 
-function detailSource(plugin: PluginListItem | undefined, listing: PluginListing | undefined) {
+function detailSource(
+  plugin: PluginListItem | undefined,
+  listing: PluginListing | undefined,
+  bundledLabel: string,
+) {
+  if (plugin?.bundled) return bundledLabel;
   if (plugin?.installation) return formatPluginInstallation(plugin.installation);
   if (plugin) return plugin.path;
   if (!listing) return undefined;
@@ -226,7 +231,7 @@ function detailSource(plugin: PluginListItem | undefined, listing: PluginListing
 function Details({ plugin, listing }: { plugin?: PluginListItem; listing?: PluginListing }) {
   const { t } = useTranslation();
   const version = plugin?.installation?.currentRevision ?? (listing && listingVersion(listing));
-  const source = detailSource(plugin, listing);
+  const source = detailSource(plugin, listing, t("settings.plugins.bundled"));
   const repository = listing?.repository.url;
   return (
     <SettingsSection title={t("settings.plugins.gallery.sections.details")}>

@@ -90,14 +90,15 @@ describe("buildWorkspaceArchiveRedirectRoute", () => {
 function createFakeRouter(
   workspaces: WorkspaceDescriptor[],
   sidebarOrder: string[] = [],
+  options: { sidebarOverlayOpen?: boolean } = {},
 ): {
   deps: RedirectIfArchivingActiveWorkspaceDeps;
   routes: Href[];
-  workspaceVisits: string[];
+  workspaceVisits: Array<{ serverId: string; workspaceId: string; surface?: "sidebar" }>;
   openedLists: (Href | null)[];
 } {
   const routes: Href[] = [];
-  const workspaceVisits: string[] = [];
+  const workspaceVisits: Array<{ serverId: string; workspaceId: string; surface?: "sidebar" }> = [];
   const openedLists: (Href | null)[] = [];
   return {
     routes,
@@ -108,11 +109,12 @@ function createFakeRouter(
         routes.push(route);
       },
       navigateToWorkspace: (target) => {
-        workspaceVisits.push(`${target.serverId}:${target.workspaceId}`);
+        workspaceVisits.push(target);
       },
       readWorkspaces: () => workspaces,
       readSidebarTargets: () =>
         sidebarOrder.map((workspaceId) => ({ serverId: "server-1", workspaceId })),
+      isSidebarOverlayOpen: () => options.sidebarOverlayOpen ?? false,
       openAgentList: () => {
         openedLists.push(routes.at(-1) ?? null);
       },
@@ -180,8 +182,53 @@ describe("redirectIfArchivingActiveWorkspace", () => {
       ),
     ).toBe(true);
 
-    expect(workspaceVisits).toEqual(["server-1:c"]);
+    expect(workspaceVisits).toEqual([{ serverId: "server-1", workspaceId: "c" }]);
     expect(routes).toEqual([]);
+    expect(openedLists).toEqual([]);
+  });
+
+  it("keeps the sidebar list open when archiving the active workspace from the overlay", () => {
+    const { deps, routes, workspaceVisits, openedLists } = createFakeRouter(
+      [workspace({ id: "a" }), workspace({ id: "b" }), workspace({ id: "c" })],
+      ["a", "b", "c"],
+      { sidebarOverlayOpen: true },
+    );
+
+    expect(
+      redirectIfArchivingActiveWorkspace(
+        {
+          serverId: "server-1",
+          workspaceId: "b",
+          activeWorkspaceSelection: { serverId: "server-1", workspaceId: "b" },
+        },
+        deps,
+      ),
+    ).toBe(true);
+
+    expect(workspaceVisits).toEqual([
+      { serverId: "server-1", workspaceId: "c", surface: "sidebar" },
+    ]);
+    expect(routes).toEqual([]);
+    expect(openedLists).toEqual([]);
+  });
+
+  it("leaves an already-open sidebar overlay alone when archiving the last workspace", () => {
+    const { deps, routes, openedLists } = createFakeRouter([workspace({ id: "only" })], ["only"], {
+      sidebarOverlayOpen: true,
+    });
+
+    expect(
+      redirectIfArchivingActiveWorkspace(
+        {
+          serverId: "server-1",
+          workspaceId: "only",
+          activeWorkspaceSelection: { serverId: "server-1", workspaceId: "only" },
+        },
+        deps,
+      ),
+    ).toBe(true);
+
+    expect(routes).toEqual(["/new?serverId=server-1&dir=%2Frepo&name=Project&projectId=project-1"]);
     expect(openedLists).toEqual([]);
   });
 });

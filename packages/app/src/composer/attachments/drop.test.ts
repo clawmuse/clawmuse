@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { droppedItemsToSelectedFiles } from "./drop";
+import { droppedItemsToPickedImages, droppedItemsToSelectedFiles } from "./drop";
 
 describe("composer dropped attachments", () => {
+  it("extracts raster images from both web files and desktop paths in drop order", () => {
+    const jsonFile = new File([JSON.stringify({ ok: true })], "config.json", {
+      type: "application/json",
+    });
+    const firstImage = new File([new Uint8Array([1])], "first.png", { type: "image/png" });
+    const secondImage = new File([new Uint8Array([2])], "second.jpg", { type: "image/jpeg" });
+    const desktopImage = "C:\\Users\\alice\\third.webp";
+
+    const images = droppedItemsToPickedImages([
+      { kind: "web-file", file: firstImage },
+      { kind: "web-file", file: jsonFile },
+      { kind: "web-file", file: secondImage },
+      { kind: "desktop-path", path: desktopImage },
+    ]);
+
+    expect(images).toEqual([
+      { source: { kind: "blob", blob: firstImage }, mimeType: "image/png", fileName: "first.png" },
+      {
+        source: { kind: "blob", blob: secondImage },
+        mimeType: "image/jpeg",
+        fileName: "second.jpg",
+      },
+      {
+        source: { kind: "file_uri", uri: desktopImage },
+        mimeType: "image/webp",
+        fileName: "third.webp",
+      },
+    ]);
+  });
   it("turns non-image browser files into selected files and leaves raster images for image handling", async () => {
     const jsonFile = new File([JSON.stringify({ ok: true })], "config.json", {
       type: "application/json",

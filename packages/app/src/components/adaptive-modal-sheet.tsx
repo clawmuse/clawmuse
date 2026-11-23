@@ -1,9 +1,9 @@
 import { useOverlayRegistration, type KeyboardInputEvent } from "@/keyboard";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, ReactNode, Ref } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Keyboard, Text, View } from "react-native";
+import { Keyboard, Text, View, type ScrollView as NativeScrollView } from "react-native";
 import type { DimensionValue, StyleProp, ViewProps, ViewStyle } from "react-native";
 import { StyleSheet, useUnistyles, withUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -588,6 +588,8 @@ export interface AdaptiveModalSheetProps {
   desktopHeight?: DimensionValue;
   /** Whether the host supplies the scroll container. Caller-owned lists still share sheet gestures. */
   scrollable?: boolean;
+  /** Optional ref attached to the host scroll view when `scrollable` is true. */
+  scrollRef?: Ref<NativeScrollView>;
   presentation?: "push" | "replace";
   /** Full body viewport below the header, including space beyond the content. */
   bodyStyle?: StyleProp<ViewStyle>;
@@ -608,6 +610,7 @@ function CompactSheetBody({
   footer,
   isKeyboardVisible,
   scrollable,
+  scrollRef,
   bodyStyle,
   contentStyle,
   children,
@@ -618,6 +621,7 @@ function CompactSheetBody({
   footer: ReactNode;
   isKeyboardVisible: boolean;
   scrollable: boolean;
+  scrollRef?: Ref<NativeScrollView>;
   bodyStyle?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
   children: ReactNode;
@@ -646,6 +650,7 @@ function CompactSheetBody({
       <View style={[styles.compactStaticContent, bodyStyle]}>
         {scrollable ? (
           <ScrollView
+            ref={scrollRef}
             style={styles.bottomSheetVisibleScroll}
             contentContainerStyle={SCROLL_CONTENT_GROW}
             keyboardShouldPersistTaps="handled"
@@ -680,6 +685,7 @@ export function AdaptiveModalSheet({
   desktopMaxWidth,
   desktopHeight,
   scrollable = true,
+  scrollRef,
   presentation,
   contentStyle,
   bodyStyle,
@@ -801,6 +807,7 @@ export function AdaptiveModalSheet({
             footer={footerView}
             isKeyboardVisible={isKeyboardVisible}
             scrollable={scrollable}
+            scrollRef={scrollRef}
             bodyStyle={bodyStyle}
             contentStyle={contentStyle}
           >
@@ -819,6 +826,7 @@ export function AdaptiveModalSheet({
       <View style={[scrollable ? styles.desktopScrollContainer : desktopStaticStyle, bodyStyle]}>
         {scrollable ? (
           <ScrollView
+            ref={scrollRef}
             style={styles.desktopScroll}
             contentContainerStyle={SCROLL_CONTENT_GROW}
             keyboardShouldPersistTaps="handled"

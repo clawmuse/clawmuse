@@ -12,15 +12,28 @@ interface WorkspaceArchiveSwipeInput {
   success: boolean;
 }
 
+const MAX_ARCHIVE_SWIPE_THRESHOLD_PX = 88;
+const ARCHIVE_SWIPE_WIDTH_RATIO = 0.3;
+const ARCHIVE_FLICK_MIN_DISTANCE_PX = 28;
+const ARCHIVE_FLICK_VELOCITY_X = -550;
+const ARCHIVE_CANCEL_REVERSE_VELOCITY_X = 200;
+
+export function getWorkspaceArchiveSwipeThreshold(width: number): number {
+  "worklet";
+  if (width <= 0) return MAX_ARCHIVE_SWIPE_THRESHOLD_PX;
+  return Math.min(MAX_ARCHIVE_SWIPE_THRESHOLD_PX, width * ARCHIVE_SWIPE_WIDTH_RATIO);
+}
+
 export function shouldArchiveWorkspaceSwipe(input: WorkspaceArchiveSwipeInput): boolean {
   "worklet";
   if (!input.success || input.width <= 0) return false;
   const distance = -input.translationX;
-  const threshold = Math.min(96, input.width * 0.35);
+  const threshold = getWorkspaceArchiveSwipeThreshold(input.width);
   const passedThreshold = distance >= threshold;
-  const deliberateFlick = distance >= 32 && input.velocityX <= -600;
+  const deliberateFlick =
+    distance >= ARCHIVE_FLICK_MIN_DISTANCE_PX && input.velocityX <= ARCHIVE_FLICK_VELOCITY_X;
   // Moving back toward the row cancels even after crossing the distance threshold.
-  if (input.velocityX > 200) return false;
+  if (input.velocityX > ARCHIVE_CANCEL_REVERSE_VELOCITY_X) return false;
   return passedThreshold || deliberateFlick;
 }
 

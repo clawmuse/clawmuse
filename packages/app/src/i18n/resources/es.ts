@@ -1413,6 +1413,7 @@ export const es: TranslationResources = {
         newAgentHere: "Nuevo agente en este host",
         settings: "Ajustes del host",
         more: "Más hosts",
+        reorderHost: "Mover {{name}}",
         shownCount: "Hosts mostrados: {{count}}",
         clear: "Borrar",
         running: "En ejecución: {{count}}",
@@ -2770,6 +2771,14 @@ export const es: TranslationResources = {
         label: "Historial de terminal",
         description: "Líneas mantenidas en el búfer de terminal incorporado",
         accessibilityLabel: "Líneas del historial de terminal",
+      },
+      showReasoning: {
+        label: "Mostrar razonamiento",
+        description: "Mostrar los pasos de razonamiento en el chat",
+      },
+      showToolCalls: {
+        label: "Mostrar llamadas a herramientas",
+        description: "Mostrar llamadas a Shell, búsquedas y otras herramientas en el chat",
       },
       autoExpandReasoning: {
         label: "Siempre expandir razonamiento",

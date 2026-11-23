@@ -1,6 +1,7 @@
 {
   "platforms": ["ios"],
   "ios": {
-    "modules": ["ClawMuseAgentLiveActivityModule"]
+    "modules": ["ClawMuseAgentLiveActivityModule"],
+    "appDelegateSubscribers": ["ClawMuseLiveActivityNotificationSubscriber"]
   }
 }

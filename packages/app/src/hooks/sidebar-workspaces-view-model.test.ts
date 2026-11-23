@@ -694,6 +694,31 @@ describe("deriveSidebarLoadingState", () => {
       }),
     ).toEqual({ isLoading: false, isInitialLoad: false, isRevalidating: false });
   });
+
+  it("does not stay stuck in initial-load when the device is offline", () => {
+    expect(
+      deriveSidebarLoadingState({
+        isActive: true,
+        serverIds: ["srv"],
+        hydratedServerIds: [],
+        hasProjects: false,
+        networkOnline: false,
+      }),
+    ).toEqual({ isLoading: false, isInitialLoad: false, isRevalidating: false });
+  });
+
+  it("does not stay stuck in initial-load when every unhydrated host is offline or errored", () => {
+    expect(
+      deriveSidebarLoadingState({
+        isActive: true,
+        serverIds: ["srv"],
+        hydratedServerIds: [],
+        hasProjects: false,
+        networkOnline: true,
+        hasPendingUnhydratedHosts: false,
+      }),
+    ).toEqual({ isLoading: false, isInitialLoad: false, isRevalidating: false });
+  });
 });
 
 function workspacePlacement(input: {

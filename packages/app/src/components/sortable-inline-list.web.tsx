@@ -1,9 +1,12 @@
 import { useCallback, useMemo, type ReactElement } from "react";
+import { View } from "react-native";
 import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
+  type DragEndEvent,
   type Modifier,
   useSensor,
   useSensors,
@@ -16,7 +19,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { DraggableRenderItemInfo } from "./draggable-list.types";
+import type { SortableInlineListProps } from "./sortable-inline-list.types";
 import { useDragReorderState } from "./drag-reorder";
+
+export type { SortableInlineListProps };
 
 const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
   ...transform,
@@ -24,6 +30,7 @@ const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
 });
 
 const DND_MODIFIERS: Modifier[] = [restrictToHorizontalAxis];
+const TOUCH_ACTIVATION_CONSTRAINT = { delay: 180, tolerance: 8 };
 
 function computeDragOpacity(hasExternalContext: boolean, isDragging: boolean): number {
   if (!isDragging) return 1;
@@ -116,26 +123,16 @@ export function SortableInlineList<T>({
   keyExtractor,
   renderItem,
   onDragEnd,
+  style,
   useDragHandle = false,
   disabled = false,
   activationDistance = 8,
   onDragBegin,
+  onDragRelease,
   externalDndContext = false,
   activeId: externalActiveId = null,
   getItemData,
-}: {
-  data: T[];
-  keyExtractor: (item: T, index: number) => string;
-  renderItem: (info: DraggableRenderItemInfo<T>) => ReactElement;
-  onDragEnd?: (data: T[], movedKey: string) => void;
-  useDragHandle?: boolean;
-  disabled?: boolean;
-  activationDistance?: number;
-  onDragBegin?: () => void;
-  externalDndContext?: boolean;
-  activeId?: string | null;
-  getItemData?: (item: T, index: number) => Record<string, unknown>;
-}): ReactElement {
+}: SortableInlineListProps<T>): ReactElement {
   const {
     activeId: internalActiveId,
     items: managedItems,
@@ -151,14 +148,30 @@ export function SortableInlineList<T>({
   const activeId = externalDndContext ? externalActiveId : internalActiveId;
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
         distance: activationDistance,
       },
     }),
+    useSensor(TouchSensor, {
+      activationConstraint: TOUCH_ACTIVATION_CONSTRAINT,
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
+  );
+
+  const handleDragCancel = useCallback(() => {
+    handlers.onDragCancel();
+    onDragRelease?.();
+  }, [handlers, onDragRelease]);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      handlers.onDragEnd(event);
+      onDragRelease?.();
+    },
+    [handlers, onDragRelease],
   );
 
   const ids = useMemo(
@@ -198,10 +211,10 @@ export function SortableInlineList<T>({
       collisionDetection={closestCenter}
       modifiers={DND_MODIFIERS}
       onDragStart={handlers.onDragStart}
-      onDragCancel={handlers.onDragCancel}
-      onDragEnd={handlers.onDragEnd}
+      onDragCancel={handleDragCancel}
+      onDragEnd={handleDragEnd}
     >
-      {renderedItems}
+      {style ? <View style={style}>{renderedItems}</View> : renderedItems}
     </DndContext>
   );
 }

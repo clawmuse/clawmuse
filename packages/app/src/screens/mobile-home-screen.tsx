@@ -10,6 +10,7 @@ import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
 import { DensityIcon } from "@/components/ui/density-icon";
 import { SidebarWorkspaceList } from "@/components/sidebar-workspace-list";
 import { SidebarAgentListSkeleton } from "@/components/sidebar-agent-list-skeleton";
+import { SidebarConnectivityBanner } from "@/components/sidebar/sidebar-connectivity-banner";
 import { SidebarModelProvider, useSidebarModel } from "@/components/sidebar/sidebar-model";
 import {
   FloatingActionButton,
@@ -70,6 +71,10 @@ function MobileHomeContent({ supportContent }: { supportContent: ReactNode }) {
   return (
     <View style={styles.container} testID="mobile-home">
       <MenuHeader title={t("shell.commandCenter.workspaces")} rightContent={searchAction} />
+      <SidebarConnectivityBanner
+        hasProjects={model.projects.length > 0}
+        onRefresh={model.refreshAll}
+      />
       <View style={styles.list}>
         {model.isInitialLoad ? (
           <>

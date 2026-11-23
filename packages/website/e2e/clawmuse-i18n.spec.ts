@@ -155,7 +155,7 @@ for (const language of ["en", "zh-CN"] as const) {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.setViewportSize({ width, height: 900 });
       await page.goto(href("/", language));
-      await expect(page.locator("h1")).toHaveText(t("footer.giveInspirationTheAbilityToAct"));
+      await expect(page.locator("h1")).toHaveText(t("home.heroHeadline"));
       await expect(page.locator(".hero-badge")).toHaveText(t("home.yourPersonalAiWorkspaceInBeta"));
       await expect(page.locator(".hero-footnote")).toContainText(t("plans.promise"));
       await expect(
@@ -834,9 +834,7 @@ for (const language of languages) {
     await page.goto(href("/", language));
     await expect(page.locator("html")).toHaveAttribute("lang", language);
     await expect(page.locator("html")).toHaveAttribute("dir", locales[language].dir);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      t("footer.giveInspirationTheAbilityToAct"),
-    );
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(t("home.heroHeadline"));
     await expect(page.locator(".hero-badge")).toHaveText(t("home.yourPersonalAiWorkspaceInBeta"));
     await expect(page.getByRole("combobox")).toHaveValue(language);
     await page.locator(".language-select").focus();

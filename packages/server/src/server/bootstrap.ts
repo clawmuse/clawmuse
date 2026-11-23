@@ -488,6 +488,11 @@ export interface PaseoDaemonConfig {
       model?: string;
       thinkingOptionId?: string;
     }>;
+    aiArchiveProviders?: Array<{
+      provider: string;
+      model?: string;
+      thinkingOptionId?: string;
+    }>;
   };
   providerOverrides?: Record<string, ProviderOverride>;
   log?: PersistedConfig["log"];

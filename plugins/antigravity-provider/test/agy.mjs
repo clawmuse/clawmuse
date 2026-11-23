@@ -198,6 +198,7 @@ let currentModel = "gemini-4-argon-medium";
 let nextServerRpcId = 1000;
 let multiTurnCount = 0;
 let activePromptId = null;
+let cancelFalloutPending = false;
 const pendingClientRequests = new Map();
 const stepCounters = new Map();
 
@@ -344,6 +345,14 @@ function requestClient(method, params) {
 }
 
 const PROMPT_ROUTES = [
+  ["BG_WAKEUP_CHAINS_BG_TASK", (id) => handleBgWakeupChainsBgTask(id)],
+  ["BG_WAKEUP_CANCEL_FALLOUT", (id) => handleBgWakeupCancelFallout(id)],
+  ["BG_LOW_PRIORITY_CANCEL_NOTICE", (id) => handleBgLowPriorityCancelNotice(id)],
+  ["ROOT_CONDITIONAL_TIMER", (id) => handleRootConditionalTimer(id)],
+  [
+    "SUBAGENT_CONDITIONAL_TIMER_AND_REMINDER",
+    (id) => handleSubagentConditionalTimerAndReminder(id),
+  ],
   ["BG_WAKEUP_OMITTED_CANCELED_TOOL", (id) => handleBgWakeupOmittedCanceledTool(id)],
   ["TWO_IDENTICAL_TIMERS", (id) => handleTwoIdenticalTimers(id)],
   ["SUBAGENT_STREAMING_AND_QUESTION", (id) => handleSubagentStreamingAndQuestion(id)],
@@ -2241,6 +2250,401 @@ function handleBgWakeupOmittedCanceledTool(id) {
   }, 80);
 }
 
+function handleRootConditionalTimer(id) {
+  const bgTaskId = `${sessionId}/task-cond-1`;
+  const timerTaskId = `${sessionId}/task-cond-2`;
+  appendTranscriptStep(sessionId, {
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: "<USER_REQUEST>\nROOT_CONDITIONAL_TIMER\n</USER_REQUEST>",
+  });
+  appendTranscriptStep(sessionId, {
+    source: "MODEL",
+    type: "PLANNER_RESPONSE",
+    tool_calls: [
+      {
+        id: "cond-bg-1",
+        name: "run_command",
+        args: { CommandLine: "sleep 1", WaitMsBeforeAsync: 500 },
+      },
+      {
+        id: "cond-sched-1",
+        name: "schedule",
+        args: {
+          DurationSeconds: 600,
+          Prompt: "Check conditional task",
+          TimerCondition: bgTaskId,
+        },
+      },
+    ],
+  });
+  appendTranscriptStep(sessionId, {
+    source: "SYSTEM",
+    type: "GENERIC",
+    status: "RUNNING",
+    content: `Tool is running as a background task with task id: ${bgTaskId}`,
+  });
+  appendTranscriptStep(sessionId, {
+    source: "SYSTEM",
+    type: "GENERIC",
+    status: "RUNNING",
+    content: `Tool is running as a background task with task id: ${timerTaskId}`,
+  });
+  notifyUpdate({
+    sessionUpdate: "tool_call",
+    toolCallId: "cond-bg-1",
+    title: "run_command",
+    kind: "execute",
+    status: "completed",
+    rawInput: { CommandLine: "sleep 1", WaitMsBeforeAsync: 500 },
+    rawOutput: { output: `Tool is running as a background task with task id: ${bgTaskId}` },
+  });
+  notifyUpdate({
+    sessionUpdate: "tool_call",
+    toolCallId: "cond-sched-1",
+    title: "schedule",
+    kind: "other",
+    status: "completed",
+    rawInput: {
+      DurationSeconds: 600,
+      Prompt: "Check conditional task",
+      TimerCondition: bgTaskId,
+    },
+    rawOutput: { output: `Tool is running as a background task with task id: ${timerTaskId}` },
+  });
+  respond(id, { stopReason: "end_turn" });
+
+  setTimeout(() => {
+    appendTranscriptStep(sessionId, {
+      source: "SYSTEM",
+      type: "SYSTEM_MESSAGE",
+      content: `The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-20T01:57:57Z sender=${bgTaskId} priority=MESSAGE_PRIORITY_HIGH content=Task id "${bgTaskId}" finished with result:\nCommand exited with code 0.\n</SYSTEM_MESSAGE>`,
+    });
+    appendTranscriptStep(sessionId, {
+      source: "SYSTEM",
+      type: "SYSTEM_MESSAGE",
+      content:
+        "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\nReminder: work efficiently.\n</SYSTEM_MESSAGE>",
+    });
+    appendTranscriptStep(sessionId, {
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      status: "DONE",
+      content: "ROOT_CONDITIONAL_TIMER_DONE",
+    });
+  }, 80);
+}
+
+function handleSubagentConditionalTimerAndReminder(id) {
+  const childId = "99999999-9999-4999-8999-999999999999";
+  const bgTaskId = `${childId}/task-163`;
+  const condTimerId = `${childId}/task-166`;
+  const anyTimerId = `${childId}/task-167`;
+
+  appendTranscriptStep(childId, {
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: "<USER_REQUEST>\nVerify conditional timer child\n</USER_REQUEST>",
+  });
+  appendTranscriptStep(childId, {
+    source: "MODEL",
+    type: "PLANNER_RESPONSE",
+    tool_calls: [
+      {
+        id: "sub-cond-bg",
+        name: "run_command",
+        args: { CommandLine: "echo hi", WaitMsBeforeAsync: 500 },
+      },
+      {
+        id: "sub-cond-sched-1",
+        name: "schedule",
+        args: { DurationSeconds: 25, Prompt: "check task-163", TimerCondition: bgTaskId },
+      },
+      {
+        id: "sub-cond-sched-2",
+        name: "schedule",
+        args: { DurationSeconds: 25, Prompt: "check any", TimerCondition: "any" },
+      },
+    ],
+  });
+  appendTranscriptStep(childId, {
+    source: "SYSTEM",
+    type: "GENERIC",
+    status: "RUNNING",
+    content: `Tool is running as a background task with task id: ${bgTaskId}`,
+  });
+  appendTranscriptStep(childId, {
+    source: "SYSTEM",
+    type: "GENERIC",
+    status: "RUNNING",
+    content: `Tool is running as a background task with task id: ${condTimerId}`,
+  });
+  appendTranscriptStep(childId, {
+    source: "SYSTEM",
+    type: "GENERIC",
+    status: "RUNNING",
+    content: `Tool is running as a background task with task id: ${anyTimerId}`,
+  });
+
+  appendTranscriptStep(sessionId, {
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: "<USER_REQUEST>\nSUBAGENT_CONDITIONAL_TIMER_AND_REMINDER\n</USER_REQUEST>",
+  });
+  notifyUpdate({
+    sessionUpdate: "tool_call",
+    toolCallId: "spawn-c9-cond",
+    title: "invoke_subagent",
+    kind: "other",
+    status: "completed",
+    rawInput: {
+      TypeName: "self",
+      Role: "Conditional Timer Worker",
+      Prompt: "Verify conditional timer child",
+    },
+    rawOutput: { conversationIds: [childId] },
+  });
+  respond(id, { stopReason: "end_turn" });
+
+  setTimeout(() => {
+    appendTranscriptStep(childId, {
+      source: "SYSTEM",
+      type: "SYSTEM_MESSAGE",
+      content: `The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-20T01:57:57Z sender=${bgTaskId} priority=MESSAGE_PRIORITY_HIGH content=Task id "${bgTaskId}" finished with result:\nCommand exited with code 0.\n</SYSTEM_MESSAGE>`,
+    });
+    appendTranscriptStep(childId, {
+      source: "SYSTEM",
+      type: "SYSTEM_MESSAGE",
+      content:
+        "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\nReminder: work efficiently.\n</SYSTEM_MESSAGE>",
+    });
+    appendTranscriptStep(childId, {
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      tool_calls: [
+        {
+          id: "sub-kill-done-timer",
+          name: "manage_task",
+          args: { Action: "kill", TaskId: condTimerId },
+        },
+        {
+          id: "sub-send-parent",
+          name: "send_message",
+          args: { Recipient: sessionId, Message: "Conditional child finished" },
+        },
+      ],
+    });
+    appendTranscriptStep(childId, {
+      source: "SYSTEM",
+      type: "GENERIC",
+      status: "ERROR",
+      error: `cannot kill task "${condTimerId}": task is not running (status: DONE)`,
+      content: `Encountered error in step execution: cannot kill task "${condTimerId}": task is not running (status: DONE)`,
+    });
+    appendTranscriptStep(childId, {
+      source: "SYSTEM",
+      type: "GENERIC",
+      status: "DONE",
+      content: `Message sent to "${sessionId}".`,
+    });
+    appendTranscriptStep(childId, {
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      status: "DONE",
+      content: "SUBAGENT_CONDITIONAL_CHILD_DONE",
+    });
+
+    appendTranscriptStep(sessionId, {
+      source: "SYSTEM",
+      type: "SYSTEM_MESSAGE",
+      content: `The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-20T02:18:14Z sender=${childId} priority=MESSAGE_PRIORITY_HIGH content=Conditional child finished\n</SYSTEM_MESSAGE>`,
+    });
+    appendTranscriptStep(sessionId, {
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      status: "DONE",
+      content: "PARENT_RECEIVED_CONDITIONAL_CHILD",
+    });
+  }, 160);
+}
+
+function handleBgWakeupChainsBgTask(id) {
+  const firstTaskId = `${sessionId}/task-chain-1`;
+  const secondTaskId = `${sessionId}/task-chain-2`;
+  appendTranscriptStep(sessionId, {
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: "<USER_REQUEST>\nBG_WAKEUP_CHAINS_BG_TASK\n</USER_REQUEST>",
+  });
+  appendTranscriptStep(sessionId, {
+    source: "MODEL",
+    type: "PLANNER_RESPONSE",
+    content: "Starting initial background command...",
+    tool_calls: [
+      {
+        id: "chain-bg-tool-1",
+        name: "run_command",
+        args: { CommandLine: JSON.stringify("sleep 1"), WaitMsBeforeAsync: "500" },
+      },
+    ],
+  });
+  appendTranscriptStep(sessionId, {
+    source: "SYSTEM",
+    type: "GENERIC",
+    status: "RUNNING",
+    content: `Command started.\nTool is running as a background task with task id: ${firstTaskId}\n`,
+  });
+  notifyUpdate({
+    sessionUpdate: "tool_call",
+    toolCallId: "chain-bg-tool-1",
+    title: "sleep 1",
+    kind: "execute",
+    status: "completed",
+    rawInput: { CommandLine: "sleep 1", WaitMsBeforeAsync: 500 },
+    rawOutput: {
+      output: `Command started.\nTool is running as a background task with task id: ${firstTaskId}\n`,
+    },
+  });
+  respond(id, { stopReason: "end_turn" });
+
+  setTimeout(() => {
+    appendTranscriptStep(sessionId, {
+      source: "SYSTEM",
+      type: "SYSTEM_MESSAGE",
+      content: `The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-23T03:53:47Z sender=${firstTaskId} priority=MESSAGE_PRIORITY_HIGH content=Task id "${firstTaskId}" finished with result:\nCommand exited with code 0.\n</SYSTEM_MESSAGE>`,
+    });
+    appendTranscriptStep(sessionId, {
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      status: "DONE",
+      tool_calls: [
+        {
+          id: "chain-bg-tool-2",
+          name: "run_command",
+          args: { CommandLine: JSON.stringify("python step4.py"), WaitMsBeforeAsync: "500" },
+        },
+      ],
+    });
+    notifyUpdate({
+      sessionUpdate: "tool_call",
+      toolCallId: "chain-bg-tool-2",
+      title: "python step4.py",
+      kind: "execute",
+      status: "in_progress",
+      rawInput: { CommandLine: "python step4.py", WaitMsBeforeAsync: 500 },
+    });
+    appendTranscriptStep(sessionId, {
+      source: "SYSTEM",
+      type: "GENERIC",
+      status: "RUNNING",
+      content: `Command started.\nTool is running as a background task with task id: ${secondTaskId}\n`,
+    });
+    notifyUpdate({
+      sessionUpdate: "agent_message_chunk",
+      content: { type: "text", text: "CHAINED_BG_TASK_LAUNCHED" },
+    });
+    appendTranscriptStep(sessionId, {
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      status: "DONE",
+      tool_calls: [],
+      content: "CHAINED_BG_TASK_LAUNCHED",
+    });
+  }, 120);
+}
+
+function handleBgWakeupCancelFallout(id) {
+  const firstTaskId = `${sessionId}/task-cancel-1`;
+  const secondTaskId = `${sessionId}/task-cancel-2`;
+  appendTranscriptStep(sessionId, {
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: "<USER_REQUEST>\nBG_WAKEUP_CANCEL_FALLOUT\n</USER_REQUEST>",
+  });
+  notifyUpdate({
+    sessionUpdate: "tool_call",
+    toolCallId: "cancel-bg-tool-0",
+    title: "sleep 1",
+    kind: "execute",
+    status: "completed",
+    rawInput: { CommandLine: "sleep 1", WaitMsBeforeAsync: 500 },
+    rawOutput: {
+      output: `Command started.\nTool is running as a background task with task id: ${firstTaskId}\n`,
+    },
+  });
+  respond(id, { stopReason: "end_turn" });
+
+  setTimeout(() => {
+    appendTranscriptStep(sessionId, {
+      source: "SYSTEM",
+      type: "SYSTEM_MESSAGE",
+      content: `The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-23T03:53:47Z sender=${firstTaskId} priority=MESSAGE_PRIORITY_HIGH content=Task id "${firstTaskId}" finished with result:\nCommand exited with code 0.\n</SYSTEM_MESSAGE>`,
+    });
+    appendTranscriptStep(sessionId, {
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      status: "DONE",
+      tool_calls: [
+        {
+          id: "cancel-tool-1",
+          name: "run_command",
+          args: { CommandLine: JSON.stringify("python step4.py"), WaitMsBeforeAsync: "500" },
+        },
+      ],
+    });
+    appendTranscriptStep(sessionId, {
+      source: "SYSTEM",
+      type: "GENERIC",
+      status: "RUNNING",
+      content: `Command started.\nTool is running as a background task with task id: ${secondTaskId}\n`,
+    });
+    notifyUpdate({
+      sessionUpdate: "tool_call",
+      toolCallId: "cancel-tool-1",
+      title: "python step4.py",
+      kind: "execute",
+      status: "in_progress",
+      rawInput: { CommandLine: "python step4.py", WaitMsBeforeAsync: 500 },
+    });
+    cancelFalloutPending = true;
+  }, 120);
+}
+
+function handleBgLowPriorityCancelNotice(id) {
+  const bgTaskId = `${sessionId}/task-lowprio-1`;
+  appendTranscriptStep(sessionId, {
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: "<USER_REQUEST>\nBG_LOW_PRIORITY_CANCEL_NOTICE\n</USER_REQUEST>",
+  });
+  notifyUpdate({
+    sessionUpdate: "tool_call",
+    toolCallId: "lowprio-tool-1",
+    title: "python step4.py",
+    kind: "execute",
+    status: "completed",
+    rawInput: { CommandLine: "python step4.py", WaitMsBeforeAsync: 500 },
+    rawOutput: {
+      output: `Command started.\nTool is running as a background task with task id: ${bgTaskId}\n`,
+    },
+  });
+  respond(id, { stopReason: "end_turn" });
+
+  setTimeout(() => {
+    notifyUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "lowprio-tool-1",
+      status: "failed",
+      rawOutput: { error: "Tool execution was canceled" },
+    });
+    appendTranscriptStep(sessionId, {
+      source: "SYSTEM",
+      type: "SYSTEM_MESSAGE",
+      content: `The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-23T03:56:53Z sender=${bgTaskId} priority=MESSAGE_PRIORITY_LOW content=Task id "${bgTaskId}" was canceled with result:\nTool execution was canceled\n</SYSTEM_MESSAGE>`,
+    });
+  }, 120);
+}
+
 let failedSetModelOnce = false;
 
 const lines = createInterface({ input: process.stdin });
@@ -2415,6 +2819,32 @@ lines.on("line", async (line) => {
       const cancelledId = activePromptId;
       activePromptId = null;
       respond(cancelledId, { stopReason: "cancelled" });
+    }
+    if (cancelFalloutPending) {
+      cancelFalloutPending = false;
+      setTimeout(() => {
+        notifyUpdate({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "cancel-tool-1",
+          status: "failed",
+          rawOutput: { error: "Tool execution was canceled" },
+        });
+        notifyUpdate({
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: "STRAY_POST_CANCEL_CHUNK" },
+        });
+        appendTranscriptStep(sessionId, {
+          source: "SYSTEM",
+          type: "SYSTEM_MESSAGE",
+          content:
+            "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-23T03:56:53Z sender=system priority=MESSAGE_PRIORITY_LOW content=[Notice] All your subagents and background tasks have been stopped due to user force cancellation.\n</SYSTEM_MESSAGE>",
+        });
+        appendTranscriptStep(sessionId, {
+          source: "SYSTEM",
+          type: "SYSTEM_MESSAGE",
+          content: `The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-23T03:56:53Z sender=${sessionId}/task-cancel-2 priority=MESSAGE_PRIORITY_LOW content=Task id "${sessionId}/task-cancel-2" was canceled with result:\nTool execution was canceled\n</SYSTEM_MESSAGE>`,
+        });
+      }, 30);
     }
     return;
   }

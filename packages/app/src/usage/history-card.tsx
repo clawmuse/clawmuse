@@ -1,273 +1,530 @@
 import type { UsageDailyHistory } from "@getpaseo/protocol/messages";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { X } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { PressHighlight } from "@/components/ui/press-highlight";
+import { SegmentedControl, type SegmentedControlOption } from "@/components/ui/segmented-control";
 import { settingsStyles } from "@/styles/settings";
 import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
 import {
-  buildWidgetLocalizedStrings,
-  mergeWidgetUsageHistories,
-  toWidgetUsageHistory,
-  type MobileUsageWidgetDay,
-  type MobileUsageWidgetSnapshot,
-} from "@/widgets/usage-widget-sync";
+  BREAKDOWN_COLORS,
+  buildUsageHistoryViewModel,
+  formatChineseTokenHint,
+  formatHistoryModelTokens,
+  formatHistoryReportedCost,
+  formatHistoryTokens,
+  formatHistoryTokenUnit,
+  type HistoryBreakdownTab,
+  type HistoryChartDay,
+  type HistoryDayDetail,
+  type HistoryHarnessBreakdownRow,
+  type HistoryHostBreakdownRow,
+  type HistoryModelBreakdownRow,
+  type HistoryRangeDays,
+  type HostDailyHistoryEntry,
+  type TokenComposition,
+  type UsageHistoryHarness,
+  type UsageHistoryViewModel,
+} from "./history-model";
 
-function sumDayTokens(day: MobileUsageWidgetDay): number {
-  return day.tokens.reduce((sum, value) => sum + value, 0);
+export {
+  formatChineseTokenHint,
+  formatHistoryModelTokens,
+  formatHistoryReportedCost,
+  formatHistoryTokens,
+  formatHistoryTokenUnit,
+  type HostDailyHistoryEntry,
+};
+
+const CHART_MAX_BAR_HEIGHT = 76;
+const SELECTED_STATE = { selected: true } as const;
+const UNSELECTED_STATE = { selected: false } as const;
+
+function selectionState(selected: boolean) {
+  return selected ? SELECTED_STATE : UNSELECTED_STATE;
 }
 
-function sumDayMoney(day: MobileUsageWidgetDay): number {
-  return day.money.reduce((sum, value) => sum + value, 0);
+function formatCacheReadLegendLabel(cacheHitPercent: number | null, isZh: boolean): string {
+  const base = isZh ? "缓存命中" : "Cache read";
+  return cacheHitPercent !== null ? `${base} (${cacheHitPercent}%)` : base;
 }
 
-function hasDayCost(day: MobileUsageWidgetDay): boolean {
-  return day.costAvailable ?? sumDayMoney(day) > 0;
+function resolveDaySecondaryText(detail: HistoryDayDetail, isZh: boolean): string {
+  if (detail.hasReportedCost) return detail.costLabel;
+  return formatCompactCompositionLine(detail.composition, isZh) ?? detail.costLabel;
 }
 
-export function formatHistoryTokens(value: number): string {
-  const millions = value / 1_000_000;
-  if (millions >= 1000) return `${(millions / 1000).toFixed(1)}B`;
-  if (millions >= 1) return `${Math.round(millions)}M`;
-  if (value >= 1000) return `${Math.round(value / 1000)}K`;
-  return `${Math.round(Math.max(0, value))}`;
+function resolveBreakdownHint(activeTab: HistoryBreakdownTab, isZh: boolean): string {
+  if (!isZh) return "Tap to filter";
+  return activeTab === "hosts" ? "点击切换电脑" : "点击筛选趋势";
 }
 
-export function formatChineseTokenHint(value: number): string | null {
-  if (!Number.isFinite(value) || value < 10_000) return null;
-  if (value >= 100_000_000) {
-    const yi = value / 100_000_000;
-    if (yi >= 100) return `${Math.round(yi)}亿`;
-    return `${yi.toFixed(1).replace(/\.0$/u, "")}亿`;
+function formatCompactCompositionLine(comp: TokenComposition, isZh: boolean): string | null {
+  if (!comp.available) return null;
+  const parts: string[] = [];
+  if (comp.inputTokens > 0) {
+    parts.push(`${isZh ? "输入" : "In"} ${formatHistoryTokens(comp.inputTokens)}`);
   }
-  const wan = value / 10_000;
-  if (wan >= 10) return `${Math.round(wan)}万`;
-  return `${wan.toFixed(1).replace(/\.0$/u, "")}万`;
-}
-
-export function formatHistoryTokenUnit(value: number, tokenUnit: string, isZh: boolean): string {
-  if (!isZh) return tokenUnit;
-  const hint = formatChineseTokenHint(value);
-  return hint ? `${tokenUnit}（${hint}）` : tokenUnit;
-}
-
-export function formatHistoryModelTokens(value: number, isZh: boolean): string {
-  const base = formatHistoryTokens(value);
-  if (!isZh) return base;
-  const hint = formatChineseTokenHint(value);
-  return hint ? `${base}（${hint}）` : base;
-}
-
-function formatHistoryMoney(value: number, symbol = "$"): string {
-  if (value >= 10_000) return `${symbol}${(value / 1000).toFixed(1)}k`;
-  if (value >= 100) return `${symbol}${Math.round(value).toLocaleString("en-US")}`;
-  return `${symbol}${value.toFixed(2)}`;
-}
-
-export function formatHistoryReportedCost(
-  days: readonly MobileUsageWidgetDay[],
-  strings: Readonly<Record<string, string>>,
-): string {
-  const usedDays = days.filter((day) => sumDayTokens(day) > 0 || hasDayCost(day));
-  if (usedDays.length === 0 || !usedDays.every((day) => hasDayCost(day))) {
-    return strings.noCostData ?? "Cost unavailable";
+  if (comp.cacheReadTokens > 0) {
+    const hit = comp.cacheHitPercent !== null ? ` (${comp.cacheHitPercent}%)` : "";
+    parts.push(`${isZh ? "缓存" : "Cache"} ${formatHistoryTokens(comp.cacheReadTokens)}${hit}`);
   }
-  let total = 0;
-  for (const day of usedDays) {
-    total += sumDayMoney(day);
+  if (comp.cacheWriteTokens > 0) {
+    parts.push(`${isZh ? "缓存写" : "Write"} ${formatHistoryTokens(comp.cacheWriteTokens)}`);
   }
-  return `${strings.reportedCost ?? "Reported cost"} ${formatHistoryMoney(total)}`;
-}
-
-interface RankedModelRow {
-  key: string;
-  label: string;
-  tokens: number;
-  sharePercent: number;
-  slotIndex: number;
-}
-
-interface RawBreakdownRow {
-  key: string;
-  label: string;
-  tokens: number;
-  slotIndex: number;
-}
-
-function sumModelIndexTokens(daily: readonly MobileUsageWidgetDay[], index: number): number {
-  let sum = 0;
-  for (const day of daily) {
-    sum += day.modelTokens?.[index] ?? 0;
+  if (comp.outputTokens > 0) {
+    parts.push(`${isZh ? "输出" : "Out"} ${formatHistoryTokens(comp.outputTokens)}`);
   }
-  return sum;
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-function collectRawBreakdownRows(
-  usage: MobileUsageWidgetSnapshot["usage"],
-  strings: Readonly<Record<string, string>>,
-  otherLabel: string,
-): RawBreakdownRow[] {
-  const models = usage.models;
-  const hasModelTokens =
-    Boolean(models && models.length > 0) &&
-    usage.daily.every((day) => day.modelTokens?.length === (models?.length ?? 0) + 1);
+function TokenCompositionStrip({
+  composition,
+  isZh,
+  testID = "usage-history-composition",
+}: {
+  composition: TokenComposition;
+  isZh: boolean;
+  testID?: string;
+}) {
+  if (!composition.available) return null;
+  const total =
+    composition.inputTokens +
+    composition.cacheReadTokens +
+    composition.cacheWriteTokens +
+    composition.outputTokens;
+  if (total <= 0) return null;
 
-  const rawRows: RawBreakdownRow[] = [];
-  if (hasModelTokens && models) {
-    for (let m = 0; m < models.length; m += 1) {
-      const sum = sumModelIndexTokens(usage.daily, m);
-      if (sum > 0) {
-        rawRows.push({
-          key: `model:${models[m]?.harness}:${models[m]?.name}`,
-          label: models[m]?.name ?? "",
-          tokens: sum,
-          slotIndex: m,
-        });
-      }
-    }
-    const otherSum = sumModelIndexTokens(usage.daily, models.length);
-    if (otherSum > 0) {
-      rawRows.push({
-        key: "model:other",
-        label: otherLabel,
-        tokens: otherSum,
-        slotIndex: 5,
-      });
-    }
-    return rawRows;
-  }
+  const parts = [
+    {
+      key: "input",
+      label: isZh ? "输入" : "Input",
+      value: composition.inputTokens,
+      color: BREAKDOWN_COLORS.input,
+    },
+    {
+      key: "cacheRead",
+      label: formatCacheReadLegendLabel(composition.cacheHitPercent, isZh),
+      value: composition.cacheReadTokens,
+      color: BREAKDOWN_COLORS.cacheRead,
+    },
+    {
+      key: "cacheWrite",
+      label: isZh ? "缓存写入" : "Cache write",
+      value: composition.cacheWriteTokens,
+      color: BREAKDOWN_COLORS.cacheWrite,
+    },
+    {
+      key: "output",
+      label: isZh ? "输出" : "Output",
+      value: composition.outputTokens,
+      color: BREAKDOWN_COLORS.output,
+    },
+  ].filter((part) => part.value > 0);
 
-  const harnessKeys = ["claude-code", "codex", "pi", "antigravity"] as const;
-  for (let h = 0; h < harnessKeys.length; h += 1) {
-    let sum = 0;
-    for (const day of usage.daily) {
-      sum += day.tokens[h] ?? 0;
-    }
-    if (sum > 0) {
-      const harnessId = harnessKeys[h]!;
-      rawRows.push({
-        key: `harness:${harnessId}`,
-        label: strings[`harness.${harnessId}`] ?? harnessId,
-        tokens: sum,
-        slotIndex: h,
-      });
-    }
-  }
-  return rawRows;
-}
+  if (parts.length === 0) return null;
 
-function computeRankedModelRows(
-  usage: MobileUsageWidgetSnapshot["usage"],
-  totalTokens: number,
-  strings: Readonly<Record<string, string>>,
-  otherLabel: string,
-): RankedModelRow[] {
-  if (totalTokens <= 0) return [];
-  // Every series is shown — no display-side folding into an "Other" row. The other slot only
-  // produces a row when the data source itself reported unattributed tokens (older hosts).
-  const rawRows = collectRawBreakdownRows(usage, strings, otherLabel);
-  rawRows.sort((a, b) => b.tokens - a.tokens);
-  return rawRows.map((row) => ({
-    key: row.key,
-    label: row.label,
-    tokens: row.tokens,
-    sharePercent: Math.max(1, Math.round((row.tokens / totalTokens) * 100)),
-    slotIndex: row.slotIndex,
-  }));
-}
-
-function HistoryModelRows({ rows, isZh }: { rows: readonly RankedModelRow[]; isZh: boolean }) {
-  return rows.map((row) => (
-    <View key={row.key} style={styles.modelRow}>
-      <Text style={styles.modelName} numberOfLines={1}>
-        {row.label}
-      </Text>
-      <Text style={styles.modelValue}>
-        {`${formatHistoryModelTokens(row.tokens, isZh)} (${row.sharePercent}%)`}
-      </Text>
+  return (
+    <View style={styles.compositionContainer} testID={testID}>
+      <View style={styles.compositionTrack}>
+        {parts.map((part) => (
+          <View
+            key={part.key}
+            style={[
+              styles.compositionBarSegment,
+              inlineUnistylesStyle({
+                flexGrow: Math.max(part.value / total, 0.015),
+                backgroundColor: part.color,
+              }),
+            ]}
+          />
+        ))}
+      </View>
+      <View style={styles.compositionLegend}>
+        {parts.map((part) => (
+          <View key={part.key} style={styles.compositionLegendItem}>
+            <View
+              style={[styles.colorDot, inlineUnistylesStyle({ backgroundColor: part.color })]}
+            />
+            <Text style={styles.compositionLegendLabel}>{part.label}</Text>
+            <Text style={styles.compositionLegendValue}>{formatHistoryTokens(part.value)}</Text>
+          </View>
+        ))}
+      </View>
     </View>
-  ));
+  );
 }
 
-interface DayDetail {
-  date: string;
-  caption: string;
-  tokens: number;
-  costLabel: string;
-  rows: RankedModelRow[];
-}
-
-function resolveSelectedDayDetail(input: {
-  selectedDay: string | null;
-  days: readonly string[];
-  daily: readonly MobileUsageWidgetDay[];
-  usage: MobileUsageWidgetSnapshot["usage"];
-  strings: Readonly<Record<string, string>>;
-  otherLabel: string;
-}): DayDetail | null {
-  const { selectedDay, days, daily, usage, strings, otherLabel } = input;
-  if (!selectedDay) return null;
-  const index = days.indexOf(selectedDay);
-  const entry = index >= 0 ? daily[index] : null;
-  if (!entry) return null;
-  const tokens = sumDayTokens(entry);
-  const caption = index === daily.length - 1 ? `${strings.today} · ${selectedDay}` : selectedDay;
-  return {
-    date: selectedDay,
-    caption,
-    tokens,
-    costLabel: formatHistoryReportedCost([entry], strings),
-    rows: computeRankedModelRows(
-      { ...usage, days: [selectedDay], daily: [entry] },
-      tokens,
-      strings,
-      otherLabel,
-    ),
-  };
-}
-
-function HistoryChartBar({
-  date,
-  height,
+function StackedHistoryChartBar({
+  day,
+  peakTokens,
   isSelected,
-  isToday,
-  label,
+  tokenUnit,
   onToggle,
 }: {
-  date: string;
-  height: number;
+  day: HistoryChartDay;
+  peakTokens: number;
   isSelected: boolean;
-  isToday: boolean;
-  label: string;
+  tokenUnit: string;
   onToggle: (date: string) => void;
 }) {
-  const handleToggle = useCallback(() => onToggle(date), [onToggle, date]);
+  const handleToggle = useCallback(() => onToggle(day.date), [onToggle, day.date]);
+  const totalHeight =
+    day.tokens > 0 ? Math.max(4, Math.round((day.tokens / peakTokens) * CHART_MAX_BAR_HEIGHT)) : 2;
+  const label = `${day.date} · ${formatHistoryTokens(day.tokens)} ${tokenUnit}`;
+
   return (
     <PressHighlight
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={handleToggle}
       style={styles.barSlot}
-      testID={`usage-history-bar-${date}`}
+      testID={`usage-history-bar-${day.date}`}
     >
-      <View
-        style={[
-          styles.barFill,
-          barFillStyle(isSelected, isToday),
-          inlineUnistylesStyle({ height }),
-        ]}
-      />
+      {day.tokens <= 0 ? (
+        <View
+          style={[
+            styles.barEmpty,
+            isSelected && styles.barSelectedOutline,
+            inlineUnistylesStyle({ height: 2 }),
+          ]}
+        />
+      ) : (
+        <View
+          style={[
+            styles.barColumn,
+            day.isToday || isSelected ? styles.barColumnStrong : styles.barColumnPast,
+            isSelected && styles.barSelectedOutline,
+            inlineUnistylesStyle({ height: totalHeight }),
+          ]}
+        >
+          {day.segments.length > 0 ? (
+            day.segments.map((segment) => (
+              <View
+                key={segment.key}
+                style={[
+                  styles.barSegment,
+                  segment.color === null && styles.barSegmentTail,
+                  inlineUnistylesStyle({
+                    flexGrow: segment.tokens,
+                    ...(segment.color !== null ? { backgroundColor: segment.color } : {}),
+                  }),
+                ]}
+              />
+            ))
+          ) : (
+            <View
+              style={[
+                styles.barSegment,
+                day.isToday ? styles.barFallbackToday : styles.barFallbackPast,
+                inlineUnistylesStyle({ flexGrow: 1 }),
+              ]}
+            />
+          )}
+        </View>
+      )}
     </PressHighlight>
   );
 }
 
-function barFillStyle(isSelected: boolean, isToday: boolean) {
-  if (isSelected) return styles.barFillSelected;
-  if (isToday) return styles.barFillToday;
-  return styles.barFillPast;
+function ModelBreakdownRowItem({
+  row,
+  isZh,
+  selected,
+  showHostHint,
+  onToggle,
+}: {
+  row: HistoryModelBreakdownRow;
+  isZh: boolean;
+  selected: boolean;
+  showHostHint: boolean;
+  onToggle?: (key: string) => void;
+}) {
+  const handlePress = useCallback(() => onToggle?.(row.key), [onToggle, row.key]);
+  const compLine = formatCompactCompositionLine(row.composition, isZh);
+  const hostSuffix = showHostHint && row.hostLabels.length > 0 ? row.hostLabels.join(", ") : null;
+
+  const content = (
+    <View style={[styles.breakdownRow, selected && styles.breakdownRowSelected]}>
+      <View style={styles.breakdownTopLine}>
+        <View style={styles.breakdownLabelGroup}>
+          <View style={[styles.colorDot, inlineUnistylesStyle({ backgroundColor: row.color })]} />
+          <Text style={styles.modelName} numberOfLines={1}>
+            {row.name}
+          </Text>
+          {row.harnessLabel ? (
+            <View style={styles.tagPill}>
+              <Text style={styles.tagPillText} numberOfLines={1}>
+                {row.harnessLabel}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.modelValue}>
+          {`${formatHistoryModelTokens(row.tokens, isZh)} (${row.shareLabel})`}
+        </Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressFill,
+            inlineUnistylesStyle({
+              width: `${Math.round(row.barRatio * 100)}%` as `${number}%`,
+              backgroundColor: row.color,
+            }),
+          ]}
+        />
+      </View>
+      {compLine || hostSuffix ? (
+        <View style={styles.breakdownSubRow}>
+          {compLine ? (
+            <Text style={styles.breakdownSubText} numberOfLines={1}>
+              {compLine}
+            </Text>
+          ) : null}
+          {hostSuffix ? (
+            <Text style={styles.breakdownSubMeta} numberOfLines={1}>
+              {hostSuffix}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+
+  if (!onToggle) return content;
+
+  return (
+    <PressHighlight
+      accessibilityRole="button"
+      accessibilityState={selectionState(selected)}
+      onPress={handlePress}
+      style={styles.rowPressable}
+      highlightStyle={styles.rowPressed}
+      testID={`usage-history-model-row-${row.key}`}
+    >
+      {content}
+    </PressHighlight>
+  );
+}
+
+function HarnessBreakdownRowItem({
+  row,
+  isZh,
+  selected,
+  onToggle,
+}: {
+  row: HistoryHarnessBreakdownRow;
+  isZh: boolean;
+  selected: boolean;
+  onToggle: (harness: UsageHistoryHarness) => void;
+}) {
+  const handlePress = useCallback(() => onToggle(row.harness), [onToggle, row.harness]);
+  const compLine = formatCompactCompositionLine(row.composition, isZh);
+  const modelsText = isZh ? `${row.modelCount} 个模型` : `${row.modelCount} models`;
+
+  return (
+    <PressHighlight
+      accessibilityRole="button"
+      accessibilityState={selectionState(selected)}
+      onPress={handlePress}
+      style={styles.rowPressable}
+      highlightStyle={styles.rowPressed}
+      testID={`usage-history-harness-row-${row.harness}`}
+    >
+      <View style={[styles.breakdownRow, selected && styles.breakdownRowSelected]}>
+        <View style={styles.breakdownTopLine}>
+          <View style={styles.breakdownLabelGroup}>
+            <View style={[styles.colorDot, inlineUnistylesStyle({ backgroundColor: row.color })]} />
+            <Text style={styles.modelName} numberOfLines={1}>
+              {row.label}
+            </Text>
+            <View style={styles.tagPill}>
+              <Text style={styles.tagPillText}>{modelsText}</Text>
+            </View>
+          </View>
+          <Text style={styles.modelValue}>
+            {`${formatHistoryModelTokens(row.tokens, isZh)} (${row.shareLabel})`}
+          </Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              inlineUnistylesStyle({
+                width: `${Math.round(row.barRatio * 100)}%` as `${number}%`,
+                backgroundColor: row.color,
+              }),
+            ]}
+          />
+        </View>
+        {compLine ? (
+          <Text style={styles.breakdownSubText} numberOfLines={1}>
+            {compLine}
+          </Text>
+        ) : null}
+      </View>
+    </PressHighlight>
+  );
+}
+
+function HostBreakdownRowItem({
+  row,
+  isZh,
+  onToggle,
+}: {
+  row: HistoryHostBreakdownRow;
+  isZh: boolean;
+  onToggle?: (serverId: string) => void;
+}) {
+  const handlePress = useCallback(() => onToggle?.(row.serverId), [onToggle, row.serverId]);
+  const subParts: string[] = [];
+  if (row.todayTokens > 0) {
+    subParts.push(`${isZh ? "今天" : "Today"} ${formatHistoryTokens(row.todayTokens)}`);
+  }
+  if (row.topModel) {
+    subParts.push(`${isZh ? "主力" : "Top"} ${row.topModel}`);
+  }
+
+  const content = (
+    <View style={[styles.breakdownRow, !row.selected && styles.breakdownRowDimmed]}>
+      <View style={styles.breakdownTopLine}>
+        <View style={styles.breakdownLabelGroup}>
+          <View style={[styles.colorDot, inlineUnistylesStyle({ backgroundColor: row.color })]} />
+          <Text style={styles.modelName} numberOfLines={1}>
+            {row.label}
+          </Text>
+        </View>
+        <Text style={styles.modelValue}>
+          {`${formatHistoryModelTokens(row.tokens, isZh)} (${row.shareLabel})`}
+        </Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressFill,
+            inlineUnistylesStyle({
+              width: `${Math.round(row.barRatio * 100)}%` as `${number}%`,
+              backgroundColor: row.color,
+            }),
+          ]}
+        />
+      </View>
+      {subParts.length > 0 ? (
+        <Text style={styles.breakdownSubText} numberOfLines={1}>
+          {subParts.join(" · ")}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  if (!onToggle) return content;
+
+  return (
+    <PressHighlight
+      accessibilityRole="button"
+      accessibilityState={selectionState(row.selected)}
+      onPress={handlePress}
+      style={styles.rowPressable}
+      highlightStyle={styles.rowPressed}
+      testID={`usage-history-host-row-${row.serverId}`}
+    >
+      {content}
+    </PressHighlight>
+  );
+}
+
+function HostSubFilterChip({
+  serverId,
+  label,
+  color,
+  tokens,
+  selected,
+  onToggle,
+}: {
+  serverId: string;
+  label: string;
+  color: string;
+  tokens: number;
+  selected: boolean;
+  onToggle: (serverId: string) => void;
+}) {
+  const handlePress = useCallback(() => onToggle(serverId), [onToggle, serverId]);
+  return (
+    <PressHighlight
+      accessibilityRole="button"
+      accessibilityState={selectionState(selected)}
+      onPress={handlePress}
+      style={[styles.filterChip, selected && styles.filterChipSelected]}
+      highlightStyle={styles.filterChipPressed}
+      testID={`usage-history-host-chip-${serverId}`}
+    >
+      <View style={[styles.colorDot, inlineUnistylesStyle({ backgroundColor: color })]} />
+      <Text
+        style={[styles.filterChipText, selected && styles.filterChipTextSelected]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+      {tokens > 0 ? (
+        <Text style={styles.filterChipCount}>{formatHistoryTokens(tokens)}</Text>
+      ) : null}
+    </PressHighlight>
+  );
+}
+
+function UsageHistoryHostChips({
+  hosts,
+  availableHostCount,
+  selectedHostIds,
+  isZh,
+  onSelectAll,
+  onToggleHost,
+}: {
+  hosts: readonly HistoryHostBreakdownRow[];
+  availableHostCount: number;
+  selectedHostIds: readonly string[];
+  isZh: boolean;
+  onSelectAll: () => void;
+  onToggleHost: (serverId: string) => void;
+}) {
+  if (availableHostCount <= 1) return null;
+  const isAll = selectedHostIds.length === 0;
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.hostChipsTrack}
+      testID="usage-history-host-chips"
+    >
+      <PressHighlight
+        accessibilityRole="button"
+        accessibilityState={selectionState(isAll)}
+        onPress={onSelectAll}
+        style={[styles.filterChip, isAll && styles.filterChipSelected]}
+        highlightStyle={styles.filterChipPressed}
+        testID="usage-history-host-chip-all"
+      >
+        <Text style={[styles.filterChipText, isAll && styles.filterChipTextSelected]}>
+          {isZh ? `全部 (${availableHostCount})` : `All (${availableHostCount})`}
+        </Text>
+      </PressHighlight>
+      {hosts.map((host) => (
+        <HostSubFilterChip
+          key={host.serverId}
+          serverId={host.serverId}
+          label={host.label}
+          color={host.color}
+          tokens={host.tokens}
+          selected={!isAll && host.selected}
+          onToggle={onToggleHost}
+        />
+      ))}
+    </ScrollView>
+  );
 }
 
 function DayDetailPanel({
@@ -277,16 +534,18 @@ function DayDetailPanel({
   closeLabel,
   onClose,
 }: {
-  detail: DayDetail;
+  detail: HistoryDayDetail;
   isZh: boolean;
   tokenUnit: string;
   closeLabel: string;
   onClose: () => void;
 }) {
+  const secondaryText = resolveDaySecondaryText(detail, isZh);
+
   return (
     <View style={styles.dayPanel} testID="usage-history-day-detail">
       <View style={styles.dayHeaderRow}>
-        <Text style={styles.summaryCaption}>{detail.caption}</Text>
+        <Text style={styles.dayCaption}>{detail.caption}</Text>
         <Button
           variant="ghost"
           size="sm"
@@ -305,166 +564,422 @@ function DayDetailPanel({
         </Text>
       </View>
       <Text style={styles.costText} testID="usage-history-day-cost">
-        {detail.costLabel}
+        {secondaryText}
       </Text>
-      {detail.rows.length > 0 ? (
+      {detail.hosts.length > 1 ? (
+        <View style={styles.daySubSection} testID="usage-history-day-hosts">
+          <Text style={styles.daySubHeading}>{isZh ? "按电脑" : "By computer"}</Text>
+          {detail.hosts.map((hostRow) => (
+            <HostBreakdownRowItem key={hostRow.serverId} row={hostRow} isZh={isZh} />
+          ))}
+        </View>
+      ) : null}
+      {detail.models.length > 0 ? (
         <View style={styles.dayModels}>
-          <HistoryModelRows rows={detail.rows} isZh={isZh} />
+          {detail.hosts.length > 1 ? (
+            <Text style={styles.daySubHeading}>{isZh ? "按模型" : "By model"}</Text>
+          ) : null}
+          {detail.models.map((row) => (
+            <ModelBreakdownRowItem
+              key={row.key}
+              row={row}
+              isZh={isZh}
+              selected={false}
+              showHostHint={false}
+            />
+          ))}
         </View>
       ) : null}
     </View>
   );
 }
 
+function UsageHistoryBreakdownSection({
+  model,
+  activeTab,
+  tabOptions,
+  selectedModelKey,
+  selectedHarness,
+  isZh,
+  onTabChange,
+  onToggleModel,
+  onToggleHarness,
+  onToggleHost,
+}: {
+  model: UsageHistoryViewModel;
+  activeTab: HistoryBreakdownTab;
+  tabOptions: SegmentedControlOption<HistoryBreakdownTab>[];
+  selectedModelKey: string | null;
+  selectedHarness: UsageHistoryHarness | "all";
+  isZh: boolean;
+  onTabChange: (tab: HistoryBreakdownTab) => void;
+  onToggleModel: (key: string) => void;
+  onToggleHarness: (harness: UsageHistoryHarness) => void;
+  onToggleHost: (serverId: string) => void;
+}) {
+  if (model.models.length === 0 && model.harnesses.length === 0 && model.hosts.length <= 1) {
+    return null;
+  }
+  return (
+    <View style={styles.breakdownContainer}>
+      <View style={styles.breakdownHeader}>
+        <SegmentedControl
+          size="sm"
+          options={tabOptions}
+          value={activeTab}
+          onValueChange={onTabChange}
+          testID="usage-history-tabs"
+        />
+        <Text style={styles.breakdownHint}>{resolveBreakdownHint(activeTab, isZh)}</Text>
+      </View>
+
+      {activeTab === "models" ? (
+        <View style={styles.breakdownList} testID="usage-history-models">
+          {model.models.map((row) => (
+            <ModelBreakdownRowItem
+              key={row.key}
+              row={row}
+              isZh={isZh}
+              selected={selectedModelKey === row.key}
+              showHostHint={model.selectedHostCount > 1}
+              onToggle={onToggleModel}
+            />
+          ))}
+        </View>
+      ) : null}
+
+      {activeTab === "harnesses" ? (
+        <View style={styles.breakdownList} testID="usage-history-harnesses">
+          {model.harnesses.map((row) => (
+            <HarnessBreakdownRowItem
+              key={row.harness}
+              row={row}
+              isZh={isZh}
+              selected={selectedHarness === row.harness}
+              onToggle={onToggleHarness}
+            />
+          ))}
+        </View>
+      ) : null}
+
+      {activeTab === "hosts" ? (
+        <View style={styles.breakdownList} testID="usage-history-hosts">
+          {model.hosts.map((row) => (
+            <HostBreakdownRowItem
+              key={row.serverId}
+              row={row}
+              isZh={isZh}
+              onToggle={onToggleHost}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function UsageHistorySummaryAndChart({
+  model,
+  isZh,
+  baseTokenUnit,
+  onToggleDay,
+}: {
+  model: UsageHistoryViewModel;
+  isZh: boolean;
+  baseTokenUnit: string;
+  onToggleDay: (date: string) => void;
+}) {
+  const todaySecondary = model.todayHasReportedCost
+    ? model.todayCostLabel
+    : (formatCompactCompositionLine(model.todayComposition, isZh) ?? model.todayCostLabel);
+  const activeDaysText = isZh
+    ? `活跃 ${model.activeDaysCount}/${model.windowDaysCount} 天`
+    : `${model.activeDaysCount}/${model.windowDaysCount} active days`;
+  const rangeSecondary = model.rangeHasReportedCost ? model.rangeCostLabel : activeDaysText;
+  const averageLineOffset =
+    model.dailyAverageTokens > 0
+      ? Math.max(
+          2,
+          Math.min(
+            CHART_MAX_BAR_HEIGHT - 2,
+            Math.round((model.dailyAverageTokens / model.peakTokens) * CHART_MAX_BAR_HEIGHT),
+          ),
+        )
+      : null;
+
+  return (
+    <>
+      <View style={styles.summaryGrid}>
+        <View style={styles.summaryColumn}>
+          <Text style={styles.summaryCaption}>{model.todayCaption}</Text>
+          <View style={styles.figureRow}>
+            <Text style={styles.figureValue} testID="usage-history-today-tokens">
+              {formatHistoryTokens(model.todayTokens)}
+            </Text>
+            <Text style={styles.figureUnit}>
+              {formatHistoryTokenUnit(model.todayTokens, baseTokenUnit, isZh)}
+            </Text>
+          </View>
+          <Text style={styles.costText} numberOfLines={1} testID="usage-history-today-cost">
+            {todaySecondary}
+          </Text>
+        </View>
+
+        <View style={styles.summaryColumn}>
+          <Text style={styles.summaryCaption}>{model.rangeCaption}</Text>
+          <View style={styles.figureRow}>
+            <Text style={styles.figureValue} testID="usage-history-month-tokens">
+              {formatHistoryTokens(model.rangeTotalTokens)}
+            </Text>
+            <Text style={styles.figureUnit}>
+              {formatHistoryTokenUnit(model.rangeTotalTokens, baseTokenUnit, isZh)}
+            </Text>
+          </View>
+          <Text style={styles.costText} numberOfLines={1} testID="usage-history-month-cost">
+            {rangeSecondary}
+          </Text>
+        </View>
+      </View>
+
+      <TokenCompositionStrip composition={model.rangeComposition} isZh={isZh} />
+
+      <View style={styles.chartMetaRow}>
+        <Text style={styles.metaText} testID="usage-history-average">
+          {`${model.strings.dailyAverage} ${formatHistoryTokens(model.dailyAverageTokens)} ${formatHistoryTokenUnit(model.dailyAverageTokens, baseTokenUnit, isZh)}`}
+        </Text>
+        {model.peakDay ? (
+          <Text style={styles.metaText} testID="usage-history-peak">
+            {`${isZh ? "峰值" : "Peak"} ${formatHistoryTokens(model.peakDay.tokens)}`}
+          </Text>
+        ) : null}
+      </View>
+
+      <View style={styles.chartFrame}>
+        {averageLineOffset !== null ? (
+          <View
+            pointerEvents="none"
+            style={[styles.averageLine, inlineUnistylesStyle({ bottom: averageLineOffset })]}
+          />
+        ) : null}
+        <View style={styles.chartContainer} testID="usage-history-bars">
+          {model.chartDays.map((day, idx) => (
+            <StackedHistoryChartBar
+              key={day.date}
+              day={day}
+              peakTokens={model.peakTokens}
+              isSelected={idx === model.selectedDayIndex}
+              tokenUnit={baseTokenUnit}
+              onToggle={onToggleDay}
+            />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.axisRow}>
+        <Text style={styles.axisText}>{model.firstDate}</Text>
+        <Text style={styles.axisText}>
+          {model.lastDateIsActualToday ? model.strings.today : model.lastDate}
+        </Text>
+      </View>
+    </>
+  );
+}
+
 export function UsageHistoryCard({
   histories,
+  hostHistories,
   scope,
   testID = "usage-history-card",
 }: {
-  histories: readonly (UsageDailyHistory | undefined)[];
+  histories?: readonly (UsageDailyHistory | undefined)[];
+  hostHistories?: readonly HostDailyHistoryEntry[];
   scope: "all" | "local";
   testID?: string;
 }) {
   const { t, i18n } = useTranslation();
+  const [rangeDays, setRangeDays] = useState<HistoryRangeDays>(30);
+  const [selectedHostIds, setSelectedHostIds] = useState<string[]>([]);
+  const [selectedHarness, setSelectedHarness] = useState<UsageHistoryHarness | "all">("all");
+  const [selectedModelKey, setSelectedModelKey] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<HistoryBreakdownTab>("models");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  const locale = i18n.language || "en";
+  const isZh = locale.toLowerCase().startsWith("zh");
+
+  const resolvedHosts = useMemo<readonly HostDailyHistoryEntry[]>(() => {
+    if (hostHistories && hostHistories.length > 0) return hostHistories;
+    return (histories ?? []).map((dailyUsage, idx) => ({
+      serverId: `__host_${idx}`,
+      label: `__host_${idx}`,
+      dailyUsage,
+    }));
+  }, [histories, hostHistories]);
+
+  const effectiveTab: HistoryBreakdownTab =
+    activeTab === "hosts" && resolvedHosts.length <= 1 ? "models" : activeTab;
+
+  const model = useMemo(
+    () =>
+      buildUsageHistoryViewModel({
+        hosts: resolvedHosts,
+        scope,
+        rangeDays,
+        selectedHostIds,
+        selectedHarness,
+        selectedModelKey,
+        activeTab: effectiveTab,
+        selectedDay,
+        locale,
+      }),
+    [
+      effectiveTab,
+      locale,
+      rangeDays,
+      resolvedHosts,
+      scope,
+      selectedDay,
+      selectedHarness,
+      selectedHostIds,
+      selectedModelKey,
+    ],
+  );
+
   const toggleDay = useCallback((date: string) => {
     setSelectedDay((current) => (current === date ? null : date));
   }, []);
   const closeSelectedDay = useCallback(() => setSelectedDay(null), []);
-  const locale = i18n.language || "en";
-  const isZh = locale.toLowerCase().startsWith("zh");
-  const strings = useMemo(() => buildWidgetLocalizedStrings(locale), [locale]);
-  const otherLabel = isZh ? "其他" : "Other";
+  const handleRangeChange = useCallback((value: string) => {
+    const parsed = Number(value);
+    if (parsed === 7 || parsed === 14 || parsed === 30) setRangeDays(parsed);
+  }, []);
+  const handleSelectAllHosts = useCallback(() => setSelectedHostIds([]), []);
+  const handleToggleHost = useCallback(
+    (serverId: string) => {
+      setSelectedHostIds((current) => {
+        if (current.length === 0) return [serverId];
+        if (current.includes(serverId)) {
+          const remaining = current.filter((id) => id !== serverId);
+          return remaining.length === 0 ? [] : remaining;
+        }
+        const next = [...current, serverId];
+        return next.length >= model.availableHostCount ? [] : next;
+      });
+    },
+    [model.availableHostCount],
+  );
+  const handleToggleModel = useCallback((key: string) => {
+    setSelectedModelKey((current) => (current === key ? null : key));
+  }, []);
+  const handleToggleHarness = useCallback((harness: UsageHistoryHarness) => {
+    setSelectedModelKey(null);
+    setSelectedHarness((current) => (current === harness ? "all" : harness));
+  }, []);
+  const handleClearFilter = useCallback(() => {
+    setSelectedModelKey(null);
+    setSelectedHarness("all");
+  }, []);
 
-  const mergedUsage = useMemo(
-    () =>
-      mergeWidgetUsageHistories(
-        histories.map((item) => toWidgetUsageHistory(item, scope)),
-        scope,
-      ),
-    [histories, scope],
+  const rangeOptions = useMemo<SegmentedControlOption<string>[]>(
+    () => [
+      { value: "7", label: isZh ? "7天" : "7d", testID: "usage-history-range-7" },
+      { value: "14", label: isZh ? "14天" : "14d", testID: "usage-history-range-14" },
+      { value: "30", label: isZh ? "30天" : "30d", testID: "usage-history-range-30" },
+    ],
+    [isZh],
   );
 
-  const scopeLabel =
-    scope === "local"
-      ? (strings.monthScopeLocal ?? "Last 30 days · This computer")
-      : (strings.monthScopeAll ?? "Last 30 days · All devices");
+  const tabOptions = useMemo<SegmentedControlOption<HistoryBreakdownTab>[]>(() => {
+    const options: SegmentedControlOption<HistoryBreakdownTab>[] = [
+      { value: "models", label: isZh ? "按模型" : "Models", testID: "usage-history-tab-models" },
+      {
+        value: "harnesses",
+        label: isZh ? "按工具" : "Tools",
+        testID: "usage-history-tab-harnesses",
+      },
+    ];
+    if (model.availableHostCount > 1) {
+      options.push({
+        value: "hosts",
+        label: isZh ? "按电脑" : "Computers",
+        testID: "usage-history-tab-hosts",
+      });
+    }
+    return options;
+  }, [isZh, model.availableHostCount]);
 
-  if (mergedUsage.days.length === 0 || mergedUsage.daily.length === 0) {
+  if (model.isEmpty) {
     return (
       <View style={[settingsStyles.card, styles.card]} testID={testID}>
         <View style={styles.headerRow}>
-          <Text style={styles.scopeText}>{scopeLabel}</Text>
+          <Text style={styles.scopeText} testID="usage-history-scope">
+            {model.scopeCaption}
+          </Text>
         </View>
         <Text style={styles.emptyTitle} testID="usage-history-empty-title">
-          {strings.noHistoryTitle}
+          {model.strings.noHistoryTitle}
         </Text>
-        <Text style={styles.emptyBody}>{strings.noHistoryBody}</Text>
+        <Text style={styles.emptyBody}>{model.strings.noHistoryBody}</Text>
       </View>
     );
   }
 
-  const daily = mergedUsage.daily;
-  const days = mergedUsage.days;
-  const todayEntry = daily[daily.length - 1]!;
-  const todayDate = days[days.length - 1] ?? "";
-  const firstDate = days[0] ?? "";
-  const todayTokens = sumDayTokens(todayEntry);
-  let totalTokens = 0;
-  let peakTokens = 1;
-  for (const day of daily) {
-    const dayTotal = sumDayTokens(day);
-    totalTokens += dayTotal;
-    if (dayTotal > peakTokens) peakTokens = dayTotal;
-  }
-  const averageTokens = totalTokens / daily.length;
-  const todayCostLabel = formatHistoryReportedCost([todayEntry], strings);
-  const monthCostLabel = formatHistoryReportedCost(daily, strings);
-  const modelRows = computeRankedModelRows(mergedUsage, totalTokens, strings, otherLabel);
-  const baseTokenUnit = strings.tokenUnit ?? "tokens";
-
-  // Selection is held by date, not index: the 30-day window slides forward at midnight and on
-  // refreshes from other hosts, and an index would silently start naming a different day.
-  const selectedDayIndex = selectedDay === null ? -1 : days.indexOf(selectedDay);
-  const selectedDayDetail = resolveSelectedDayDetail({
-    selectedDay,
-    days,
-    daily,
-    usage: mergedUsage,
-    strings,
-    otherLabel,
-  });
+  const baseTokenUnit = model.strings.tokenUnit ?? "tokens";
 
   return (
     <View style={[settingsStyles.card, styles.card]} testID={testID}>
       <View style={styles.headerRow}>
-        <Text style={styles.scopeText} testID="usage-history-scope">
-          {scopeLabel}
-        </Text>
-        <Text style={styles.metaText} testID="usage-history-average">
-          {`${strings.dailyAverage} ${formatHistoryTokens(averageTokens)} ${formatHistoryTokenUnit(averageTokens, baseTokenUnit, isZh)}`}
-        </Text>
-      </View>
-
-      <View style={styles.summaryGrid}>
-        <View style={styles.summaryColumn}>
-          <Text style={styles.summaryCaption}>{`${strings.today} · ${todayDate}`}</Text>
-          <View style={styles.figureRow}>
-            <Text style={styles.figureValue} testID="usage-history-today-tokens">
-              {formatHistoryTokens(todayTokens)}
-            </Text>
-            <Text style={styles.figureUnit}>
-              {formatHistoryTokenUnit(todayTokens, baseTokenUnit, isZh)}
-            </Text>
-          </View>
-          <Text style={styles.costText} testID="usage-history-today-cost">
-            {todayCostLabel}
+        <View style={styles.headerTitleGroup}>
+          <Text style={styles.scopeText} testID="usage-history-scope" numberOfLines={1}>
+            {model.scopeCaption}
           </Text>
         </View>
+        <SegmentedControl
+          size="sm"
+          options={rangeOptions}
+          value={String(rangeDays)}
+          onValueChange={handleRangeChange}
+          testID="usage-history-range"
+        />
+      </View>
 
-        <View style={styles.summaryColumn}>
-          <Text style={styles.summaryCaption}>{scopeLabel.split(" · ")[0] ?? scopeLabel}</Text>
-          <View style={styles.figureRow}>
-            <Text style={styles.figureValue} testID="usage-history-month-tokens">
-              {formatHistoryTokens(totalTokens)}
-            </Text>
-            <Text style={styles.figureUnit}>
-              {formatHistoryTokenUnit(totalTokens, baseTokenUnit, isZh)}
-            </Text>
-          </View>
-          <Text style={styles.costText} testID="usage-history-month-cost">
-            {monthCostLabel}
+      <UsageHistoryHostChips
+        hosts={model.hosts}
+        availableHostCount={model.availableHostCount}
+        selectedHostIds={selectedHostIds}
+        isZh={isZh}
+        onSelectAll={handleSelectAllHosts}
+        onToggleHost={handleToggleHost}
+      />
+
+      {model.activeFilterLabel ? (
+        <View style={styles.activeFilterRow} testID="usage-history-filter-badge">
+          <Text style={styles.activeFilterText} numberOfLines={1}>
+            {isZh ? `已筛选：${model.activeFilterLabel}` : `Filtered: ${model.activeFilterLabel}`}
           </Text>
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={X}
+            onPress={handleClearFilter}
+            accessibilityLabel={isZh ? "清除筛选" : "Clear filter"}
+            testID="usage-history-clear-filter"
+          >
+            {isZh ? "清除" : "Clear"}
+          </Button>
         </View>
-      </View>
+      ) : null}
 
-      <View style={styles.chartContainer} testID="usage-history-bars">
-        {daily.map((day, idx) => {
-          const date = days[idx] ?? String(idx);
-          const dayTokens = sumDayTokens(day);
-          const ratio = dayTokens > 0 ? Math.max(0.06, dayTokens / peakTokens) : 0.03;
-          return (
-            <HistoryChartBar
-              key={date}
-              date={date}
-              height={Math.round(ratio * 56)}
-              isSelected={idx === selectedDayIndex}
-              isToday={idx === daily.length - 1}
-              label={`${date} · ${formatHistoryTokens(dayTokens)} ${baseTokenUnit}`}
-              onToggle={toggleDay}
-            />
-          );
-        })}
-      </View>
+      <UsageHistorySummaryAndChart
+        model={model}
+        isZh={isZh}
+        baseTokenUnit={baseTokenUnit}
+        onToggleDay={toggleDay}
+      />
 
-      <View style={styles.axisRow}>
-        <Text style={styles.axisText}>{firstDate}</Text>
-        <Text style={styles.axisText}>{strings.today}</Text>
-      </View>
-
-      {selectedDayDetail ? (
+      {model.selectedDayDetail ? (
         <DayDetailPanel
-          detail={selectedDayDetail}
+          detail={model.selectedDayDetail}
           isZh={isZh}
           tokenUnit={baseTokenUnit}
           closeLabel={t("common.actions.close")}
@@ -472,12 +987,18 @@ export function UsageHistoryCard({
         />
       ) : null}
 
-      {modelRows.length > 0 ? (
-        <View style={styles.modelsContainer} testID="usage-history-models">
-          <Text style={styles.summaryCaption}>{scopeLabel.split(" · ")[0] ?? scopeLabel}</Text>
-          <HistoryModelRows rows={modelRows} isZh={isZh} />
-        </View>
-      ) : null}
+      <UsageHistoryBreakdownSection
+        model={model}
+        activeTab={effectiveTab}
+        tabOptions={tabOptions}
+        selectedModelKey={selectedModelKey}
+        selectedHarness={selectedHarness}
+        isZh={isZh}
+        onTabChange={setActiveTab}
+        onToggleModel={handleToggleModel}
+        onToggleHarness={handleToggleHarness}
+        onToggleHost={handleToggleHost}
+      />
     </View>
   );
 }
@@ -492,16 +1013,69 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "space-between",
     gap: theme.spacing[2],
+    flexWrap: "wrap",
+  },
+  headerTitleGroup: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   scopeText: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.semibold,
+    fontWeight: theme.fontWeight.medium,
   },
-  metaText: {
+  hostChipsTrack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  filterChipSelected: {
+    backgroundColor: theme.colors.surface3,
+    borderColor: theme.colors.borderAccent,
+  },
+  filterChipPressed: {
+    backgroundColor: theme.colors.surface3,
+  },
+  filterChipText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    maxWidth: 140,
+  },
+  filterChipTextSelected: {
+    color: theme.colors.foreground,
+    fontWeight: theme.fontWeight.medium,
+  },
+  filterChipCount: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
     fontVariant: ["tabular-nums"],
+  },
+  activeFilterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[2],
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.surface2,
+  },
+  activeFilterText: {
+    flex: 1,
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
   },
   summaryGrid: {
     flexDirection: "row",
@@ -510,6 +1084,7 @@ const styles = StyleSheet.create((theme) => ({
   summaryColumn: {
     flex: 1,
     gap: theme.spacing[0.5],
+    minWidth: 0,
   },
   summaryCaption: {
     color: theme.colors.foregroundMuted,
@@ -519,6 +1094,7 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "baseline",
     gap: theme.spacing[1.5],
+    flexWrap: "wrap",
   },
   figureValue: {
     color: theme.colors.foreground,
@@ -533,32 +1109,114 @@ const styles = StyleSheet.create((theme) => ({
   costText: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
+    fontVariant: ["tabular-nums"],
+  },
+  compositionContainer: {
+    gap: theme.spacing[1.5],
+  },
+  compositionTrack: {
+    height: 6,
+    borderRadius: theme.borderRadius.full,
+    overflow: "hidden",
+    flexDirection: "row",
+    gap: 2,
+    backgroundColor: theme.colors.surface2,
+  },
+  compositionBarSegment: {
+    height: "100%",
+    borderRadius: theme.borderRadius.full,
+  },
+  compositionLegend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing[2],
+  },
+  compositionLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+  },
+  compositionLegendLabel: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  compositionLegendValue: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontVariant: ["tabular-nums"],
+  },
+  chartMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[2],
+  },
+  metaText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    fontVariant: ["tabular-nums"],
+  },
+  chartFrame: {
+    position: "relative",
+    height: CHART_MAX_BAR_HEIGHT + 4,
+    justifyContent: "flex-end",
+  },
+  averageLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    borderTopWidth: 1,
+    borderStyle: "dashed",
+    borderTopColor: theme.colors.borderAccent,
+    opacity: 0.7,
+    zIndex: 1,
   },
   chartContainer: {
-    height: 60,
+    height: CHART_MAX_BAR_HEIGHT,
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 2,
-    paddingTop: theme.spacing[1],
+    gap: 3,
   },
   barSlot: {
     flex: 1,
-    height: 56,
+    height: CHART_MAX_BAR_HEIGHT,
     justifyContent: "flex-end",
   },
-  barFill: {
+  barColumn: {
     width: "100%",
-    borderRadius: 2,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    overflow: "hidden",
+    flexDirection: "column-reverse",
   },
-  barFillToday: {
+  barColumnStrong: {
+    opacity: 1,
+  },
+  barColumnPast: {
+    opacity: 0.72,
+  },
+  barSelectedOutline: {
+    borderWidth: 1,
+    borderColor: theme.colors.foreground,
+  },
+  barSegment: {
+    width: "100%",
+  },
+  barSegmentTail: {
+    backgroundColor: theme.colors.foregroundMuted,
+    opacity: 0.4,
+  },
+  barFallbackToday: {
     backgroundColor: theme.colors.statusSuccess,
   },
-  barFillPast: {
+  barFallbackPast: {
     backgroundColor: theme.colors.foregroundMuted,
-    opacity: 0.45,
+    opacity: 0.55,
   },
-  barFillSelected: {
-    backgroundColor: theme.colors.foreground,
+  barEmpty: {
+    width: "100%",
+    borderRadius: 1,
+    backgroundColor: theme.colors.surface3,
   },
   axisRow: {
     flexDirection: "row",
@@ -569,14 +1227,11 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.sm,
     fontVariant: ["tabular-nums"],
   },
-  modelsContainer: {
-    paddingTop: theme.spacing[2],
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    gap: theme.spacing[1.5],
-  },
   dayPanel: {
-    gap: theme.spacing[1],
+    padding: theme.spacing[3],
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface2,
+    gap: theme.spacing[1.5],
   },
   dayHeaderRow: {
     flexDirection: "row",
@@ -584,25 +1239,129 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "space-between",
     gap: theme.spacing[2],
   },
+  dayCaption: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
+  daySubSection: {
+    paddingTop: theme.spacing[2],
+    gap: theme.spacing[1.5],
+  },
+  daySubHeading: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
   dayModels: {
     gap: theme.spacing[1.5],
     paddingTop: theme.spacing[2],
   },
-  modelRow: {
+  breakdownContainer: {
+    paddingTop: theme.spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    gap: theme.spacing[2],
+  },
+  breakdownHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[2],
+    flexWrap: "wrap",
+  },
+  breakdownHint: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  breakdownList: {
+    gap: theme.spacing[1],
+  },
+  rowPressable: {
+    borderRadius: theme.borderRadius.md,
+  },
+  rowPressed: {
+    backgroundColor: theme.colors.surface2,
+  },
+  breakdownRow: {
+    paddingVertical: theme.spacing[1.5],
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing[1],
+  },
+  breakdownRowSelected: {
+    backgroundColor: theme.colors.surface2,
+  },
+  breakdownRowDimmed: {
+    opacity: theme.opacity[50],
+  },
+  breakdownTopLine: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: theme.spacing[2],
   },
-  modelName: {
+  breakdownLabelGroup: {
     flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+  },
+  colorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: theme.borderRadius.full,
+    flexShrink: 0,
+  },
+  modelName: {
+    flexShrink: 1,
     color: theme.colors.foreground,
     fontSize: theme.fontSize.sm,
   },
+  tagPill: {
+    paddingHorizontal: theme.spacing[1.5],
+    paddingVertical: 1,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface3,
+    flexShrink: 0,
+  },
+  tagPillText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
   modelValue: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontVariant: ["tabular-nums"],
+    flexShrink: 0,
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface2,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: theme.borderRadius.full,
+  },
+  breakdownSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[2],
+  },
+  breakdownSubText: {
+    flexShrink: 1,
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
     fontVariant: ["tabular-nums"],
+  },
+  breakdownSubMeta: {
+    flexShrink: 1,
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
   },
   emptyTitle: {
     color: theme.colors.foreground,

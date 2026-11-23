@@ -14,6 +14,7 @@ import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { useSessionStore } from "@/stores/session-store";
 import { buildSelectableProviderSelectorProviders } from "@/provider-selection/provider-selection";
+import { AiArchiveModelConfigCard } from "@/components/ai-archive/model-config-panel";
 import { openAuxiliaryModelForm, type AuxiliaryModelFormState } from "./auxiliary-model-form";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 
@@ -125,6 +126,9 @@ function AuxiliaryModelSettings({ serverId, config, patchConfig }: SettingsProps
   const predictionsSupported = useSessionStore(
     (store) => store.sessions[serverId]?.serverInfo?.features?.promptPredictions === true,
   );
+  const aiArchiveModelConfigSupported = useSessionStore(
+    (store) => store.sessions[serverId]?.serverInfo?.features?.aiArchiveModelConfig === true,
+  );
   useEffect(
     () => model.applySettings(config.metadataGeneration),
     [config.metadataGeneration, model],
@@ -133,69 +137,80 @@ function AuxiliaryModelSettings({ serverId, config, patchConfig }: SettingsProps
   const saving = state.save.status === "saving";
   const error = state.save.status === "error" ? state.save.message : undefined;
   return (
-    <SettingsSection
-      title={t("settings.metadataGeneration.title")}
-      info={t("settings.metadataGeneration.description")}
-      testID="metadata-generation-settings"
-    >
-      <SettingsCard>
-        <SettingsRow label={t("settings.metadataGeneration.selection")} error={error}>
-          <SegmentedControl
-            options={[
-              {
-                value: "automatic" as const,
-                label: t("settings.metadataGeneration.automatic"),
-                disabled: saving,
-              },
-              {
-                value: "preferred" as const,
-                label: t("settings.metadataGeneration.preferred"),
-                disabled: saving,
-              },
-            ]}
-            value={state.mode}
-            onValueChange={model.setMode}
-            testID="metadata-generation-mode"
-          />
-        </SettingsRow>
-        {state.mode === "preferred"
-          ? state.models.map((selected, index) => (
-              <AuxiliaryModelRow
-                key={selected.key}
-                selected={selected}
-                index={index}
-                model={model}
-                snapshot={snapshot}
-                providers={providers}
-                saving={saving}
-                serverId={serverId}
-              />
-            ))
-          : null}
-        {state.mode === "preferred" && state.models.length < 3 ? (
-          <SettingsRow label={t("settings.metadataGeneration.fallbacks")}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={model.addModel}
-              disabled={saving || state.models.some((entry) => !entry.provider)}
-            >
-              {t("settings.metadataGeneration.addFallback")}
-            </Button>
+    <>
+      <SettingsSection
+        title={t("settings.metadataGeneration.title")}
+        info={t("settings.metadataGeneration.description")}
+        testID="metadata-generation-settings"
+      >
+        <SettingsCard>
+          <SettingsRow label={t("settings.metadataGeneration.selection")} error={error}>
+            <SegmentedControl
+              options={[
+                {
+                  value: "automatic" as const,
+                  label: t("settings.metadataGeneration.automatic"),
+                  disabled: saving,
+                },
+                {
+                  value: "preferred" as const,
+                  label: t("settings.metadataGeneration.preferred"),
+                  disabled: saving,
+                },
+              ]}
+              value={state.mode}
+              onValueChange={model.setMode}
+              testID="metadata-generation-mode"
+            />
           </SettingsRow>
-        ) : null}
-        {predictionsSupported ? (
-          <SettingsSwitch
-            label={t("settings.metadataGeneration.predictions")}
-            hint={t("settings.metadataGeneration.predictionsHint")}
-            value={state.promptPredictions}
-            onValueChange={model.setPromptPredictions}
-            disabled={saving}
-            testID="prompt-prediction-settings"
-          />
-        ) : null}
-      </SettingsCard>
-    </SettingsSection>
+          {state.mode === "preferred"
+            ? state.models.map((selected, index) => (
+                <AuxiliaryModelRow
+                  key={selected.key}
+                  selected={selected}
+                  index={index}
+                  model={model}
+                  snapshot={snapshot}
+                  providers={providers}
+                  saving={saving}
+                  serverId={serverId}
+                />
+              ))
+            : null}
+          {state.mode === "preferred" && state.models.length < 3 ? (
+            <SettingsRow label={t("settings.metadataGeneration.fallbacks")}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={model.addModel}
+                disabled={saving || state.models.some((entry) => !entry.provider)}
+              >
+                {t("settings.metadataGeneration.addFallback")}
+              </Button>
+            </SettingsRow>
+          ) : null}
+          {predictionsSupported ? (
+            <SettingsSwitch
+              label={t("settings.metadataGeneration.predictions")}
+              hint={t("settings.metadataGeneration.predictionsHint")}
+              value={state.promptPredictions}
+              onValueChange={model.setPromptPredictions}
+              disabled={saving}
+              testID="prompt-prediction-settings"
+            />
+          ) : null}
+        </SettingsCard>
+      </SettingsSection>
+      {aiArchiveModelConfigSupported ? (
+        <SettingsSection
+          title={t("aiArchive.modelConfig.title")}
+          info={t("aiArchive.modelConfig.description")}
+          testID="ai-archive-model-settings-section"
+        >
+          <AiArchiveModelConfigCard serverId={serverId} />
+        </SettingsSection>
+      ) : null}
+    </>
   );
 }
 

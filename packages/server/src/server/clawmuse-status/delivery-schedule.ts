@@ -8,6 +8,7 @@ export interface ClawMuseStatusDeliveryScheduleOptions {
   onHeartbeat: () => void;
   onRetry: () => void;
   onProjectionRefresh: () => void;
+  onColdStart?: () => void;
 }
 
 function unrefTimer(timer: ReturnType<typeof setTimeout>): void {
@@ -26,12 +27,17 @@ export class ClawMuseStatusDeliverySchedule {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
   private projectionRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private coldStartTimer: ReturnType<typeof setTimeout> | null = null;
   private retryDelayMs = INITIAL_RETRY_DELAY_MS;
 
   constructor(private readonly options: ClawMuseStatusDeliveryScheduleOptions) {}
 
   get retryScheduled(): boolean {
     return this.retryTimer !== null;
+  }
+
+  get coldStartScheduled(): boolean {
+    return this.coldStartTimer !== null;
   }
 
   scheduleHeartbeat(delayMs = DEFAULT_HEARTBEAT_INTERVAL_MS): void {
@@ -82,10 +88,29 @@ export class ClawMuseStatusDeliverySchedule {
     unrefTimer(this.projectionRefreshTimer);
   }
 
+  armColdStart(delayMs: number): void {
+    if (!this.options.shouldRun() || delayMs <= 0 || this.coldStartTimer) {
+      return;
+    }
+    this.coldStartTimer = setTimeout(() => {
+      this.coldStartTimer = null;
+      this.options.onColdStart?.();
+    }, delayMs);
+    unrefTimer(this.coldStartTimer);
+  }
+
   clearAll(): void {
     this.clearRetry();
     this.clearHeartbeat();
     this.clearProjectionRefresh();
+    this.clearColdStart();
+  }
+
+  clearColdStart(): void {
+    if (this.coldStartTimer) {
+      clearTimeout(this.coldStartTimer);
+      this.coldStartTimer = null;
+    }
   }
 
   clearHeartbeat(): void {

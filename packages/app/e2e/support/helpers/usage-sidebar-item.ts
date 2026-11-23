@@ -279,6 +279,7 @@ export async function openUsageFromIcon(page: Page): Promise<void> {
 
 /** The footer's Usage item, its summary of pinned windows. */
 export async function openUsageFromItem(page: Page): Promise<void> {
+  await revealUsageSummary(page);
   await usageItem(page).click();
   await expect(usageModal(page)).toBeVisible();
 }

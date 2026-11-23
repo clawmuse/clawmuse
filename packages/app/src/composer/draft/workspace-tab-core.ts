@@ -61,3 +61,18 @@ export function resolveDraftWorkingDirectory(input: {
   }
   return input.workspaceDirectory;
 }
+
+export interface DraftCarryOverCandidate<TAttachment> {
+  text: string;
+  attachments: TAttachment[];
+}
+
+export function resolveDraftCarryOverInput<TAttachment>(
+  currentDraft: DraftCarryOverCandidate<TAttachment> | undefined,
+): DraftCarryOverCandidate<TAttachment> | null {
+  if (!currentDraft) return null;
+  if (currentDraft.text.trim().length === 0 && currentDraft.attachments.length === 0) {
+    return null;
+  }
+  return currentDraft;
+}

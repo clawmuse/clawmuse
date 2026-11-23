@@ -78,6 +78,11 @@ interface NativeAgentLiveActivityModule {
   resetRemoteStatusSession?(restartIfPresent: boolean): Promise<AgentLiveActivitySyncResult>;
   updateWidgetSnapshot?(json: string): Promise<void>;
   setWidgetCredentials?(baseUrl: string | null, token: string | null): Promise<void>;
+  setLiveActivityPushCredentials?(baseUrl: string | null, token: string | null): Promise<void>;
+  reconcileBackgroundActivities?(
+    staleGeneration: string | null,
+    endAllIfIdle: boolean,
+  ): Promise<{ endedCount: number; remainingCount: number }>;
   writeUsageWidgetSnapshot?(json: string): boolean;
   readUsageWidgetSnapshot?(): string | null;
   readPinnedUsageWidgetDeviceIds?(): string[];
@@ -175,6 +180,27 @@ export async function setAgentWidgetCredentials(
   await nativeModule?.setWidgetCredentials?.(
     credentials?.baseUrl ?? null,
     credentials?.token ?? null,
+  );
+}
+
+export async function setAgentLiveActivityPushCredentials(
+  credentials: { baseUrl: string; token: string } | null,
+): Promise<void> {
+  await nativeModule?.setLiveActivityPushCredentials?.(
+    credentials?.baseUrl ?? null,
+    credentials?.token ?? null,
+  );
+}
+
+export async function reconcileAgentLiveActivityBackground(input?: {
+  staleGeneration?: string | null;
+  endAllIfIdle?: boolean;
+}): Promise<{ endedCount: number; remainingCount: number }> {
+  return (
+    (await nativeModule?.reconcileBackgroundActivities?.(
+      input?.staleGeneration ?? null,
+      input?.endAllIfIdle ?? false,
+    )) ?? { endedCount: 0, remainingCount: 0 }
   );
 }
 

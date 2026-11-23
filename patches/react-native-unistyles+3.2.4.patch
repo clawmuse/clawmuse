@@ -1,322 +1,3 @@
-diff --git a/node_modules/react-native-unistyles/lib/commonjs/web/registry.js b/node_modules/react-native-unistyles/lib/commonjs/web/registry.js
-index 120ff60..d1ff102 100644
---- a/node_modules/react-native-unistyles/lib/commonjs/web/registry.js
-+++ b/node_modules/react-native-unistyles/lib/commonjs/web/registry.js
-@@ -10,6 +10,17 @@ class UnistylesRegistry {
-   stylesheets = new Map();
-   stylesCache = new Set();
-   stylesCounter = new Map();
-+  cleanupGeneration = 0;
-+  finalizerTokens = new WeakMap();
-+  finalizationRegistry = typeof FinalizationRegistry === 'undefined' ? undefined : new FinalizationRegistry(({
-+    hash,
-+    generation
-+  }) => {
-+    if (generation !== this.cleanupGeneration) {
-+      return;
-+    }
-+    this.decrementAndMaybeCleanup(hash);
-+  });
-   disposeListenersMap = new Map();
-   dependenciesMap = new Map();
-   constructor(services) {
-@@ -50,26 +61,48 @@ class UnistylesRegistry {
-     this.disposeListenersMap.set(stylesheet, dispose);
-   };
-   connect = (ref, hash) => {
--    const stylesCounter = this.stylesCounter.get(hash) ?? new Set();
--    stylesCounter.add(ref);
--    this.stylesCounter.set(hash, stylesCounter);
-+    this.stylesCounter.set(hash, (this.stylesCounter.get(hash) ?? 0) + 1);
-+    if (!this.finalizationRegistry) {
-+      return;
-+    }
-+    const token = {};
-+    const tokensByHash = this.finalizerTokens.get(ref) ?? new Map();
-+    const tokens = tokensByHash.get(hash) ?? [];
-+    tokens.push(token);
-+    tokensByHash.set(hash, tokens);
-+    this.finalizerTokens.set(ref, tokensByHash);
-+    this.finalizationRegistry.register(ref, {
-+      hash,
-+      generation: this.cleanupGeneration
-+    }, token);
-   };
-   remove = (ref, hash) => {
--    const stylesCounter = this.stylesCounter.get(hash) ?? new Set();
--    stylesCounter.delete(ref);
--    if (stylesCounter.size === 0) {
--      // Move this to the end of the event loop so the element is removed from the DOM
--      return Promise.resolve().then(() => {
--        // Check if element is still in the DOM
--        if (document.querySelector(`.${hash}`)) {
--          return false;
--        }
--        this.css.remove(hash);
--        this.stylesCache.delete(hash);
--        return true;
--      });
-+    const token = this.finalizerTokens.get(ref)?.get(hash)?.pop();
-+    if (token) {
-+      this.finalizationRegistry?.unregister(token);
-+    }
-+    return this.decrementAndMaybeCleanup(hash);
-+  };
-+  decrementAndMaybeCleanup = hash => {
-+    const next = (this.stylesCounter.get(hash) ?? 0) - 1;
-+    if (next > 0) {
-+      this.stylesCounter.set(hash, next);
-+      return Promise.resolve(false);
-     }
--    return Promise.resolve(false);
-+    this.stylesCounter.delete(hash);
-+    // Move this to the end of the event loop so the element is removed from the DOM
-+    return Promise.resolve().then(() => {
-+      // Check if element is still in the DOM
-+      if ((this.stylesCounter.get(hash) ?? 0) > 0) {
-+        return false;
-+      }
-+      if (document.querySelector(`.${hash}`)) {
-+        return false;
-+      }
-+      this.css.remove(hash);
-+      this.stylesCache.delete(hash);
-+      return true;
-+    });
-   };
-   add = (value, forChild) => {
-     const generatedHash = (0, _utils.generateHash)(value);
-@@ -91,7 +124,10 @@ class UnistylesRegistry {
-     this.css.add(hash, value);
-   };
-   reset = () => {
-+    this.cleanupGeneration += 1;
-+    this.disposeListenersMap.forEach(dispose => dispose());
-     this.css.reset();
-+    this.stylesheets.clear();
-     this.stylesCache.clear();
-     this.dependenciesMap.clear();
-     this.disposeListenersMap.clear();
-diff --git a/node_modules/react-native-unistyles/lib/module/web/registry.js b/node_modules/react-native-unistyles/lib/module/web/registry.js
-index 6362f43..8e769f8 100644
---- a/node_modules/react-native-unistyles/lib/module/web/registry.js
-+++ b/node_modules/react-native-unistyles/lib/module/web/registry.js
-@@ -6,6 +6,17 @@ export class UnistylesRegistry {
-   stylesheets = new Map();
-   stylesCache = new Set();
-   stylesCounter = new Map();
-+  cleanupGeneration = 0;
-+  finalizerTokens = new WeakMap();
-+  finalizationRegistry = typeof FinalizationRegistry === 'undefined' ? undefined : new FinalizationRegistry(({
-+    hash,
-+    generation
-+  }) => {
-+    if (generation !== this.cleanupGeneration) {
-+      return;
-+    }
-+    this.decrementAndMaybeCleanup(hash);
-+  });
-   disposeListenersMap = new Map();
-   dependenciesMap = new Map();
-   constructor(services) {
-@@ -46,26 +57,48 @@ export class UnistylesRegistry {
-     this.disposeListenersMap.set(stylesheet, dispose);
-   };
-   connect = (ref, hash) => {
--    const stylesCounter = this.stylesCounter.get(hash) ?? new Set();
--    stylesCounter.add(ref);
--    this.stylesCounter.set(hash, stylesCounter);
-+    this.stylesCounter.set(hash, (this.stylesCounter.get(hash) ?? 0) + 1);
-+    if (!this.finalizationRegistry) {
-+      return;
-+    }
-+    const token = {};
-+    const tokensByHash = this.finalizerTokens.get(ref) ?? new Map();
-+    const tokens = tokensByHash.get(hash) ?? [];
-+    tokens.push(token);
-+    tokensByHash.set(hash, tokens);
-+    this.finalizerTokens.set(ref, tokensByHash);
-+    this.finalizationRegistry.register(ref, {
-+      hash,
-+      generation: this.cleanupGeneration
-+    }, token);
-   };
-   remove = (ref, hash) => {
--    const stylesCounter = this.stylesCounter.get(hash) ?? new Set();
--    stylesCounter.delete(ref);
--    if (stylesCounter.size === 0) {
--      // Move this to the end of the event loop so the element is removed from the DOM
--      return Promise.resolve().then(() => {
--        // Check if element is still in the DOM
--        if (document.querySelector(`.${hash}`)) {
--          return false;
--        }
--        this.css.remove(hash);
--        this.stylesCache.delete(hash);
--        return true;
--      });
-+    const token = this.finalizerTokens.get(ref)?.get(hash)?.pop();
-+    if (token) {
-+      this.finalizationRegistry?.unregister(token);
-+    }
-+    return this.decrementAndMaybeCleanup(hash);
-+  };
-+  decrementAndMaybeCleanup = hash => {
-+    const next = (this.stylesCounter.get(hash) ?? 0) - 1;
-+    if (next > 0) {
-+      this.stylesCounter.set(hash, next);
-+      return Promise.resolve(false);
-     }
--    return Promise.resolve(false);
-+    this.stylesCounter.delete(hash);
-+    // Move this to the end of the event loop so the element is removed from the DOM
-+    return Promise.resolve().then(() => {
-+      // Check if element is still in the DOM
-+      if ((this.stylesCounter.get(hash) ?? 0) > 0) {
-+        return false;
-+      }
-+      if (document.querySelector(`.${hash}`)) {
-+        return false;
-+      }
-+      this.css.remove(hash);
-+      this.stylesCache.delete(hash);
-+      return true;
-+    });
-   };
-   add = (value, forChild) => {
-     const generatedHash = generateHash(value);
-@@ -87,7 +120,10 @@ export class UnistylesRegistry {
-     this.css.add(hash, value);
-   };
-   reset = () => {
-+    this.cleanupGeneration += 1;
-+    this.disposeListenersMap.forEach(dispose => dispose());
-     this.css.reset();
-+    this.stylesheets.clear();
-     this.stylesCache.clear();
-     this.dependenciesMap.clear();
-     this.disposeListenersMap.clear();
-diff --git a/node_modules/react-native-unistyles/src/web/registry.ts b/node_modules/react-native-unistyles/src/web/registry.ts
-index 39e0d9d..a21ba95 100644
---- a/node_modules/react-native-unistyles/src/web/registry.ts
-+++ b/node_modules/react-native-unistyles/src/web/registry.ts
-@@ -9,7 +9,24 @@ import { error, extractUnistyleDependencies, generateHash } from './utils'
- export class UnistylesRegistry {
-     private readonly stylesheets = new Map<StyleSheetWithSuperPowers<StyleSheet>, StyleSheet>()
-     private readonly stylesCache = new Set<string>()
--    private readonly stylesCounter = new Map<string, Set<HTMLElement>>()
-+    // Use counter instead of Set<HTMLElement> to avoid retaining detached DOM nodes
-+    // FR is a fallback when remove() is missed
-+    private readonly stylesCounter = new Map<string, number>()
-+    // Bumped on reset() so stale FR callbacks are ignored
-+    private cleanupGeneration = 0
-+    // Per-registration unregister token, so remove() cancels only its own registration
-+    private readonly finalizerTokens = new WeakMap<HTMLElement, Map<string, Array<object>>>()
-+    // FR isn't available on every runtime - fall back to counter-only cleanup
-+    private readonly finalizationRegistry =
-+        typeof FinalizationRegistry === 'undefined'
-+            ? undefined
-+            : new FinalizationRegistry<{ hash: string; generation: number }>(({ hash, generation }) => {
-+                  if (generation !== this.cleanupGeneration) {
-+                      return
-+                  }
-+
-+                  this.decrementAndMaybeCleanup(hash)
-+              })
-     private readonly disposeListenersMap = new Map<object, VoidFunction>()
-     private readonly dependenciesMap = new Map<StyleSheetWithSuperPowers<StyleSheet>, Set<UnistyleDependency>>()
-     readonly css: CSSState
-@@ -78,33 +95,61 @@ export class UnistylesRegistry {
-     }
- 
-     connect = (ref: HTMLElement, hash: string) => {
--        const stylesCounter = this.stylesCounter.get(hash) ?? new Set()
-+        this.stylesCounter.set(hash, (this.stylesCounter.get(hash) ?? 0) + 1)
- 
--        stylesCounter.add(ref)
--        this.stylesCounter.set(hash, stylesCounter)
-+        if (!this.finalizationRegistry) {
-+            return
-+        }
-+
-+        const token = {}
-+        const tokensByHash = this.finalizerTokens.get(ref) ?? new Map<string, Array<object>>()
-+        const tokens = tokensByHash.get(hash) ?? []
-+
-+        tokens.push(token)
-+        tokensByHash.set(hash, tokens)
-+        this.finalizerTokens.set(ref, tokensByHash)
-+        this.finalizationRegistry.register(ref, { hash, generation: this.cleanupGeneration }, token)
-     }
- 
-     remove = (ref: HTMLElement, hash: string) => {
--        const stylesCounter = this.stylesCounter.get(hash) ?? new Set()
-+        const token = this.finalizerTokens.get(ref)?.get(hash)?.pop()
- 
--        stylesCounter.delete(ref)
-+        if (token) {
-+            this.finalizationRegistry?.unregister(token)
-+        }
- 
--        if (stylesCounter.size === 0) {
--            // Move this to the end of the event loop so the element is removed from the DOM
--            return Promise.resolve().then(() => {
--                // Check if element is still in the DOM
--                if (document.querySelector(`.${hash}`)) {
--                    return false
--                }
-+        return this.decrementAndMaybeCleanup(hash)
-+    }
-+
-+    private decrementAndMaybeCleanup = (hash: string): Promise<boolean> => {
-+        const next = (this.stylesCounter.get(hash) ?? 0) - 1
- 
--                this.css.remove(hash)
--                this.stylesCache.delete(hash)
-+        if (next > 0) {
-+            this.stylesCounter.set(hash, next)
- 
--                return true
--            })
-+            return Promise.resolve(false)
-         }
- 
--        return Promise.resolve(false)
-+        // Drop the empty bucket from the Map
-+        this.stylesCounter.delete(hash)
-+
-+        // Move this to the end of the event loop so the element is removed from the DOM
-+        return Promise.resolve().then(() => {
-+            // New connect raced in during the microtask
-+            if ((this.stylesCounter.get(hash) ?? 0) > 0) {
-+                return false
-+            }
-+
-+            // Check if element is still in the DOM
-+            if (document.querySelector(`.${hash}`)) {
-+                return false
-+            }
-+
-+            this.css.remove(hash)
-+            this.stylesCache.delete(hash)
-+
-+            return true
-+        })
-     }
- 
-     add = (value: UnistylesValues, forChild?: boolean) => {
-@@ -126,7 +171,11 @@ export class UnistylesRegistry {
-     }
- 
-     reset = () => {
-+        // Invalidate pending FR callbacks from this generation
-+        this.cleanupGeneration += 1
-+        this.disposeListenersMap.forEach((dispose) => dispose())
-         this.css.reset()
-+        this.stylesheets.clear()
-         this.stylesCache.clear()
-         this.dependenciesMap.clear()
-         this.disposeListenersMap.clear()
 diff --git a/node_modules/react-native-unistyles/android/build.gradle b/node_modules/react-native-unistyles/android/build.gradle
 index 195954b..c4ac28c 100644
 --- a/node_modules/react-native-unistyles/android/build.gradle
@@ -329,234 +10,6 @@ index 195954b..c4ac28c 100644
      namespace "com.unistyles"
  
      defaultConfig {
-diff --git a/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.tsx b/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.tsx
---- a/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.tsx
-+++ b/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.tsx
-@@ -28,13 +28,14 @@
- 
-     return forwardRef<GenericComponentRef<TComponent>, PropsWithUnistyles>((props, ref) => {
-         const narrowedProps = props as PropsWithUnistyles & UnistyleStyles
-+        const { uniProps, ...componentProps } = narrowedProps
-         const styleClassNames = getClassName(narrowedProps.style, true)
-         const contentContainerStyleClassNames = getClassName(narrowedProps.contentContainerStyle)
-         const { proxifiedRuntime, proxifiedTheme } = useProxifiedUnistyles()
- 
-         const { key: mappingsKey, ...mappingsProps } = mappings ? mappings(proxifiedTheme, proxifiedRuntime) : {}
--        const { key: uniPropsKey, ...unistyleProps } = narrowedProps.uniProps
--            ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime)
-+        const { key: uniPropsKey, ...unistyleProps } = uniProps
-+            ? uniProps(proxifiedTheme, proxifiedRuntime)
-             : {}
- 
-         const emptyStyles = narrowedProps.style
-@@ -46,7 +47,7 @@
-             : undefined
- 
-         const combinedProps = {
--            ...deepMergeObjects(mappingsProps, unistyleProps, props),
-+            ...deepMergeObjects(mappingsProps, unistyleProps, componentProps),
-             ...(narrowedProps.style
-                 ? {
-                       // Override default component styles with undefined values to reset them
-diff --git a/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.native.tsx b/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.native.tsx
---- a/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.native.tsx
-+++ b/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.native.tsx
-@@ -63,6 +63,7 @@
- 
-     return forwardRef<GenericComponentRef<TComponent>, PropsWithUnistyles>((props, ref) => {
-         const narrowedProps = props as PropsWithUnistyles & UnistyleStyles
-+        const { uniProps, ...componentProps } = narrowedProps
-         const NativeComponent = Component as ComponentType
- 
-         // @ts-ignore we don't know the type of the component
-@@ -89,15 +90,15 @@
-         }, [narrowedProps.style, narrowedProps.contentContainerStyle])
- 
-         const { key: mappingsKey, ...mappingsProps } = mappings ? mappings(proxifiedTheme, proxifiedRuntime) : {}
--        const { key: uniPropsKey, ...unistyleProps } = narrowedProps.uniProps
--            ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime)
-+        const { key: uniPropsKey, ...unistyleProps } = uniProps
-+            ? uniProps(proxifiedTheme, proxifiedRuntime)
-             : {}
- 
-         const styleSecrets = getSecrets(narrowedProps.style)
-         const contentContainerStyleSecrets = getSecrets(narrowedProps.contentContainerStyle)
- 
-         const finalProps = {
--            ...deepMergeObjects(mappingsProps, unistyleProps, props),
-+            ...deepMergeObjects(mappingsProps, unistyleProps, componentProps),
-             ...(narrowedProps.style
-                 ? {
-                       style: styleSecrets.styles,
-diff --git a/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.js b/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.js
---- a/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.js
-+++ b/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.js
-@@ -13,6 +13,7 @@
- export const withUnistyles = (Component, mappings) => {
-   return /*#__PURE__*/forwardRef((props, ref) => {
-     const narrowedProps = props;
-+    const { uniProps, ...componentProps } = narrowedProps;
-     const styleClassNames = getClassName(narrowedProps.style, true);
-     const contentContainerStyleClassNames = getClassName(narrowedProps.contentContainerStyle);
-     const {
-@@ -26,10 +27,10 @@
-     const {
-       key: uniPropsKey,
-       ...unistyleProps
--    } = narrowedProps.uniProps ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime) : {};
-+    } = uniProps ? uniProps(proxifiedTheme, proxifiedRuntime) : {};
-     const emptyStyles = narrowedProps.style ? Object.fromEntries(Object.entries(Object.getOwnPropertyDescriptors(narrowedProps.style)).filter(([key]) => !key.startsWith('unistyles') && !key.startsWith('_')).map(([key]) => [key, undefined])) : undefined;
-     const combinedProps = {
--      ...deepMergeObjects(mappingsProps, unistyleProps, props),
-+      ...deepMergeObjects(mappingsProps, unistyleProps, componentProps),
-       ...(narrowedProps.style ? {
-         // Override default component styles with undefined values to reset them
-         style: emptyStyles
-diff --git a/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.native.js b/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.native.js
---- a/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.native.js
-+++ b/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.native.js
-@@ -27,6 +27,7 @@
-   };
-   return /*#__PURE__*/forwardRef((props, ref) => {
-     const narrowedProps = props;
-+    const { uniProps, ...componentProps } = narrowedProps;
-     const NativeComponent = Component;
- 
-     // @ts-ignore we don't know the type of the component
-@@ -57,11 +58,11 @@
-     const {
-       key: uniPropsKey,
-       ...unistyleProps
--    } = narrowedProps.uniProps ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime) : {};
-+    } = uniProps ? uniProps(proxifiedTheme, proxifiedRuntime) : {};
-     const styleSecrets = getSecrets(narrowedProps.style);
-     const contentContainerStyleSecrets = getSecrets(narrowedProps.contentContainerStyle);
-     const finalProps = {
--      ...deepMergeObjects(mappingsProps, unistyleProps, props),
-+      ...deepMergeObjects(mappingsProps, unistyleProps, componentProps),
-       ...(narrowedProps.style ? {
-         style: styleSecrets.styles
-       } : {}),
-diff --git a/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.js b/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.js
---- a/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.js
-+++ b/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.js
-@@ -18,6 +18,7 @@
- const withUnistyles = (Component, mappings) => {
-   return /*#__PURE__*/(0, _react.forwardRef)((props, ref) => {
-     const narrowedProps = props;
-+    const { uniProps, ...componentProps } = narrowedProps;
-     const styleClassNames = (0, _getClassname.getClassName)(narrowedProps.style, true);
-     const contentContainerStyleClassNames = (0, _getClassname.getClassName)(narrowedProps.contentContainerStyle);
-     const {
-@@ -31,10 +32,10 @@
-     const {
-       key: uniPropsKey,
-       ...unistyleProps
--    } = narrowedProps.uniProps ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime) : {};
-+    } = uniProps ? uniProps(proxifiedTheme, proxifiedRuntime) : {};
-     const emptyStyles = narrowedProps.style ? Object.fromEntries(Object.entries(Object.getOwnPropertyDescriptors(narrowedProps.style)).filter(([key]) => !key.startsWith('unistyles') && !key.startsWith('_')).map(([key]) => [key, undefined])) : undefined;
-     const combinedProps = {
--      ...(0, _utils.deepMergeObjects)(mappingsProps, unistyleProps, props),
-+      ...(0, _utils.deepMergeObjects)(mappingsProps, unistyleProps, componentProps),
-       ...(narrowedProps.style ? {
-         // Override default component styles with undefined values to reset them
-         style: emptyStyles
-diff --git a/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.native.js b/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.native.js
---- a/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.native.js
-+++ b/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.native.js
-@@ -32,6 +32,7 @@
-   };
-   return /*#__PURE__*/(0, _react.forwardRef)((props, ref) => {
-     const narrowedProps = props;
-+    const { uniProps, ...componentProps } = narrowedProps;
-     const NativeComponent = Component;
- 
-     // @ts-ignore we don't know the type of the component
-@@ -62,11 +63,11 @@
-     const {
-       key: uniPropsKey,
-       ...unistyleProps
--    } = narrowedProps.uniProps ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime) : {};
-+    } = uniProps ? uniProps(proxifiedTheme, proxifiedRuntime) : {};
-     const styleSecrets = getSecrets(narrowedProps.style);
-     const contentContainerStyleSecrets = getSecrets(narrowedProps.contentContainerStyle);
-     const finalProps = {
--      ...(0, _utils.deepMergeObjects)(mappingsProps, unistyleProps, props),
-+      ...(0, _utils.deepMergeObjects)(mappingsProps, unistyleProps, componentProps),
-       ...(narrowedProps.style ? {
-         style: styleSecrets.styles
-       } : {}),
-diff --git a/node_modules/react-native-unistyles/lib/commonjs/web/runtime.js b/node_modules/react-native-unistyles/lib/commonjs/web/runtime.js
-index 305fa49..5957aa5 100644
---- a/node_modules/react-native-unistyles/lib/commonjs/web/runtime.js
-+++ b/node_modules/react-native-unistyles/lib/commonjs/web/runtime.js
-@@ -35,10 +35,17 @@ class UnistylesRuntime {
-     return this.darkMedia;
-   }
-   get colorScheme() {
-+    // Read the scheme through fresh lists, never through lightMedia/darkMedia. Chromium defers
-+    // MediaQueryList change events while the document is hidden and drops the pending event
-+    // of any list whose `matches` was read before the document became visible again, which
-+    // would silence the adaptive-theme listeners registered on those two lists.
-+    if ((0, _utils.isServer)()) {
-+      return _types.ColorScheme.Unspecified;
-+    }
-     switch (true) {
--      case this.getLightMedia()?.matches:
-+      case window.matchMedia('(prefers-color-scheme: light)').matches:
-         return _types.ColorScheme.Light;
--      case this.getDarkMedia()?.matches:
-+      case window.matchMedia('(prefers-color-scheme: dark)').matches:
-         return _types.ColorScheme.Dark;
-       default:
-         return _types.ColorScheme.Unspecified;
-diff --git a/node_modules/react-native-unistyles/lib/module/web/runtime.js b/node_modules/react-native-unistyles/lib/module/web/runtime.js
-index 7f13a06..c487bee 100644
---- a/node_modules/react-native-unistyles/lib/module/web/runtime.js
-+++ b/node_modules/react-native-unistyles/lib/module/web/runtime.js
-@@ -31,10 +31,17 @@ export class UnistylesRuntime {
-     return this.darkMedia;
-   }
-   get colorScheme() {
-+    // Read the scheme through fresh lists, never through lightMedia/darkMedia. Chromium defers
-+    // MediaQueryList change events while the document is hidden and drops the pending event
-+    // of any list whose `matches` was read before the document became visible again, which
-+    // would silence the adaptive-theme listeners registered on those two lists.
-+    if (isServer()) {
-+      return ColorScheme.Unspecified;
-+    }
-     switch (true) {
--      case this.getLightMedia()?.matches:
-+      case window.matchMedia('(prefers-color-scheme: light)').matches:
-         return ColorScheme.Light;
--      case this.getDarkMedia()?.matches:
-+      case window.matchMedia('(prefers-color-scheme: dark)').matches:
-         return ColorScheme.Dark;
-       default:
-         return ColorScheme.Unspecified;
-diff --git a/node_modules/react-native-unistyles/src/web/runtime.ts b/node_modules/react-native-unistyles/src/web/runtime.ts
-index a16dac0..6519858 100644
---- a/node_modules/react-native-unistyles/src/web/runtime.ts
-+++ b/node_modules/react-native-unistyles/src/web/runtime.ts
-@@ -41,8 +41,16 @@ export class UnistylesRuntime {
-     get colorScheme() {
-+        // Read the scheme through fresh lists, never through lightMedia/darkMedia. Chromium defers
-+        // MediaQueryList change events while the document is hidden and drops the pending event
-+        // of any list whose `matches` was read before the document became visible again, which
-+        // would silence the adaptive-theme listeners registered on those two lists.
-+        if (isServer()) {
-+            return ColorScheme.Unspecified
-+        }
-+
-         switch (true) {
--            case this.getLightMedia()?.matches:
-+            case window.matchMedia('(prefers-color-scheme: light)').matches:
-                 return ColorScheme.Light
--            case this.getDarkMedia()?.matches:
-+            case window.matchMedia('(prefers-color-scheme: dark)').matches:
-                 return ColorScheme.Dark
-             default:
-                 return ColorScheme.Unspecified
 diff --git a/node_modules/react-native-unistyles/android/src/main/java/com/unistyles/NativePlatform+android.kt b/node_modules/react-native-unistyles/android/src/main/java/com/unistyles/NativePlatform+android.kt
 index 0f8d1f0..154a12a 100644
 --- a/node_modules/react-native-unistyles/android/src/main/java/com/unistyles/NativePlatform+android.kt
@@ -705,6 +158,174 @@ index a9c1804..f5a3c20 100644
  
          return Insets(
              this._insets.top / density,
+diff --git a/node_modules/react-native-unistyles/cxx/core/UnistylesRegistry.cpp b/node_modules/react-native-unistyles/cxx/core/UnistylesRegistry.cpp
+index 7960fd7..24fc84b 100644
+--- a/node_modules/react-native-unistyles/cxx/core/UnistylesRegistry.cpp
++++ b/node_modules/react-native-unistyles/cxx/core/UnistylesRegistry.cpp
+@@ -8,6 +8,53 @@ using namespace facebook::react;
+ 
+ std::atomic<int> core::UnistylesRegistry::_nextStyleSheetTag{0};
+ 
++namespace {
++std::mutex sRegistryMutex;
++std::shared_ptr<core::UnistylesRegistry> sActiveRegistry;
++thread_local core::UnistylesRegistry* sThreadRegistry = nullptr;
++}
++
++core::UnistylesRegistry& core::UnistylesRegistry::get() {
++    if (sThreadRegistry != nullptr) {
++        return *sThreadRegistry;
++    }
++
++    std::lock_guard<std::mutex> lock(sRegistryMutex);
++    if (!sActiveRegistry) {
++        sActiveRegistry = std::shared_ptr<UnistylesRegistry>(new UnistylesRegistry());
++    }
++
++    return *sActiveRegistry;
++}
++
++std::shared_ptr<core::UnistylesRegistry> core::UnistylesRegistry::createAndActivate() {
++    auto instance = std::shared_ptr<UnistylesRegistry>(new UnistylesRegistry());
++    {
++        std::lock_guard<std::mutex> lock(sRegistryMutex);
++        sActiveRegistry = instance;
++    }
++    sThreadRegistry = instance.get();
++
++    return instance;
++}
++
++void core::UnistylesRegistry::deactivate(const std::shared_ptr<core::UnistylesRegistry>& registry) {
++    if (!registry) {
++        return;
++    }
++
++    registry->destroy();
++
++    if (sThreadRegistry == registry.get()) {
++        sThreadRegistry = nullptr;
++    }
++
++    std::lock_guard<std::mutex> lock(sRegistryMutex);
++    if (sActiveRegistry == registry) {
++        sActiveRegistry.reset();
++    }
++}
++
+ void core::UnistylesRegistry::registerTheme(jsi::Runtime& rt, std::string name, jsi::Value& theme) {
+     auto& state = this->getState();
+ 
+@@ -263,6 +310,9 @@ void core::UnistylesRegistry::setScopedTheme(std::optional<std::string> themeNam
+ }
+ 
+ void core::UnistylesRegistry::destroy() {
++    this->trafficController.withLock([this]() {
++        this->trafficController.restore();
++    });
+     this->_state.reset();
+     this->_styleSheetRegistry.clear();
+     this->_shadowRegistry.clear();
+diff --git a/node_modules/react-native-unistyles/cxx/core/UnistylesRegistry.h b/node_modules/react-native-unistyles/cxx/core/UnistylesRegistry.h
+index f501232..e54cabb 100644
+--- a/node_modules/react-native-unistyles/cxx/core/UnistylesRegistry.h
++++ b/node_modules/react-native-unistyles/cxx/core/UnistylesRegistry.h
+@@ -2,6 +2,8 @@
+ 
+ #include "set"
+ #include <atomic>
++#include <memory>
++#include <mutex>
+ #include <jsi/jsi.h>
+ #include <folly/dynamic.h>
+ #include <react/renderer/uimanager/UIManager.h>
+@@ -25,6 +27,8 @@ using DependencyMap = std::unordered_map<const ShadowNodeFamily*, std::vector<st
+ 
+ struct UnistylesRegistry: public StyleSheetRegistry {
+     static UnistylesRegistry& get();
++    static std::shared_ptr<UnistylesRegistry> createAndActivate();
++    static void deactivate(const std::shared_ptr<UnistylesRegistry>& registry);
+ 
+     UnistylesRegistry(const UnistylesRegistry&) = delete;
+     UnistylesRegistry(const UnistylesRegistry&&) = delete;
+@@ -65,10 +69,4 @@ private:
+     std::unordered_set<const ShadowNodeFamily*> _suspendedFamilies{};
+ };
+ 
+-inline UnistylesRegistry& UnistylesRegistry::get() {
+-    static UnistylesRegistry cache;
+-
+-    return cache;
+-}
+-
+ }
+diff --git a/node_modules/react-native-unistyles/cxx/hybridObjects/HybridStyleSheet.h b/node_modules/react-native-unistyles/cxx/hybridObjects/HybridStyleSheet.h
+index 6dea9d4..45943bb 100644
+--- a/node_modules/react-native-unistyles/cxx/hybridObjects/HybridStyleSheet.h
++++ b/node_modules/react-native-unistyles/cxx/hybridObjects/HybridStyleSheet.h
+@@ -1,7 +1,9 @@
+ #pragma once
+ 
++#include <atomic>
+ #include <cmath>
+ #include <jsi/jsi.h>
++#include <memory>
+ #include <mutex>
+ #include <optional>
+ #include <unordered_map>
+@@ -19,18 +21,41 @@ using namespace facebook::react;
+ 
+ struct HybridStyleSheet: public HybridUnistylesStyleSheetSpec {
+     HybridStyleSheet(std::shared_ptr<HybridUnistylesRuntime> unistylesRuntime): HybridObject(TAG), _unistylesRuntime{unistylesRuntime} {
++            auto alive = this->_alive;
+             this->_unistylesRuntime->registerPlatformListener(
+-                  std::bind(&HybridStyleSheet::onPlatformDependenciesChange, this, std::placeholders::_1)
++                  [this, alive](std::vector<UnistyleDependency> dependencies) {
++                      if (!alive->load(std::memory_order_acquire)) {
++                          return;
++                      }
++                      this->onPlatformDependenciesChange(std::move(dependencies));
++                  }
+             );
+             this->_unistylesRuntime->registerNativePlatformListener(
+-                  std::bind(&HybridStyleSheet::onPlatformNativeDependenciesChange, this, std::placeholders::_1, std::placeholders::_2)
++                  [this, alive](std::vector<UnistyleDependency> dependencies, UnistylesNativeMiniRuntime miniRuntime) {
++                      if (!alive->load(std::memory_order_acquire)) {
++                          return;
++                      }
++                      this->onPlatformNativeDependenciesChange(std::move(dependencies), std::move(miniRuntime));
++                  }
+             );
+             this->_unistylesRuntime->registerImeListener(
+-                  std::bind(&HybridStyleSheet::onImeChange, this, std::placeholders::_1)
++                  [this, alive](UnistylesNativeMiniRuntime miniRuntime) {
++                      if (!alive->load(std::memory_order_acquire)) {
++                          return;
++                      }
++                      this->onImeChange(std::move(miniRuntime));
++                  }
+             );
+       }
+ 
++    void clearListeners() {
++        this->_alive->store(false, std::memory_order_release);
++        std::lock_guard<std::mutex> lock(this->_listenersMutex);
++        this->_changeListeners.clear();
++    }
++
+     ~HybridStyleSheet() {
++        this->clearListeners();
+         this->_unistylesRuntime->unregisterNativePlatformListeners();
+     }
+ 
+@@ -73,6 +98,7 @@ private:
+     void applyDependencyChanges(jsi::Runtime& rt, std::vector<UnistyleDependency>& dependencies, std::optional<UnistylesNativeMiniRuntime> maybeMiniRuntime);
+     void notifyJSListeners(std::vector<UnistyleDependency>& dependencies);
+ 
++    std::shared_ptr<std::atomic<bool>> _alive = std::make_shared<std::atomic<bool>>(true);
+     bool isInitialized = false;
+     std::unordered_map<size_t, std::unique_ptr<std::function<void(std::vector<UnistyleDependency>&)>>> _changeListeners{};
+     std::mutex _listenersMutex;
 diff --git a/node_modules/react-native-unistyles/cxx/shadowTree/ShadowTreeManager.cpp b/node_modules/react-native-unistyles/cxx/shadowTree/ShadowTreeManager.cpp
 index 01026dc..3786ec4 100644
 --- a/node_modules/react-native-unistyles/cxx/shadowTree/ShadowTreeManager.cpp
@@ -761,3 +382,695 @@ index 01026dc..3786ec4 100644
  #else
          const auto& shadowTreeRegistry = UIManagerBinding::getBinding(rt)->getUIManager().getShadowTreeRegistry();
  
+diff --git a/node_modules/react-native-unistyles/ios/NativePlatformListener+ios.swift b/node_modules/react-native-unistyles/ios/NativePlatformListener+ios.swift
+index ef0e6c0..cf618ce 100644
+--- a/node_modules/react-native-unistyles/ios/NativePlatformListener+ios.swift
++++ b/node_modules/react-native-unistyles/ios/NativePlatformListener+ios.swift
+@@ -37,9 +37,17 @@ extension NativeIOSPlatform {
+     }
+ 
+     func unregisterPlatformListeners() {
+-        cancellables.removeAll()
+-        dependencyListeners.removeAll()
+-        imeListeners.removeAll()
++        let cleanup = {
++            self.removeKeyboardListeners()
++            self.cancellables.removeAll()
++            self.dependencyListeners.removeAll()
++            self.imeListeners.removeAll()
++        }
++        if Thread.isMainThread {
++            cleanup()
++        } else {
++            DispatchQueue.main.async(execute: cleanup)
++        }
+     }
+ 
+     @objc func onNativePlatformChange() {
+diff --git a/node_modules/react-native-unistyles/ios/UnistylesModuleOnLoad.mm b/node_modules/react-native-unistyles/ios/UnistylesModuleOnLoad.mm
+index b522fd2..8e5f002 100644
+--- a/node_modules/react-native-unistyles/ios/UnistylesModuleOnLoad.mm
++++ b/node_modules/react-native-unistyles/ios/UnistylesModuleOnLoad.mm
+@@ -1,12 +1,25 @@
+ #import "UnistylesModuleOnLoad.h"
++#import <React/RCTJSThread.h>
+ #import <NitroModules/HybridObjectRegistry.hpp>
+ #import "HybridUnistylesRuntime.h"
+ #import "HybridStyleSheet.h"
+ #import "HybridShadowRegistry.h"
++#import <cstdint>
++#import <mutex>
+ 
+ using namespace margelo::nitro;
+ 
+-@implementation UnistylesModule
++namespace {
++std::mutex sUnistylesModuleMutex;
++uint64_t sActiveGeneration = 0;
++}
++
++@implementation UnistylesModule {
++    std::shared_ptr<core::UnistylesRegistry> _registry;
++    std::shared_ptr<HybridUnistylesRuntime> _unistylesRuntime;
++    std::shared_ptr<HybridStyleSheet> _styleSheet;
++    uint64_t _generation;
++}
+ 
+ RCT_EXPORT_MODULE(Unistyles)
+ 
+@@ -14,17 +27,14 @@ + (BOOL)requiresMainQueueSetup {
+     return YES;
+ }
+ 
+-- (void)installJSIBindingsWithRuntime:(jsi::Runtime&)rt callInvoker:(const std::shared_ptr<facebook::react::CallInvoker> &)callInvoker {
+-    // function is called on: first init and every live reload
+-    // check if this is live reload, if so let's replace UnistylesRuntime with new runtime
+-    auto hasUnistylesRuntime = HybridObjectRegistry::hasHybridObject("UnistylesRuntime");
+-
+-    if (hasUnistylesRuntime) {
+-        HybridObjectRegistry::unregisterHybridObjectConstructor("UnistylesRuntime");
+-        HybridObjectRegistry::unregisterHybridObjectConstructor("UnistylesStyleSheet");
+-        HybridObjectRegistry::unregisterHybridObjectConstructor("UnistylesShadowRegistry");
+-    }
++- (dispatch_queue_t)methodQueue {
++    return RCTJSThread;
++}
+ 
++- (void)installJSIBindingsWithRuntime:(jsi::Runtime&)rt callInvoker:(const std::shared_ptr<facebook::react::CallInvoker> &)callInvoker {
++    // Isolate each runtime's C++/JSI registry on its own JS thread across reloads
++    // so an invalidated instance tearing down asynchronously cannot wipe or corrupt
++    // the incoming runtime's state.
+     [self createHybrids:rt callInvoker:callInvoker];
+ }
+ 
+@@ -33,10 +43,24 @@ - (void)createHybrids:(jsi::Runtime&)rt callInvoker:(const std::shared_ptr<faceb
+         callInvoker->invokeAsync(std::move(callback));
+     };
+ 
++    auto registry = core::UnistylesRegistry::createAndActivate();
+     auto nativePlatform = Unistyles::NativePlatform::create().getCxxPart();
+     auto unistylesRuntime = std::make_shared<HybridUnistylesRuntime>(nativePlatform, runOnJSThread);
+     auto styleSheet = std::make_shared<HybridStyleSheet>(unistylesRuntime);
+ 
++    self->_registry = std::move(registry);
++    self->_unistylesRuntime = unistylesRuntime;
++    self->_styleSheet = styleSheet;
++
++    std::lock_guard<std::mutex> lock(sUnistylesModuleMutex);
++    self->_generation = ++sActiveGeneration;
++
++    if (HybridObjectRegistry::hasHybridObject("UnistylesRuntime")) {
++        HybridObjectRegistry::unregisterHybridObjectConstructor("UnistylesRuntime");
++        HybridObjectRegistry::unregisterHybridObjectConstructor("UnistylesStyleSheet");
++        HybridObjectRegistry::unregisterHybridObjectConstructor("UnistylesShadowRegistry");
++    }
++
+     HybridObjectRegistry::registerHybridObjectConstructor("UnistylesRuntime", [unistylesRuntime]() -> std::shared_ptr<HybridObject>{
+         return unistylesRuntime;
+     });
+@@ -53,7 +77,29 @@ - (void)createHybrids:(jsi::Runtime&)rt callInvoker:(const std::shared_ptr<faceb
+ }
+ 
+ - (void)invalidate {
+-    core::UnistylesRegistry::get().destroy();
++    {
++        std::lock_guard<std::mutex> lock(sUnistylesModuleMutex);
++        if (self->_generation != 0 && self->_generation == sActiveGeneration && HybridObjectRegistry::hasHybridObject("UnistylesRuntime")) {
++            HybridObjectRegistry::unregisterHybridObjectConstructor("UnistylesRuntime");
++            HybridObjectRegistry::unregisterHybridObjectConstructor("UnistylesStyleSheet");
++            HybridObjectRegistry::unregisterHybridObjectConstructor("UnistylesShadowRegistry");
++        }
++    }
++
++    if (self->_unistylesRuntime) {
++        self->_unistylesRuntime->unregisterNativePlatformListeners();
++    }
++    if (self->_styleSheet) {
++        self->_styleSheet->clearListeners();
++    }
++
++    self->_styleSheet.reset();
++    self->_unistylesRuntime.reset();
++
++    if (self->_registry) {
++        core::UnistylesRegistry::deactivate(self->_registry);
++        self->_registry.reset();
++    }
+ 
+     [super invalidate];
+ }
+diff --git a/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.js b/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.js
+index 5a0d049..36d7db4 100644
+--- a/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.js
++++ b/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.js
+@@ -18,6 +18,7 @@ function _interopRequireWildcard(e, t) { if ("function" == typeof WeakMap) var r
+ const withUnistyles = (Component, mappings) => {
+   return /*#__PURE__*/(0, _react.forwardRef)((props, ref) => {
+     const narrowedProps = props;
++    const { uniProps, ...componentProps } = narrowedProps;
+     const styleClassNames = (0, _getClassname.getClassName)(narrowedProps.style, true);
+     const contentContainerStyleClassNames = (0, _getClassname.getClassName)(narrowedProps.contentContainerStyle);
+     const {
+@@ -31,10 +32,10 @@ const withUnistyles = (Component, mappings) => {
+     const {
+       key: uniPropsKey,
+       ...unistyleProps
+-    } = narrowedProps.uniProps ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime) : {};
++    } = uniProps ? uniProps(proxifiedTheme, proxifiedRuntime) : {};
+     const emptyStyles = narrowedProps.style ? Object.fromEntries(Object.entries(Object.getOwnPropertyDescriptors(narrowedProps.style)).filter(([key]) => !key.startsWith('unistyles') && !key.startsWith('_')).map(([key]) => [key, undefined])) : undefined;
+     const combinedProps = {
+-      ...(0, _utils.deepMergeObjects)(mappingsProps, unistyleProps, props),
++      ...(0, _utils.deepMergeObjects)(mappingsProps, unistyleProps, componentProps),
+       ...(narrowedProps.style ? {
+         // Override default component styles with undefined values to reset them
+         style: emptyStyles
+diff --git a/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.native.js b/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.native.js
+index abaa2ee..000d8e3 100644
+--- a/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.native.js
++++ b/node_modules/react-native-unistyles/lib/commonjs/core/withUnistyles/withUnistyles.native.js
+@@ -32,6 +32,7 @@ const withUnistyles = (Component, mappings) => {
+   };
+   return /*#__PURE__*/(0, _react.forwardRef)((props, ref) => {
+     const narrowedProps = props;
++    const { uniProps, ...componentProps } = narrowedProps;
+     const NativeComponent = Component;
+ 
+     // @ts-ignore we don't know the type of the component
+@@ -62,11 +63,11 @@ const withUnistyles = (Component, mappings) => {
+     const {
+       key: uniPropsKey,
+       ...unistyleProps
+-    } = narrowedProps.uniProps ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime) : {};
++    } = uniProps ? uniProps(proxifiedTheme, proxifiedRuntime) : {};
+     const styleSecrets = getSecrets(narrowedProps.style);
+     const contentContainerStyleSecrets = getSecrets(narrowedProps.contentContainerStyle);
+     const finalProps = {
+-      ...(0, _utils.deepMergeObjects)(mappingsProps, unistyleProps, props),
++      ...(0, _utils.deepMergeObjects)(mappingsProps, unistyleProps, componentProps),
+       ...(narrowedProps.style ? {
+         style: styleSecrets.styles
+       } : {}),
+diff --git a/node_modules/react-native-unistyles/lib/commonjs/web/registry.js b/node_modules/react-native-unistyles/lib/commonjs/web/registry.js
+index 120ff60..5e724b2 100644
+--- a/node_modules/react-native-unistyles/lib/commonjs/web/registry.js
++++ b/node_modules/react-native-unistyles/lib/commonjs/web/registry.js
+@@ -10,6 +10,17 @@ class UnistylesRegistry {
+   stylesheets = new Map();
+   stylesCache = new Set();
+   stylesCounter = new Map();
++  cleanupGeneration = 0;
++  finalizerTokens = new WeakMap();
++  finalizationRegistry = typeof FinalizationRegistry === 'undefined' ? undefined : new FinalizationRegistry(({
++    hash,
++    generation
++  }) => {
++    if (generation !== this.cleanupGeneration) {
++      return;
++    }
++    this.decrementAndMaybeCleanup(hash);
++  });
+   disposeListenersMap = new Map();
+   dependenciesMap = new Map();
+   constructor(services) {
+@@ -50,26 +61,48 @@ class UnistylesRegistry {
+     this.disposeListenersMap.set(stylesheet, dispose);
+   };
+   connect = (ref, hash) => {
+-    const stylesCounter = this.stylesCounter.get(hash) ?? new Set();
+-    stylesCounter.add(ref);
+-    this.stylesCounter.set(hash, stylesCounter);
++    this.stylesCounter.set(hash, (this.stylesCounter.get(hash) ?? 0) + 1);
++    if (!this.finalizationRegistry) {
++      return;
++    }
++    const token = {};
++    const tokensByHash = this.finalizerTokens.get(ref) ?? new Map();
++    const tokens = tokensByHash.get(hash) ?? [];
++    tokens.push(token);
++    tokensByHash.set(hash, tokens);
++    this.finalizerTokens.set(ref, tokensByHash);
++    this.finalizationRegistry.register(ref, {
++      hash,
++      generation: this.cleanupGeneration
++    }, token);
+   };
+   remove = (ref, hash) => {
+-    const stylesCounter = this.stylesCounter.get(hash) ?? new Set();
+-    stylesCounter.delete(ref);
+-    if (stylesCounter.size === 0) {
+-      // Move this to the end of the event loop so the element is removed from the DOM
+-      return Promise.resolve().then(() => {
+-        // Check if element is still in the DOM
+-        if (document.querySelector(`.${hash}`)) {
+-          return false;
+-        }
+-        this.css.remove(hash);
+-        this.stylesCache.delete(hash);
+-        return true;
+-      });
++    const token = this.finalizerTokens.get(ref)?.get(hash)?.pop();
++    if (token) {
++      this.finalizationRegistry?.unregister(token);
++    }
++    return this.decrementAndMaybeCleanup(hash);
++  };
++  decrementAndMaybeCleanup = hash => {
++    const next = (this.stylesCounter.get(hash) ?? 0) - 1;
++    if (next > 0) {
++      this.stylesCounter.set(hash, next);
++      return Promise.resolve(false);
+     }
+-    return Promise.resolve(false);
++    this.stylesCounter.delete(hash);
++    // Move this to the end of the event loop so the element is removed from the DOM
++    return Promise.resolve().then(() => {
++      // Check if element is still in the DOM
++      if ((this.stylesCounter.get(hash) ?? 0) > 0) {
++        return false;
++      }
++      if (document.querySelector(`.${hash}`)) {
++        return false;
++      }
++      this.css.remove(hash);
++      this.stylesCache.delete(hash);
++      return true;
++    });
+   };
+   add = (value, forChild) => {
+     const generatedHash = (0, _utils.generateHash)(value);
+@@ -91,7 +124,10 @@ class UnistylesRegistry {
+     this.css.add(hash, value);
+   };
+   reset = () => {
++    this.cleanupGeneration += 1;
++    this.disposeListenersMap.forEach(dispose => dispose());
+     this.css.reset();
++    this.stylesheets.clear();
+     this.stylesCache.clear();
+     this.dependenciesMap.clear();
+     this.disposeListenersMap.clear();
+diff --git a/node_modules/react-native-unistyles/lib/commonjs/web/runtime.js b/node_modules/react-native-unistyles/lib/commonjs/web/runtime.js
+index 305fa49..5957aa5 100644
+--- a/node_modules/react-native-unistyles/lib/commonjs/web/runtime.js
++++ b/node_modules/react-native-unistyles/lib/commonjs/web/runtime.js
+@@ -35,10 +35,17 @@ class UnistylesRuntime {
+     return this.darkMedia;
+   }
+   get colorScheme() {
++    // Read the scheme through fresh lists, never through lightMedia/darkMedia. Chromium defers
++    // MediaQueryList change events while the document is hidden and drops the pending event
++    // of any list whose `matches` was read before the document became visible again, which
++    // would silence the adaptive-theme listeners registered on those two lists.
++    if ((0, _utils.isServer)()) {
++      return _types.ColorScheme.Unspecified;
++    }
+     switch (true) {
+-      case this.getLightMedia()?.matches:
++      case window.matchMedia('(prefers-color-scheme: light)').matches:
+         return _types.ColorScheme.Light;
+-      case this.getDarkMedia()?.matches:
++      case window.matchMedia('(prefers-color-scheme: dark)').matches:
+         return _types.ColorScheme.Dark;
+       default:
+         return _types.ColorScheme.Unspecified;
+diff --git a/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.js b/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.js
+index 5904a73..673cff6 100644
+--- a/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.js
++++ b/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.js
+@@ -13,6 +13,7 @@ import { jsx as _jsx } from "react/jsx-runtime";
+ export const withUnistyles = (Component, mappings) => {
+   return /*#__PURE__*/forwardRef((props, ref) => {
+     const narrowedProps = props;
++    const { uniProps, ...componentProps } = narrowedProps;
+     const styleClassNames = getClassName(narrowedProps.style, true);
+     const contentContainerStyleClassNames = getClassName(narrowedProps.contentContainerStyle);
+     const {
+@@ -26,10 +27,10 @@ export const withUnistyles = (Component, mappings) => {
+     const {
+       key: uniPropsKey,
+       ...unistyleProps
+-    } = narrowedProps.uniProps ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime) : {};
++    } = uniProps ? uniProps(proxifiedTheme, proxifiedRuntime) : {};
+     const emptyStyles = narrowedProps.style ? Object.fromEntries(Object.entries(Object.getOwnPropertyDescriptors(narrowedProps.style)).filter(([key]) => !key.startsWith('unistyles') && !key.startsWith('_')).map(([key]) => [key, undefined])) : undefined;
+     const combinedProps = {
+-      ...deepMergeObjects(mappingsProps, unistyleProps, props),
++      ...deepMergeObjects(mappingsProps, unistyleProps, componentProps),
+       ...(narrowedProps.style ? {
+         // Override default component styles with undefined values to reset them
+         style: emptyStyles
+diff --git a/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.native.js b/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.native.js
+index b89343e..00cde6a 100644
+--- a/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.native.js
++++ b/node_modules/react-native-unistyles/lib/module/core/withUnistyles/withUnistyles.native.js
+@@ -27,6 +27,7 @@ export const withUnistyles = (Component, mappings) => {
+   };
+   return /*#__PURE__*/forwardRef((props, ref) => {
+     const narrowedProps = props;
++    const { uniProps, ...componentProps } = narrowedProps;
+     const NativeComponent = Component;
+ 
+     // @ts-ignore we don't know the type of the component
+@@ -57,11 +58,11 @@ export const withUnistyles = (Component, mappings) => {
+     const {
+       key: uniPropsKey,
+       ...unistyleProps
+-    } = narrowedProps.uniProps ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime) : {};
++    } = uniProps ? uniProps(proxifiedTheme, proxifiedRuntime) : {};
+     const styleSecrets = getSecrets(narrowedProps.style);
+     const contentContainerStyleSecrets = getSecrets(narrowedProps.contentContainerStyle);
+     const finalProps = {
+-      ...deepMergeObjects(mappingsProps, unistyleProps, props),
++      ...deepMergeObjects(mappingsProps, unistyleProps, componentProps),
+       ...(narrowedProps.style ? {
+         style: styleSecrets.styles
+       } : {}),
+diff --git a/node_modules/react-native-unistyles/lib/module/web/registry.js b/node_modules/react-native-unistyles/lib/module/web/registry.js
+index 6362f43..31e3190 100644
+--- a/node_modules/react-native-unistyles/lib/module/web/registry.js
++++ b/node_modules/react-native-unistyles/lib/module/web/registry.js
+@@ -6,6 +6,17 @@ export class UnistylesRegistry {
+   stylesheets = new Map();
+   stylesCache = new Set();
+   stylesCounter = new Map();
++  cleanupGeneration = 0;
++  finalizerTokens = new WeakMap();
++  finalizationRegistry = typeof FinalizationRegistry === 'undefined' ? undefined : new FinalizationRegistry(({
++    hash,
++    generation
++  }) => {
++    if (generation !== this.cleanupGeneration) {
++      return;
++    }
++    this.decrementAndMaybeCleanup(hash);
++  });
+   disposeListenersMap = new Map();
+   dependenciesMap = new Map();
+   constructor(services) {
+@@ -46,26 +57,48 @@ export class UnistylesRegistry {
+     this.disposeListenersMap.set(stylesheet, dispose);
+   };
+   connect = (ref, hash) => {
+-    const stylesCounter = this.stylesCounter.get(hash) ?? new Set();
+-    stylesCounter.add(ref);
+-    this.stylesCounter.set(hash, stylesCounter);
++    this.stylesCounter.set(hash, (this.stylesCounter.get(hash) ?? 0) + 1);
++    if (!this.finalizationRegistry) {
++      return;
++    }
++    const token = {};
++    const tokensByHash = this.finalizerTokens.get(ref) ?? new Map();
++    const tokens = tokensByHash.get(hash) ?? [];
++    tokens.push(token);
++    tokensByHash.set(hash, tokens);
++    this.finalizerTokens.set(ref, tokensByHash);
++    this.finalizationRegistry.register(ref, {
++      hash,
++      generation: this.cleanupGeneration
++    }, token);
+   };
+   remove = (ref, hash) => {
+-    const stylesCounter = this.stylesCounter.get(hash) ?? new Set();
+-    stylesCounter.delete(ref);
+-    if (stylesCounter.size === 0) {
+-      // Move this to the end of the event loop so the element is removed from the DOM
+-      return Promise.resolve().then(() => {
+-        // Check if element is still in the DOM
+-        if (document.querySelector(`.${hash}`)) {
+-          return false;
+-        }
+-        this.css.remove(hash);
+-        this.stylesCache.delete(hash);
+-        return true;
+-      });
++    const token = this.finalizerTokens.get(ref)?.get(hash)?.pop();
++    if (token) {
++      this.finalizationRegistry?.unregister(token);
++    }
++    return this.decrementAndMaybeCleanup(hash);
++  };
++  decrementAndMaybeCleanup = hash => {
++    const next = (this.stylesCounter.get(hash) ?? 0) - 1;
++    if (next > 0) {
++      this.stylesCounter.set(hash, next);
++      return Promise.resolve(false);
+     }
+-    return Promise.resolve(false);
++    this.stylesCounter.delete(hash);
++    // Move this to the end of the event loop so the element is removed from the DOM
++    return Promise.resolve().then(() => {
++      // Check if element is still in the DOM
++      if ((this.stylesCounter.get(hash) ?? 0) > 0) {
++        return false;
++      }
++      if (document.querySelector(`.${hash}`)) {
++        return false;
++      }
++      this.css.remove(hash);
++      this.stylesCache.delete(hash);
++      return true;
++    });
+   };
+   add = (value, forChild) => {
+     const generatedHash = generateHash(value);
+@@ -87,7 +120,10 @@ export class UnistylesRegistry {
+     this.css.add(hash, value);
+   };
+   reset = () => {
++    this.cleanupGeneration += 1;
++    this.disposeListenersMap.forEach(dispose => dispose());
+     this.css.reset();
++    this.stylesheets.clear();
+     this.stylesCache.clear();
+     this.dependenciesMap.clear();
+     this.disposeListenersMap.clear();
+diff --git a/node_modules/react-native-unistyles/lib/module/web/runtime.js b/node_modules/react-native-unistyles/lib/module/web/runtime.js
+index 7f13a06..c487bee 100644
+--- a/node_modules/react-native-unistyles/lib/module/web/runtime.js
++++ b/node_modules/react-native-unistyles/lib/module/web/runtime.js
+@@ -31,10 +31,17 @@ export class UnistylesRuntime {
+     return this.darkMedia;
+   }
+   get colorScheme() {
++    // Read the scheme through fresh lists, never through lightMedia/darkMedia. Chromium defers
++    // MediaQueryList change events while the document is hidden and drops the pending event
++    // of any list whose `matches` was read before the document became visible again, which
++    // would silence the adaptive-theme listeners registered on those two lists.
++    if (isServer()) {
++      return ColorScheme.Unspecified;
++    }
+     switch (true) {
+-      case this.getLightMedia()?.matches:
++      case window.matchMedia('(prefers-color-scheme: light)').matches:
+         return ColorScheme.Light;
+-      case this.getDarkMedia()?.matches:
++      case window.matchMedia('(prefers-color-scheme: dark)').matches:
+         return ColorScheme.Dark;
+       default:
+         return ColorScheme.Unspecified;
+diff --git a/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.native.tsx b/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.native.tsx
+index 27723c0..8ab111a 100644
+--- a/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.native.tsx
++++ b/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.native.tsx
+@@ -63,6 +63,7 @@ export const withUnistyles = <TComponent, TMappings extends GenericComponentProp
+ 
+     return forwardRef<GenericComponentRef<TComponent>, PropsWithUnistyles>((props, ref) => {
+         const narrowedProps = props as PropsWithUnistyles & UnistyleStyles
++        const { uniProps, ...componentProps } = narrowedProps
+         const NativeComponent = Component as ComponentType
+ 
+         // @ts-ignore we don't know the type of the component
+@@ -89,15 +90,15 @@ export const withUnistyles = <TComponent, TMappings extends GenericComponentProp
+         }, [narrowedProps.style, narrowedProps.contentContainerStyle])
+ 
+         const { key: mappingsKey, ...mappingsProps } = mappings ? mappings(proxifiedTheme, proxifiedRuntime) : {}
+-        const { key: uniPropsKey, ...unistyleProps } = narrowedProps.uniProps
+-            ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime)
++        const { key: uniPropsKey, ...unistyleProps } = uniProps
++            ? uniProps(proxifiedTheme, proxifiedRuntime)
+             : {}
+ 
+         const styleSecrets = getSecrets(narrowedProps.style)
+         const contentContainerStyleSecrets = getSecrets(narrowedProps.contentContainerStyle)
+ 
+         const finalProps = {
+-            ...deepMergeObjects(mappingsProps, unistyleProps, props),
++            ...deepMergeObjects(mappingsProps, unistyleProps, componentProps),
+             ...(narrowedProps.style
+                 ? {
+                       style: styleSecrets.styles,
+diff --git a/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.tsx b/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.tsx
+index e347b7a..fc155ad 100644
+--- a/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.tsx
++++ b/node_modules/react-native-unistyles/src/core/withUnistyles/withUnistyles.tsx
+@@ -28,13 +28,14 @@ export const withUnistyles = <TComponent, TMappings extends GenericComponentProp
+ 
+     return forwardRef<GenericComponentRef<TComponent>, PropsWithUnistyles>((props, ref) => {
+         const narrowedProps = props as PropsWithUnistyles & UnistyleStyles
++        const { uniProps, ...componentProps } = narrowedProps
+         const styleClassNames = getClassName(narrowedProps.style, true)
+         const contentContainerStyleClassNames = getClassName(narrowedProps.contentContainerStyle)
+         const { proxifiedRuntime, proxifiedTheme } = useProxifiedUnistyles()
+ 
+         const { key: mappingsKey, ...mappingsProps } = mappings ? mappings(proxifiedTheme, proxifiedRuntime) : {}
+-        const { key: uniPropsKey, ...unistyleProps } = narrowedProps.uniProps
+-            ? narrowedProps.uniProps(proxifiedTheme, proxifiedRuntime)
++        const { key: uniPropsKey, ...unistyleProps } = uniProps
++            ? uniProps(proxifiedTheme, proxifiedRuntime)
+             : {}
+ 
+         const emptyStyles = narrowedProps.style
+@@ -46,7 +47,7 @@ export const withUnistyles = <TComponent, TMappings extends GenericComponentProp
+             : undefined
+ 
+         const combinedProps = {
+-            ...deepMergeObjects(mappingsProps, unistyleProps, props),
++            ...deepMergeObjects(mappingsProps, unistyleProps, componentProps),
+             ...(narrowedProps.style
+                 ? {
+                       // Override default component styles with undefined values to reset them
+diff --git a/node_modules/react-native-unistyles/src/web/registry.ts b/node_modules/react-native-unistyles/src/web/registry.ts
+index 39e0d9d..a21ba95 100644
+--- a/node_modules/react-native-unistyles/src/web/registry.ts
++++ b/node_modules/react-native-unistyles/src/web/registry.ts
+@@ -9,7 +9,24 @@ import { error, extractUnistyleDependencies, generateHash } from './utils'
+ export class UnistylesRegistry {
+     private readonly stylesheets = new Map<StyleSheetWithSuperPowers<StyleSheet>, StyleSheet>()
+     private readonly stylesCache = new Set<string>()
+-    private readonly stylesCounter = new Map<string, Set<HTMLElement>>()
++    // Use counter instead of Set<HTMLElement> to avoid retaining detached DOM nodes
++    // FR is a fallback when remove() is missed
++    private readonly stylesCounter = new Map<string, number>()
++    // Bumped on reset() so stale FR callbacks are ignored
++    private cleanupGeneration = 0
++    // Per-registration unregister token, so remove() cancels only its own registration
++    private readonly finalizerTokens = new WeakMap<HTMLElement, Map<string, Array<object>>>()
++    // FR isn't available on every runtime - fall back to counter-only cleanup
++    private readonly finalizationRegistry =
++        typeof FinalizationRegistry === 'undefined'
++            ? undefined
++            : new FinalizationRegistry<{ hash: string; generation: number }>(({ hash, generation }) => {
++                  if (generation !== this.cleanupGeneration) {
++                      return
++                  }
++
++                  this.decrementAndMaybeCleanup(hash)
++              })
+     private readonly disposeListenersMap = new Map<object, VoidFunction>()
+     private readonly dependenciesMap = new Map<StyleSheetWithSuperPowers<StyleSheet>, Set<UnistyleDependency>>()
+     readonly css: CSSState
+@@ -78,33 +95,61 @@ export class UnistylesRegistry {
+     }
+ 
+     connect = (ref: HTMLElement, hash: string) => {
+-        const stylesCounter = this.stylesCounter.get(hash) ?? new Set()
++        this.stylesCounter.set(hash, (this.stylesCounter.get(hash) ?? 0) + 1)
+ 
+-        stylesCounter.add(ref)
+-        this.stylesCounter.set(hash, stylesCounter)
++        if (!this.finalizationRegistry) {
++            return
++        }
++
++        const token = {}
++        const tokensByHash = this.finalizerTokens.get(ref) ?? new Map<string, Array<object>>()
++        const tokens = tokensByHash.get(hash) ?? []
++
++        tokens.push(token)
++        tokensByHash.set(hash, tokens)
++        this.finalizerTokens.set(ref, tokensByHash)
++        this.finalizationRegistry.register(ref, { hash, generation: this.cleanupGeneration }, token)
+     }
+ 
+     remove = (ref: HTMLElement, hash: string) => {
+-        const stylesCounter = this.stylesCounter.get(hash) ?? new Set()
++        const token = this.finalizerTokens.get(ref)?.get(hash)?.pop()
+ 
+-        stylesCounter.delete(ref)
++        if (token) {
++            this.finalizationRegistry?.unregister(token)
++        }
+ 
+-        if (stylesCounter.size === 0) {
+-            // Move this to the end of the event loop so the element is removed from the DOM
+-            return Promise.resolve().then(() => {
+-                // Check if element is still in the DOM
+-                if (document.querySelector(`.${hash}`)) {
+-                    return false
+-                }
++        return this.decrementAndMaybeCleanup(hash)
++    }
++
++    private decrementAndMaybeCleanup = (hash: string): Promise<boolean> => {
++        const next = (this.stylesCounter.get(hash) ?? 0) - 1
+ 
+-                this.css.remove(hash)
+-                this.stylesCache.delete(hash)
++        if (next > 0) {
++            this.stylesCounter.set(hash, next)
+ 
+-                return true
+-            })
++            return Promise.resolve(false)
+         }
+ 
+-        return Promise.resolve(false)
++        // Drop the empty bucket from the Map
++        this.stylesCounter.delete(hash)
++
++        // Move this to the end of the event loop so the element is removed from the DOM
++        return Promise.resolve().then(() => {
++            // New connect raced in during the microtask
++            if ((this.stylesCounter.get(hash) ?? 0) > 0) {
++                return false
++            }
++
++            // Check if element is still in the DOM
++            if (document.querySelector(`.${hash}`)) {
++                return false
++            }
++
++            this.css.remove(hash)
++            this.stylesCache.delete(hash)
++
++            return true
++        })
+     }
+ 
+     add = (value: UnistylesValues, forChild?: boolean) => {
+@@ -126,7 +171,11 @@ export class UnistylesRegistry {
+     }
+ 
+     reset = () => {
++        // Invalidate pending FR callbacks from this generation
++        this.cleanupGeneration += 1
++        this.disposeListenersMap.forEach((dispose) => dispose())
+         this.css.reset()
++        this.stylesheets.clear()
+         this.stylesCache.clear()
+         this.dependenciesMap.clear()
+         this.disposeListenersMap.clear()
+diff --git a/node_modules/react-native-unistyles/src/web/runtime.ts b/node_modules/react-native-unistyles/src/web/runtime.ts
+index a16dac0..6519858 100644
+--- a/node_modules/react-native-unistyles/src/web/runtime.ts
++++ b/node_modules/react-native-unistyles/src/web/runtime.ts
+@@ -39,10 +39,18 @@ export class UnistylesRuntime {
+     }
+ 
+     get colorScheme() {
++        // Read the scheme through fresh lists, never through lightMedia/darkMedia. Chromium defers
++        // MediaQueryList change events while the document is hidden and drops the pending event
++        // of any list whose `matches` was read before the document became visible again, which
++        // would silence the adaptive-theme listeners registered on those two lists.
++        if (isServer()) {
++            return ColorScheme.Unspecified
++        }
++
+         switch (true) {
+-            case this.getLightMedia()?.matches:
++            case window.matchMedia('(prefers-color-scheme: light)').matches:
+                 return ColorScheme.Light
+-            case this.getDarkMedia()?.matches:
++            case window.matchMedia('(prefers-color-scheme: dark)').matches:
+                 return ColorScheme.Dark
+             default:
+                 return ColorScheme.Unspecified

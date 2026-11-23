@@ -223,10 +223,11 @@ test.describe("Sidebar items in Appearance settings", () => {
       { key: "history", visible: false },
       { key: "search", visible: false },
       { key: "schedules", visible: false },
+      { key: "goals", visible: false },
     ]);
     await gotoAppShell(page);
 
-    // The sidebar itself still renders; only its top-level nav items are gone.
+    // The sidebar itself still renders; only its configurable top-level nav items are gone.
     await expect(page.locator('[data-testid="sidebar-settings"]:visible')).toBeVisible({
       timeout: 30_000,
     });
@@ -234,9 +235,11 @@ test.describe("Sidebar items in Appearance settings", () => {
     await expectSidebarItemHidden(page, "history");
     await expectSidebarItemHidden(page, "search");
     await expectSidebarItemHidden(page, "schedules");
-    // Nothing is left above the Workspaces section: no drag strip, no empty divider.
+    await expect(page.locator('[data-testid="sidebar-nav-goals"]:visible')).toHaveCount(0);
+    // ClawMuse keeps its fixed voice/AI-archive action icons in the top bar, so the divider stays.
     await expect(page.locator('[data-testid="sidebar-nav-drag-strip"]:visible')).toHaveCount(0);
-    await expect(page.locator('[data-testid="sidebar-nav-separator"]:visible')).toHaveCount(0);
+    await expect(page.locator('[data-testid="sidebar-voice-assistant"]:visible')).toBeVisible();
+    await expect(page.locator('[data-testid="sidebar-nav-separator"]:visible')).toHaveCount(1);
   });
 });
 

@@ -131,17 +131,33 @@ export function useOpenAgentListGesture(enabled: boolean) {
           startedRevision.value = beginGesture({ origin: "agent" });
         })
         .onUpdate((event) => {
+          if (width <= 0) {
+            return;
+          }
           updateGesture(startedRevision.value, -event.translationX / width);
         })
         .onEnd((event, success) => {
-          const shouldOpen = event.translationX > width / 3 || event.velocityX > 500;
+          const activeRevision = startedRevision.value;
+          startedRevision.value = -1;
+          const shouldOpen = width > 0 && (event.translationX > width / 3 || event.velocityX > 500);
           const result = finishGesture({
-            startedRevision: startedRevision.value,
+            startedRevision: activeRevision,
             target: shouldOpen ? "agent-list" : "agent",
             success,
           });
           if (result) {
             scheduleOnRN(commit, result.startedRevision);
+          }
+        })
+        .onFinalize(() => {
+          const activeRevision = startedRevision.value;
+          startedRevision.value = -1;
+          if (activeRevision >= 0) {
+            finishGesture({
+              startedRevision: activeRevision,
+              target: motionState.value.target,
+              success: false,
+            });
           }
         }),
     [
@@ -236,17 +252,34 @@ export function useCloseAgentListGesture(enabled = true) {
           });
         })
         .onUpdate((event) => {
+          if (width <= 0) {
+            return;
+          }
           updateGesture(startedRevision.value, -1 - event.translationX / width);
         })
         .onEnd((event, success) => {
-          const shouldClose = event.translationX < -width / 3 || event.velocityX < -500;
+          const activeRevision = startedRevision.value;
+          startedRevision.value = -1;
+          const shouldClose =
+            width > 0 && (event.translationX < -width / 3 || event.velocityX < -500);
           const result = finishGesture({
-            startedRevision: startedRevision.value,
+            startedRevision: activeRevision,
             target: shouldClose ? "agent" : "agent-list",
             success,
           });
           if (result) {
             scheduleOnRN(commit, result.startedRevision);
+          }
+        })
+        .onFinalize(() => {
+          const activeRevision = startedRevision.value;
+          startedRevision.value = -1;
+          if (activeRevision >= 0) {
+            finishGesture({
+              startedRevision: activeRevision,
+              target: motionState.value.target,
+              success: false,
+            });
           }
         }),
     [
@@ -340,17 +373,34 @@ export function useOpenFileExplorerGesture({ enabled, onOpen }: OpenFileExplorer
           });
         })
         .onUpdate((event) => {
+          if (windowWidth <= 0) {
+            return;
+          }
           updateGesture(startedRevision.value, -event.translationX / windowWidth);
         })
         .onEnd((event, success) => {
-          const shouldOpen = event.translationX < -windowWidth / 3 || event.velocityX < -500;
+          const activeRevision = startedRevision.value;
+          startedRevision.value = -1;
+          const shouldOpen =
+            windowWidth > 0 && (event.translationX < -windowWidth / 3 || event.velocityX < -500);
           const result = finishGesture({
-            startedRevision: startedRevision.value,
+            startedRevision: activeRevision,
             target: shouldOpen ? "file-explorer" : "agent",
             success,
           });
           if (result) {
             scheduleOnRN(commit, result.startedRevision);
+          }
+        })
+        .onFinalize(() => {
+          const activeRevision = startedRevision.value;
+          startedRevision.value = -1;
+          if (activeRevision >= 0) {
+            finishGesture({
+              startedRevision: activeRevision,
+              target: motionState.value.target,
+              success: false,
+            });
           }
         }),
     [
@@ -436,17 +486,34 @@ export function useCloseFileExplorerGesture(enabled = true) {
           });
         })
         .onUpdate((event) => {
+          if (windowWidth <= 0) {
+            return;
+          }
           updateGesture(startedRevision.value, 1 - event.translationX / windowWidth);
         })
         .onEnd((event, success) => {
-          const shouldClose = event.translationX > windowWidth / 3 || event.velocityX > 500;
+          const activeRevision = startedRevision.value;
+          startedRevision.value = -1;
+          const shouldClose =
+            windowWidth > 0 && (event.translationX > windowWidth / 3 || event.velocityX > 500);
           const result = finishGesture({
-            startedRevision: startedRevision.value,
+            startedRevision: activeRevision,
             target: shouldClose ? "agent" : "file-explorer",
             success,
           });
           if (result) {
             scheduleOnRN(commit, result.startedRevision);
+          }
+        })
+        .onFinalize(() => {
+          const activeRevision = startedRevision.value;
+          startedRevision.value = -1;
+          if (activeRevision >= 0) {
+            finishGesture({
+              startedRevision: activeRevision,
+              target: motionState.value.target,
+              success: false,
+            });
           }
         }),
     [

@@ -867,6 +867,46 @@ it("groups reasoning with tools unless Expand thinking is enabled, including set
   expect(bounded.tail.map((item) => item.id)).toEqual(["tool-one", "next"]);
 });
 
+it("updates the visibility of reasoning and tool calls in history and live output", () => {
+  const present = createStreamPresentation();
+  const timestamp = createTimestamp(1);
+  const thought: StreamItem = {
+    kind: "thought",
+    id: "thinking",
+    text: "Consider this",
+    status: "ready",
+    timestamp,
+  };
+  const input = {
+    ...presentationOptions,
+    display: "full" as const,
+    transform: undefined,
+    tail: [thought, toolCall("history", "Bash"), assistantMessage("reply", 2)],
+    head: [
+      { ...thought, id: "live-thinking" },
+      toolCall("live", "Bash"),
+      toolCall("voice", "speak"),
+    ],
+  };
+  expect(rows(present(input)).map(({ id }) => id)).toEqual([
+    "thinking",
+    "tool-history",
+    "reply",
+    "live-thinking",
+    "tool-live",
+    "tool-voice",
+  ]);
+  expect(
+    rows(present({ ...input, showReasoning: false, showToolCalls: false })).map(({ id }) => id),
+  ).toEqual(["reply", "tool-voice"]);
+  expect(rows(present({ ...input, showToolCalls: false })).map(({ id }) => id)).toEqual([
+    "thinking",
+    "reply",
+    "live-thinking",
+    "tool-voice",
+  ]);
+});
+
 it.each([false, true])(
   "reveals raw reasoning when opening a turn (Expand thinking %s)",
   (autoExpandReasoning) => {

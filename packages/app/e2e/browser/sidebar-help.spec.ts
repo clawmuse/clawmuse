@@ -42,7 +42,7 @@ test("keeps every footer action reachable at the minimum sidebar width", async (
   const footerBounds = await footer.boundingBox();
   expect(footerBounds!.width).toBeGreaterThanOrEqual(138);
   const buttons = footer.getByRole("button");
-  await expect(buttons).toHaveCount(6);
+  await expect(buttons).toHaveCount(4);
   for (const button of await buttons.all()) {
     const bounds = await button.boundingBox();
     expect(bounds!.width).toBeGreaterThanOrEqual(28);
@@ -52,8 +52,12 @@ test("keeps every footer action reachable at the minimum sidebar width", async (
     await button.click({ trial: true });
   }
   await footer.screenshot({ path: test.info().outputPath("minimum-width-footer.png") });
-  await openHelpMenu(page);
+  await footer.getByTestId("sidebar-footer-overflow").click();
+  await expect(page.getByTestId("sidebar-footer-overflow-menu")).toBeVisible();
+  await page.getByTestId("sidebar-help").click();
+  await expect(page.getByTestId("sidebar-help-diagnostics")).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(page.getByTestId("sidebar-footer-overflow-menu")).toBeHidden();
   await page.getByTestId("sidebar-settings").click();
   await expect(page).toHaveURL(/\/settings(?:\/|$)/);
   await expect(page.getByTestId("settings-sidebar")).toBeVisible();

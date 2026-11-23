@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClawMuseStatusClient, type ClawMuseStatusFetch } from "./client.js";
 import { clearClawMuseStatusRelationship, saveClawMuseStatusRelationship } from "./config.js";
 import { removeClawMuseStatusHostToken, writeClawMuseStatusHostToken } from "./host-credential.js";
+import type { ClawMuseStatusAgentSnapshot } from "./projection.js";
 import { ClawMuseStatusService } from "./service.js";
+import { ClawMuseStatusPublisher } from "./snapshot-publisher.js";
 
 const SERVER_ID = "srv_test_clawmuse";
 const TOKEN = "clawmuse-status-host-token-0123456789";
@@ -170,5 +172,112 @@ describe("ClawMuseStatusService", () => {
       goals: null,
     });
     await service.stop();
+  });
+
+  it("coalesces sub-debounce running turns so short completions never cold-start a capsule", async () => {
+    const publishedItems: Array<Array<{ itemId: string; phase: string }>> = [];
+    let agents: ClawMuseStatusAgentSnapshot[] = [];
+    const customFetch: ClawMuseStatusFetch = async (url, init) => {
+      if (url.endsWith("/v1/host/sessions")) {
+        return new Response(
+          JSON.stringify({
+            hostId: "00000000-0000-0000-0000-000000000000",
+            epoch: "00000000-0000-0000-0000-000000000001",
+            accessToken: "host-access-token",
+            expiresIn: 600,
+            heartbeatInterval: 20,
+            snapshotSchemaVersion: 5,
+            hostSessionClose: true,
+          }),
+          { status: 201 },
+        );
+      }
+      if (url.endsWith("/v1/host/status-snapshots") && typeof init?.body === "string") {
+        const parsed = JSON.parse(init.body) as {
+          items: Array<{ itemId: string; phase: string }>;
+        };
+        publishedItems.push(parsed.items);
+      }
+      return new Response(JSON.stringify({ outcome: "accepted", revision: 1 }), { status: 200 });
+    };
+
+    const publisher = new ClawMuseStatusPublisher({
+      client: new ClawMuseStatusClient("https://status.example", customFetch),
+      paseoHome,
+      relayHostId: "abcdefghijklmnop",
+      displayName: "workshop",
+      hostToken: TOKEN,
+      listAgents: () => agents,
+      listUsage: () => Promise.resolve([]),
+      hasTerminalPushSubscriber: () => true,
+      coldStartRunningDebounceMs: 120,
+      logger,
+    });
+
+    try {
+      publisher.start();
+      await vi.waitFor(() => expect(publishedItems).toHaveLength(1));
+      expect(publishedItems[0]).toEqual([]);
+
+      // Short turn starts and finishes within 120ms while completion pushes are active:
+      // no running snapshot should be sent to Status.
+      const now = Date.now();
+      agents = [
+        {
+          id: "agent-fast",
+          lifecycle: "running",
+          attention: { requiresAttention: false },
+          pendingPermissions: new Map(),
+          activeTurnId: "turn-fast",
+          activeTurnStartedAt: new Date(now),
+          lastUserMessageAt: null,
+          updatedAt: new Date(now),
+        },
+      ];
+      publisher.refresh();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(publishedItems).toHaveLength(1);
+
+      agents = [
+        {
+          id: "agent-fast",
+          lifecycle: "idle",
+          attention: {
+            requiresAttention: true,
+            attentionReason: "finished",
+            attentionTimestamp: new Date(now + 30),
+          },
+          pendingPermissions: new Map(),
+          activeTurnId: null,
+          activeTurnStartedAt: null,
+          lastUserMessageAt: null,
+          updatedAt: new Date(now + 30),
+        },
+      ];
+      publisher.refresh();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(publishedItems).toHaveLength(1);
+
+      // Longer running turn exceeds debounce and publishes cleanly.
+      agents = [
+        {
+          id: "agent-long",
+          lifecycle: "running",
+          attention: { requiresAttention: false },
+          pendingPermissions: new Map(),
+          activeTurnId: "turn-long",
+          activeTurnStartedAt: new Date(now + 200),
+          lastUserMessageAt: null,
+          updatedAt: new Date(now + 200),
+        },
+      ];
+      publisher.refresh();
+      await vi.waitFor(() => expect(publishedItems).toHaveLength(2));
+      expect(publishedItems[1]).toEqual([
+        expect.objectContaining({ itemId: "agent-long", phase: "running" }),
+      ]);
+    } finally {
+      await publisher.stop();
+    }
   });
 });

@@ -92,6 +92,7 @@ import {
   CodexAppServerRpcError,
   parseCodexThreadForkResponse,
   parseCodexThreadRollbackResponse,
+  stripIgnoredCodexConfigWarnings,
   type CodexThreadForkParams,
   type CodexThreadForkResponse,
   type CodexThreadRollbackParams,
@@ -2454,6 +2455,13 @@ const ContextCompactedNotificationSchema = z
   })
   .passthrough();
 
+const ConfigWarningNotificationSchema = z
+  .object({
+    summary: z.string(),
+    details: z.string().nullable().optional(),
+  })
+  .passthrough();
+
 const CodexEventThreadIdFields = {
   threadId: z.string().optional(),
   thread_id: z.string().optional(),
@@ -2772,6 +2780,7 @@ type ParsedCodexNotification =
     }
   | { kind: "thread_rolled_back"; numTurns: number; threadId: string | null }
   | { kind: "context_compacted"; threadId: string; turnId: string | null }
+  | { kind: "config_warning"; summary: string; details: string | null }
   | { kind: "invalid_payload"; method: string; params: unknown }
   | { kind: "unknown_method"; method: string; params: unknown };
 
@@ -3348,6 +3357,25 @@ const CodexNotificationSchema = z.union([
     }),
   ),
   z
+    .object({
+      method: z.literal("configWarning"),
+      params: ConfigWarningNotificationSchema,
+    })
+    .transform(
+      ({ params }): ParsedCodexNotification => ({
+        kind: "config_warning",
+        summary: params.summary,
+        details: params.details ?? null,
+      }),
+    ),
+  z.object({ method: z.literal("configWarning"), params: z.unknown() }).transform(
+    ({ method, params }): ParsedCodexNotification => ({
+      kind: "invalid_payload",
+      method,
+      params,
+    }),
+  ),
+  z
     .object({ method: z.string(), params: z.unknown() })
     .transform(
       ({ method, params }): ParsedCodexNotification => ({ kind: "unknown_method", method, params }),
@@ -3708,6 +3736,7 @@ export class CodexAppServerAgentSession implements AgentSession {
   private pendingSubAgentNotificationsByThreadId = new Map<string, ParsedCodexNotification[]>();
   private warnedUnknownNotificationMethods = new Set<string>();
   private warnedInvalidNotificationPayloads = new Set<string>();
+  private warnedConfigWarningSummaries = new Set<string>();
   private warnedIncompleteEditToolCallIds = new Set<string>();
   private latestUsage: AgentUsage | undefined;
   private readonly tokenSpeed = new CodexTokenSpeedTracker();
@@ -6229,9 +6258,29 @@ export class CodexAppServerAgentSession implements AgentSession {
       case "thread_rolled_back":
         this.handleThreadRolledBackNotification(parsed);
         return true;
+      case "config_warning":
+        this.handleConfigWarningNotification(parsed);
+        return true;
       default:
         return false;
     }
+  }
+
+  private handleConfigWarningNotification(
+    parsed: Extract<ParsedCodexNotification, { kind: "config_warning" }>,
+  ): void {
+    const summary = stripIgnoredCodexConfigWarnings(parsed.summary).trim();
+    if (!summary || this.warnedConfigWarningSummaries.has(summary)) {
+      return;
+    }
+    this.warnedConfigWarningSummaries.add(summary);
+    this.logger.warn(
+      {
+        summary,
+        ...(parsed.details ? { details: parsed.details } : {}),
+      },
+      "Codex reported configuration warning",
+    );
   }
 
   private traceParsedNotification(

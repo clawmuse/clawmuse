@@ -107,6 +107,7 @@ import {
   findForgeItemByOption,
   isAttachmentSelectedForForgeItem,
   openComposerAttachment,
+  persistPickedImages,
   pickAndPersistImages,
   queueComposerMessage,
   removeComposerAttachmentAtIndex,
@@ -175,7 +176,12 @@ import { useRetainedPanelActive } from "@/components/retained-panel";
 import { insertAtSelection } from "@/composer/insert-text";
 import { composerWorkspaceAttachment } from "@/composer/attachments/workspace";
 import { useWorkspaceAttachmentsForScopes } from "@/attachments/workspace-attachments-store";
-import { droppedItemsToSelectedFiles } from "@/composer/attachments/drop";
+import {
+  droppedItemsToPickedImages,
+  droppedItemsToSelectedFiles,
+} from "@/composer/attachments/drop";
+import type { PickedImageAttachmentInput } from "@/hooks/image-attachment-picker";
+import type { ClipboardImageFile } from "@/utils/image-attachments-from-files";
 import { getFileTypeLabel } from "@/attachments/file-types";
 import { Combobox, ComboboxItem, type ComboboxOption } from "@/components/ui/combobox";
 import {
@@ -207,13 +213,11 @@ import {
   type WorkspaceFileDragPayload,
 } from "@/attachments/workspace-file-drag";
 
-const composerImageAttachmentPersister: Pick<
-  AttachmentPersister,
-  "persistFromBlob" | "persistFromDataUrl" | "persistFromFileUri"
-> = {
+const composerImageAttachmentPersister: AttachmentPersister = {
   persistFromBlob: persistAttachmentFromBlob,
   persistFromDataUrl: persistAttachmentFromDataUrl,
   persistFromFileUri: persistAttachmentFromFileUri,
+  deleteAttachments,
 };
 
 type QueuedMessage = QueuedComposerMessage;
@@ -363,9 +367,14 @@ interface PendingFileAttachment {
   file: SelectedFile;
 }
 
+interface PendingImageAttachment {
+  id: number;
+}
+
 interface RenderAttachmentTrayArgs {
   serverId: string;
   selectedAttachments: ComposerAttachment[];
+  pendingImages: PendingImageAttachment[];
   pendingFiles: PendingFileAttachment[];
   isComposerLocked: boolean;
   handleOpenAttachment: (attachment: ComposerAttachment) => void;
@@ -383,13 +392,16 @@ function renderAttachmentTray(args: RenderAttachmentTrayArgs): ReactElement | nu
   const {
     serverId,
     selectedAttachments,
+    pendingImages,
     pendingFiles,
     isComposerLocked,
     handleOpenAttachment,
     handleRemoveAttachment,
     labels,
   } = args;
-  if (selectedAttachments.length === 0 && pendingFiles.length === 0) return null;
+  if (selectedAttachments.length === 0 && pendingImages.length === 0 && pendingFiles.length === 0) {
+    return null;
+  }
   return (
     <View style={styles.attachmentTray} testID="composer-attachment-tray">
       {selectedAttachments.map((attachment, index) =>
@@ -403,6 +415,13 @@ function renderAttachmentTray(args: RenderAttachmentTrayArgs): ReactElement | nu
           labels,
         }),
       )}
+      {pendingImages.map(({ id }) => (
+        <AttachmentFrame key={`pending-image:${id}`} testID="composer-pending-image-attachment">
+          <View style={styles.pendingImageBody}>
+            <ThemedAttachmentSpinner size={18} uniProps={iconForegroundMutedMapping} />
+          </View>
+        </AttachmentFrame>
+      ))}
       {pendingFiles.map(({ id, file }) => (
         <AttachmentFrame key={id} testID="composer-pending-file-attachment">
           <AttachmentLabel
@@ -1458,7 +1477,9 @@ function ComposerContentImpl({
   const [pendingFiles, setPendingFiles] = useState<PendingFileAttachment[]>([]);
   const nextPendingFileId = useRef(0);
   const isUploadingFile = pendingFiles.length > 0;
-  const [pendingNativeImagePastes, setPendingNativeImagePastes] = useState(0);
+  const [pendingImages, setPendingImages] = useState<PendingImageAttachment[]>([]);
+  const nextPendingImageId = useRef(0);
+  const isPreparingImages = pendingImages.length > 0;
   const editingSession = useComposerEditingSession(inputMode, providedEditingSession);
   const isFullscreen = useComposerFullscreen(editingSession);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -1867,6 +1888,20 @@ function ComposerContentImpl({
         setAttachments: (nextAttachments) => {
           setSelectedAttachments(composerWorkspaceAttachment.userAttachmentsOnly(nextAttachments));
         },
+        restoreDraftOnError: (failed) => {
+          const currentText = messageInputRef.current?.getText() ?? textSource.getSnapshot();
+          const nextText =
+            currentText.trim().length > 0
+              ? [failed.message, currentText].filter(Boolean).join("\n")
+              : failed.message;
+          replaceUserInput(nextText);
+          const failedUserAttachments = composerWorkspaceAttachment.userAttachmentsOnly(
+            failed.attachments,
+          );
+          setSelectedAttachments((current) =>
+            current.length > 0 ? [...failedUserAttachments, ...current] : failedUserAttachments,
+          );
+        },
         setSendError,
         setIsProcessing,
         onSubmitError: (error) => {
@@ -1893,6 +1928,7 @@ function ComposerContentImpl({
       submitBehavior,
       submitMessage,
       t,
+      textSource,
     ],
   );
 
@@ -1929,34 +1965,87 @@ function ComposerContentImpl({
     ],
   );
 
-  const handlePickImage = useCallback(async () => {
-    const newImages = await pickAndPersistImages({
-      pickImages,
-      persister: composerImageAttachmentPersister,
-    });
-    if (newImages.length === 0) return;
-    addImages(newImages);
-  }, [addImages, pickImages]);
+  const beginPendingImages = useCallback((count: number): PendingImageAttachment[] => {
+    if (count <= 0) return [];
+    const placeholders = Array.from({ length: count }, () => ({
+      id: nextPendingImageId.current++,
+    }));
+    setPendingImages((pending) => [...pending, ...placeholders]);
+    return placeholders;
+  }, []);
 
-  const handlePasteImage = useCallback(async () => {
+  const endPendingImages = useCallback((placeholders: readonly PendingImageAttachment[]) => {
+    if (placeholders.length === 0) return;
+    const placeholderSet = new Set(placeholders);
+    setPendingImages((pending) => pending.filter((entry) => !placeholderSet.has(entry)));
+  }, []);
+
+  const attachPickedImages = useCallback(
+    async (pickedImages: readonly PickedImageAttachmentInput[]): Promise<AttachmentMetadata[]> => {
+      if (pickedImages.length === 0) return [];
+      const placeholders = beginPendingImages(pickedImages.length);
+      try {
+        const newImages = await persistPickedImages({
+          pickedImages,
+          persister: composerImageAttachmentPersister,
+        });
+        if (newImages.length > 0) {
+          addImages(newImages);
+        }
+        return newImages;
+      } finally {
+        endPendingImages(placeholders);
+      }
+    },
+    [addImages, beginPendingImages, endPendingImages],
+  );
+
+  const handlePickImage = useCallback(async () => {
+    let placeholders: PendingImageAttachment[] = [];
     try {
       const newImages = await pickAndPersistImages({
-        pickImages: async () => {
-          const image = await readClipboardImage(Clipboard);
-          return image ? [image] : null;
-        },
+        pickImages: () =>
+          pickImages({
+            onSelectionConfirmed: (count) => {
+              placeholders = beginPendingImages(count);
+            },
+          }),
         persister: composerImageAttachmentPersister,
       });
-      if (newImages.length === 0) {
+      if (newImages.length === 0) return;
+      addImages(newImages);
+    } catch (error) {
+      console.error("[Composer] Failed to attach picked image:", error);
+      toastErrorRef.current(
+        error instanceof Error ? error.message : t("imageAttachmentPicker.failedToSelect"),
+      );
+    } finally {
+      endPendingImages(placeholders);
+    }
+  }, [addImages, beginPendingImages, endPendingImages, pickImages, t]);
+
+  const handlePasteImage = useCallback(async () => {
+    const placeholders = beginPendingImages(1);
+    try {
+      const image = await readClipboardImage(Clipboard);
+      if (!image) {
         toastErrorRef.current(t("composer.errors.noClipboardImage"));
         return;
       }
-      addImages(newImages);
+      const newImages = await persistPickedImages({
+        pickedImages: [image],
+        persister: composerImageAttachmentPersister,
+      });
+      if (newImages.length > 0) {
+        addImages(newImages);
+      }
     } catch (error) {
       console.error("[Composer] Failed to paste clipboard image:", error);
       toastErrorRef.current(t("composer.errors.pasteImageFailed"));
+    } finally {
+      endPendingImages(placeholders);
     }
-  }, [addImages, t]);
+  }, [addImages, beginPendingImages, endPendingImages, t]);
 
   const recentPhotoPreviewSource = useMemo(
     () => ({ uri: recentPhotoRow.state === "ready" ? recentPhotoRow.previewUri : "" }),
@@ -1964,49 +2053,71 @@ function ComposerContentImpl({
   );
 
   const handleSendRecentPhoto = useCallback(async () => {
-    const picked = await takeRecentPhoto();
-    if (!picked) {
-      // No permission, no photo library, or nothing attachable — the regular picker
-      // still gets the user there.
-      await handlePickImage();
-      return;
-    }
+    const placeholders = beginPendingImages(1);
+    let picked: PickedImageAttachmentInput | null = null;
     try {
-      const newImages = await pickAndPersistImages({
-        pickImages: async () => [picked],
-        persister: composerImageAttachmentPersister,
-      });
-      if (newImages.length > 0) {
-        addImages(newImages);
+      picked = await takeRecentPhoto();
+      if (picked) {
+        const newImages = await persistPickedImages({
+          pickedImages: [picked],
+          persister: composerImageAttachmentPersister,
+        });
+        if (newImages.length > 0) {
+          addImages(newImages);
+        }
+        return;
       }
     } catch (error) {
       console.error("[Composer] Failed to attach recent photo:", error);
       toastErrorRef.current(t("composer.errors.recentPhotoFailed"));
+      return;
+    } finally {
+      endPendingImages(placeholders);
     }
-  }, [addImages, handlePickImage, t, takeRecentPhoto]);
+    // No permission, no photo library, or nothing attachable — the regular picker
+    // still gets the user there.
+    await handlePickImage();
+  }, [addImages, beginPendingImages, endPendingImages, handlePickImage, t, takeRecentPhoto]);
 
   const handleNativePasteImages = useCallback(
     (files: readonly NativePastedFile[]) => {
-      setPendingNativeImagePastes((pending) => pending + 1);
-      void pickAndPersistImages({
-        pickImages: async () => normalizeNativePastedImages(files),
-        persister: composerImageAttachmentPersister,
-      })
-        .then((newImages) => {
+      if (files.length === 0) return;
+      const placeholders = beginPendingImages(files.length);
+      void (async () => {
+        try {
+          const normalized = normalizeNativePastedImages(files);
+          const newImages = await persistPickedImages({
+            pickedImages: normalized,
+            persister: composerImageAttachmentPersister,
+          });
           if (newImages.length > 0) {
             addImages(newImages);
           }
-          return undefined;
-        })
-        .catch((error) => {
+        } catch (error) {
           console.error("[Composer] Failed to persist pasted image:", error);
           toastErrorRef.current(t("composer.errors.pasteImageFailed"));
-        })
-        .finally(() => {
-          setPendingNativeImagePastes((pending) => Math.max(0, pending - 1));
-        });
+        } finally {
+          endPendingImages(placeholders);
+        }
+      })();
     },
-    [addImages, t],
+    [addImages, beginPendingImages, endPendingImages, t],
+  );
+
+  const handlePasteClipboardImages = useCallback(
+    (files: readonly ClipboardImageFile[]) => {
+      if (files.length === 0) return;
+      const pickedImages: PickedImageAttachmentInput[] = files.map(({ file, mimeType }) => ({
+        source: { kind: "blob", blob: file },
+        mimeType,
+        fileName: file.name,
+      }));
+      void attachPickedImages(pickedImages).catch((error) => {
+        console.error("[Composer] Failed to process pasted images:", error);
+        toastErrorRef.current(t("composer.errors.pasteImageFailed"));
+      });
+    },
+    [attachPickedImages, t],
   );
 
   const uploadSelectedFiles = useCallback(
@@ -2053,22 +2164,32 @@ function ComposerContentImpl({
 
   const handleGenericFilesDropped = useCallback(
     async (items: DroppedItem[]) => {
-      try {
-        const files = droppedItemsToSelectedFiles(items);
-        if (files.length === 0) return;
-        if (!client || !isConnected) {
-          toastErrorRef.current(t("composer.errors.daemonClientDisconnected"));
-          return;
-        }
-        await uploadSelectedFiles(files);
-      } catch (error) {
-        console.error("[Composer] Failed to upload dropped files:", error);
-        toastErrorRef.current(
-          error instanceof Error ? error.message : t("composer.errors.uploadFailed"),
+      const droppedImages = droppedItemsToPickedImages(items);
+      const genericFiles = droppedItemsToSelectedFiles(items);
+      const tasks: Promise<unknown>[] = [];
+
+      if (droppedImages.length > 0) {
+        tasks.push(
+          attachPickedImages(droppedImages).catch((error) => {
+            console.error("[Composer] Failed to persist dropped images:", error);
+            toastErrorRef.current(
+              error instanceof Error ? error.message : t("composer.errors.uploadFailed"),
+            );
+          }),
         );
       }
+
+      if (genericFiles.length > 0) {
+        if (!client || !isConnected) {
+          toastErrorRef.current(t("composer.errors.daemonClientDisconnected"));
+        } else {
+          tasks.push(uploadSelectedFiles(genericFiles));
+        }
+      }
+
+      await Promise.all(tasks);
     },
-    [client, isConnected, t, uploadSelectedFiles],
+    [attachPickedImages, client, isConnected, t, uploadSelectedFiles],
   );
 
   const handleRemoveAttachment = useCallback(
@@ -2142,6 +2263,7 @@ function ComposerContentImpl({
     isComposerLocked ||
     readOnly ||
     isUploadingFile ||
+    isPreparingImages ||
     queuedMessages.length > 0 ||
     isVoiceModeForAgent ||
     dictationBusy ||
@@ -2655,6 +2777,7 @@ function ComposerContentImpl({
       renderAttachmentTray({
         serverId,
         selectedAttachments,
+        pendingImages,
         pendingFiles,
         isComposerLocked,
         handleOpenAttachment,
@@ -2675,6 +2798,7 @@ function ComposerContentImpl({
       isComposerLocked,
       serverId,
       selectedAttachments,
+      pendingImages,
       pendingFiles,
       t,
     ],
@@ -2715,7 +2839,7 @@ function ComposerContentImpl({
   );
 
   const isSubmitLoadingVisible =
-    isProcessing || isSubmitLoading || isUploadingFile || pendingNativeImagePastes > 0;
+    isProcessing || isSubmitLoading || isUploadingFile || isPreparingImages;
   const isSubmitDisabled =
     isSubmitLoadingVisible ||
     isStartingVoiceWithoutAgent ||
@@ -2726,7 +2850,6 @@ function ComposerContentImpl({
   // backdrop and rejects the drop atomically, instead of accepting a drop with no feedback.
   useFileDrop(
     {
-      onFiles: addImages,
       onGenericFiles: handleGenericFilesDropped,
       onWorkspaceFile: handleWorkspaceFileDropped,
     },
@@ -2735,7 +2858,14 @@ function ComposerContentImpl({
 
   // Focusing the composer on a touch screen raises the on-screen keyboard over the conversation.
   const messageInputAutoFocus = autoFocus && isDesktopWebBreakpoint && hasFinePointer;
-  const submitLoadingPressHandler = isAgentRunning ? handleCancelAgent : undefined;
+  const hasUnsentComposerContent =
+    hasText ||
+    selectedAttachments.length > 0 ||
+    hasExternalContent ||
+    isUploadingFile ||
+    isPreparingImages;
+  const submitLoadingPressHandler =
+    isAgentRunning && !hasUnsentComposerContent ? handleCancelAgent : undefined;
   const sendErrorNode = useMemo(
     () =>
       sendError ? (
@@ -2826,7 +2956,7 @@ function ComposerContentImpl({
                   cwd={cwd}
                   attachmentMenuItems={attachmentMenuItems}
                   onAttachButtonRef={handleAttachButtonRef}
-                  onAddImages={addImages}
+                  onPasteClipboardImages={handlePasteClipboardImages}
                   onPasteImages={handleNativePasteImages}
                   client={client}
                   isReadyForDictation={isDictationReady}
@@ -3007,6 +3137,13 @@ const styles = StyleSheet.create((theme: Theme) => ({
     flexDirection: "row",
     gap: theme.spacing[2],
     flexWrap: "wrap",
+  },
+  pendingImageBody: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface1,
   },
   tooltipRow: {
     flexDirection: "row",

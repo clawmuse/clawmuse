@@ -988,10 +988,16 @@ it("removes changed quota monitors from cached cards only on the affected host",
   const fake = createFakeClient();
   const serverId = "server-monitoring";
   const key = ["usage", serverId, "reports"];
+  const dailyHistoryKey = ["usage", serverId, "dailyHistory"];
   const otherKey = ["usage", "other-host", "reports"];
   const card = { sourceId: "copilot" };
+  const dailyHistory = {
+    days: ["2026-11-09"],
+    daily: [{ money: [0, 0, 0], paid: 0, tokens: [0, 100, 0] }],
+  };
   queryClient.setQueryData(daemonConfigQueryKey(serverId), daemonConfig);
   queryClient.setQueryData(key, [card, { sourceId: "codex" }]);
+  queryClient.setQueryData(dailyHistoryKey, dailyHistory);
   queryClient.setQueryData(otherKey, [card]);
   queryClient.setQueryData(["usage-monitoring", serverId], []);
   const unmount = mountServerDataPushRouter({ client: fake.client, queryClient, serverId });
@@ -1004,6 +1010,7 @@ it("removes changed quota monitors from cached cards only on the affected host",
       },
     });
     await expect.poll(() => queryClient.getQueryData(key)).toEqual([{ sourceId: "codex" }]);
+    expect(queryClient.getQueryData(dailyHistoryKey)).toEqual(dailyHistory);
     expect(queryClient.getQueryData(otherKey)).toEqual([card]);
     expect(queryClient.getQueryState(["usage-monitoring", serverId])?.isInvalidated).toBe(true);
   } finally {

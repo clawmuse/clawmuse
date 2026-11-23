@@ -6,6 +6,7 @@ interface ScheduleCounts {
   heartbeats: number;
   retries: number;
   refreshes: number;
+  coldStarts: number;
 }
 
 interface ScheduleHarness {
@@ -15,7 +16,7 @@ interface ScheduleHarness {
 }
 
 function harness(): ScheduleHarness {
-  const counts: ScheduleCounts = { heartbeats: 0, retries: 0, refreshes: 0 };
+  const counts: ScheduleCounts = { heartbeats: 0, retries: 0, refreshes: 0, coldStarts: 0 };
   let running = true;
   const schedule = new ClawMuseStatusDeliverySchedule({
     shouldRun: () => running,
@@ -27,6 +28,9 @@ function harness(): ScheduleHarness {
     },
     onProjectionRefresh: () => {
       counts.refreshes += 1;
+    },
+    onColdStart: () => {
+      counts.coldStarts += 1;
     },
   });
   return {
@@ -113,7 +117,7 @@ describe("ClawMuseStatusDeliverySchedule", () => {
     state.schedule.armProjectionRefresh(1_000, 0);
     vi.advanceTimersByTime(60_000);
 
-    expect(state.counts).toEqual({ heartbeats: 0, retries: 0, refreshes: 0 });
+    expect(state.counts).toEqual({ heartbeats: 0, retries: 0, refreshes: 0, coldStarts: 0 });
     expect(state.schedule.retryScheduled).toBe(false);
   });
 
@@ -123,9 +127,24 @@ describe("ClawMuseStatusDeliverySchedule", () => {
     state.schedule.scheduleHeartbeat(1_000);
     state.schedule.scheduleRetry();
     state.schedule.armProjectionRefresh(1_000, 0);
+    state.schedule.armColdStart(2_000);
+    expect(state.schedule.coldStartScheduled).toBe(true);
     state.schedule.clearAll();
+    expect(state.schedule.coldStartScheduled).toBe(false);
     vi.advanceTimersByTime(60_000);
 
-    expect(state.counts).toEqual({ heartbeats: 0, retries: 0, refreshes: 0 });
+    expect(state.counts).toEqual({ heartbeats: 0, retries: 0, refreshes: 0, coldStarts: 0 });
+  });
+
+  it("coalesces cold-start windows without pushing the first deadline back", () => {
+    const state = harness();
+
+    state.schedule.armColdStart(2_000);
+    vi.advanceTimersByTime(1_000);
+    state.schedule.armColdStart(2_000);
+    vi.advanceTimersByTime(999);
+    expect(state.counts.coldStarts).toBe(0);
+    vi.advanceTimersByTime(1);
+    expect(state.counts.coldStarts).toBe(1);
   });
 });

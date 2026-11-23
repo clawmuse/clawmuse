@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isClawMuseStatusHomeDeepLink, isClawMuseStatusHomeNotification } from "./deep-link";
+import {
+  isClawMuseStatusHomeDeepLink,
+  isClawMuseStatusHomeNotification,
+  parseClawMuseStatusLiveActivityReconcile,
+} from "./deep-link";
 
 describe("isClawMuseStatusHomeDeepLink", () => {
   it("accepts both registered schemes", () => {
@@ -23,6 +27,11 @@ describe("isClawMuseStatusHomeNotification", () => {
         status: { deepLink: "clawmuse://home?focus=agent-activity" },
       }),
     ).toBe(true);
+    expect(
+      isClawMuseStatusHomeNotification({
+        body: { status: { deepLink: "clawmuse://home?focus=agent-activity" } },
+      }),
+    ).toBe(true);
   });
 
   it("ignores Paseo's own per-agent notification payloads", () => {
@@ -31,5 +40,36 @@ describe("isClawMuseStatusHomeNotification", () => {
       false,
     );
     expect(isClawMuseStatusHomeNotification(null)).toBe(false);
+  });
+});
+
+describe("parseClawMuseStatusLiveActivityReconcile", () => {
+  it("extracts background Live Activity cleanup signals from top-level or body status envelopes", () => {
+    expect(
+      parseClawMuseStatusLiveActivityReconcile({
+        status: {
+          reconcileLiveActivity: true,
+          staleGeneration: "gen-1",
+          endIdleActivities: true,
+        },
+      }),
+    ).toEqual({ staleGeneration: "gen-1", endIdleActivities: true });
+
+    expect(
+      parseClawMuseStatusLiveActivityReconcile({
+        body: {
+          status: {
+            reconcileLiveActivity: true,
+            endIdleActivities: false,
+          },
+        },
+      }),
+    ).toEqual({ endIdleActivities: false });
+
+    expect(
+      parseClawMuseStatusLiveActivityReconcile({
+        status: { deepLink: "clawmuse://home?focus=agent-activity" },
+      }),
+    ).toBeNull();
   });
 });

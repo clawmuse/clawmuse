@@ -694,6 +694,28 @@
                 "additionalProperties": false
               }
             },
+            "aiArchiveProviders": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "thinkingOptionId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["provider"],
+                "additionalProperties": false
+              }
+            },
             "promptPredictions": {
               "type": "boolean"
             }

@@ -64,6 +64,69 @@ actor AgentLiveActivityController {
       await existing.end(nil, dismissalPolicy: .immediate)
     }
     activity = nil
+    activityPushToken = nil
+  }
+
+  func reconcileBackgroundActivities(
+    staleGeneration: String?,
+    endAllIfIdle: Bool
+  ) async -> [String: Int] {
+    let allBefore = Activity<ClawMuseAgentActivityAttributes>.activities
+    if endAllIfIdle {
+      for existing in allBefore {
+        await existing.end(nil, dismissalPolicy: .immediate)
+      }
+      activity = nil
+      activityPushToken = nil
+      return ["endedCount": allBefore.count, "remainingCount": 0]
+    }
+
+    await recoverExistingActivity(endingDuplicates: true)
+    var endedCount = max(0, allBefore.count - (activity == nil ? 0 : 1))
+    if let current = activity {
+      let targetGeneration = staleGeneration ?? ""
+      let matchesStaleGeneration =
+        !targetGeneration.isEmpty && current.attributes.activityGeneration == targetGeneration
+      let hasToken = current.pushToken != nil || activityPushToken?.activityId == current.id
+      let isUnaddressableStale = current.activityState == .stale && !hasToken
+      if matchesStaleGeneration || isUnaddressableStale {
+        await current.end(nil, dismissalPolicy: .immediate)
+        if activityPushToken?.activityId == current.id {
+          activityPushToken = nil
+        }
+        activity = nil
+        endedCount += 1
+      }
+    }
+    return ["endedCount": endedCount, "remainingCount": activity == nil ? 0 : 1]
+  }
+
+  func reconcileTerminalPushArrival(
+    hasPendingTokenForActivity: (String) -> Bool
+  ) async -> [String: Int] {
+    let allBefore = Activity<ClawMuseAgentActivityAttributes>.activities
+    await recoverExistingActivity(endingDuplicates: true)
+    var endedCount = max(0, allBefore.count - (activity == nil ? 0 : 1))
+    if let current = activity {
+      let hasToken = current.pushToken != nil || activityPushToken?.activityId == current.id
+      let tokenPendingUpload = hasPendingTokenForActivity(current.id)
+      let state = current.content.state
+      let noOtherActiveTasks =
+        state.displayedRunningCount <= 1 && state.displayedNeedsActionCount == 0
+      let shouldDismissCurrent =
+        current.activityState == .stale
+        || !hasToken
+        || (tokenPendingUpload && noOtherActiveTasks)
+      if shouldDismissCurrent {
+        await current.end(nil, dismissalPolicy: .immediate)
+        if activityPushToken?.activityId == current.id {
+          activityPushToken = nil
+        }
+        activity = nil
+        endedCount += 1
+      }
+    }
+    return ["endedCount": endedCount, "remainingCount": activity == nil ? 0 : 1]
   }
 
   func resetRemoteStatusSession(restartIfPresent: Bool) async throws -> [String: Any] {

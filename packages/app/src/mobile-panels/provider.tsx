@@ -166,12 +166,31 @@ export function MobilePanelsProvider({ children }: { children: ReactNode }) {
         return;
       }
       const target = transition.animationTarget;
-      position.value = withTiming(getMobilePanelAnchor(target), {
-        duration: ANIMATION_DURATION,
-        easing: ANIMATION_EASING,
-      });
+      const targetAnchor = getMobilePanelAnchor(target);
+      position.value = withTiming(
+        targetAnchor,
+        {
+          duration: ANIMATION_DURATION,
+          easing: ANIMATION_EASING,
+        },
+        (finished) => {
+          if (!finished) {
+            return;
+          }
+          const currentState = motionState.value;
+          const settled = transitionMobilePanel(currentState, {
+            type: "position.changed",
+            position: targetAnchor,
+          });
+          if (settled.state === currentState) {
+            return;
+          }
+          motionState.value = settled.state;
+          scheduleOnRN(publishActivePanel, settled.state.settledTarget, settled.state.revision);
+        },
+      );
     },
-    [position],
+    [motionState, position, publishActivePanel],
   );
 
   const applySelection = useCallback(
@@ -220,7 +239,10 @@ export function MobilePanelsProvider({ children }: { children: ReactNode }) {
   const updateGesture = useCallback(
     (startedRevision: number, nextPosition: number): boolean => {
       "worklet";
-      if (!isMobilePanelGestureCurrent(motionState.value, startedRevision)) {
+      if (
+        !Number.isFinite(nextPosition) ||
+        !isMobilePanelGestureCurrent(motionState.value, startedRevision)
+      ) {
         return false;
       }
       position.value = Math.max(-1, Math.min(1, nextPosition));

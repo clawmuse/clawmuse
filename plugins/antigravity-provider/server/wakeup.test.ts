@@ -13,7 +13,14 @@ import {
   type ProviderPersistence,
 } from "@getpaseo/plugin/server/provider";
 import { createAntigravityProvider } from "./provider.js";
-import { JsonlTranscriptReader } from "./internal/transcript.js";
+import { SubagentManager } from "./internal/subagents.js";
+import {
+  extractBackgroundTaskKill,
+  extractBackgroundTaskListSnapshot,
+  extractBackgroundTaskTerminalStatus,
+  inferToolName,
+} from "./internal/timeline.js";
+import { JsonlTranscriptReader, parseSystemWakeupMessage } from "./internal/transcript.js";
 import { Usage } from "./usage.js";
 import { CredentialMonitor, readCredentialFile } from "./internal/credentials.js";
 
@@ -1186,5 +1193,370 @@ describe("antigravity wakeups, subagents, usage, and runtime safety", () => {
 
     // Session remains healthy for subsequent foreground prompts
     await h.prompt("HELLO");
+  });
+
+  it("clears TimerCondition timers on wakeup, ignores Reminder system notices, and settles subagents cleanly", async () => {
+    const h = await setupHarness();
+    await h.open(undefined, "s", "full-access");
+
+    // 1. Root session conditional timer clears when matching background task completes
+    await h.prompt("ROOT_CONDITIONAL_TIMER");
+    expect(await h.canStopRuntime()).toBe(false);
+    expect(await h.assistantMessageContaining("ROOT_CONDITIONAL_TIMER_DONE")).toBe(
+      "ROOT_CONDITIONAL_TIMER_DONE",
+    );
+    await h.turnCompleted("wakeup-1");
+    expect(await h.canStopRuntime()).toBe(true);
+
+    // 2. Subagent conditional timers + Reminder notice + failed kill(DONE) settle cleanly
+    const condChildId = "99999999-9999-4999-8999-999999999999";
+    await h.prompt("SUBAGENT_CONDITIONAL_TIMER_AND_REMINDER");
+    await h.wait((e) => e.type === "session.opened" && e.sessionId === condChildId);
+    await h.wait(
+      (e) => e.type === "session.turn" && e.sessionId === condChildId && e.state === "completed",
+    );
+    expect(await h.assistantMessageContaining("PARENT_RECEIVED_CONDITIONAL_CHILD")).toBe(
+      "PARENT_RECEIVED_CONDITIONAL_CHILD",
+    );
+    await h.turnCompleted("wakeup-2");
+    expect(await h.canStopRuntime()).toBe(true);
+  });
+
+  it("parses real system notices, manages manage_task terminal signals, and flushes omitted child tools", async () => {
+    expect(
+      parseSystemWakeupMessage({
+        stepIndex: 1,
+        type: "SYSTEM_MESSAGE",
+        toolCalls: [],
+        content:
+          "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\nReminder: work efficiently.\n</SYSTEM_MESSAGE>",
+      }),
+    ).toBeNull();
+    expect(
+      parseSystemWakeupMessage({
+        stepIndex: 2,
+        type: "SYSTEM_MESSAGE",
+        toolCalls: [],
+        content:
+          "<SYSTEM_MESSAGE>\nPlan mode is off: this turn runs on the execution model.\n</SYSTEM_MESSAGE>",
+      }),
+    ).toBeNull();
+    expect(
+      parseSystemWakeupMessage({
+        stepIndex: 3,
+        type: "GENERIC",
+        toolCalls: [],
+        content:
+          "<SYSTEM_MESSAGE>\n[Message] sender=task-1 content=quoted output\n</SYSTEM_MESSAGE>",
+      }),
+    ).toBeNull();
+    expect(
+      parseSystemWakeupMessage({
+        stepIndex: 4,
+        type: "SYSTEM_MESSAGE",
+        toolCalls: [],
+        content:
+          'The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-20T01:58:06Z sender=conv/task-139 priority=LOW content=Task id "conv/task-139" was canceled with result:\nTool execution was canceled\n</SYSTEM_MESSAGE>',
+      }),
+    ).toEqual({
+      sender: "conv/task-139",
+      failedTaskId: "conv/task-139",
+      lowPriority: true,
+      message: 'Task id "conv/task-139" was canceled with result:\nTool execution was canceled',
+    });
+    expect(
+      parseSystemWakeupMessage({
+        stepIndex: 5,
+        type: "SYSTEM_MESSAGE",
+        toolCalls: [],
+        content:
+          "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-20T01:58:06Z sender=system priority=LOW content=[Notice] All your subagents and background tasks have been stopped due to server restart.\n</SYSTEM_MESSAGE>",
+      }),
+    ).toMatchObject({
+      sender: "system",
+      allTasksAndSubagentsStopped: true,
+      lowPriority: true,
+    });
+    expect(
+      parseSystemWakeupMessage({
+        stepIndex: 6,
+        type: "SYSTEM_MESSAGE",
+        toolCalls: [],
+        content:
+          'The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-23T03:53:47Z sender=conv/task-161 priority=MESSAGE_PRIORITY_HIGH content=Task id "conv/task-161" finished with result:\nCommand exited with code 0.\n</SYSTEM_MESSAGE>',
+      })?.lowPriority,
+    ).toBeUndefined();
+
+    expect(
+      extractBackgroundTaskKill({
+        toolCallId: "k1",
+        title: "manage_task",
+        status: "in_progress",
+        rawInput: { Action: "kill", TaskId: "c/task-1" },
+      }),
+    ).toBeUndefined();
+    expect(
+      extractBackgroundTaskKill({
+        toolCallId: "k2",
+        title: "manage_task",
+        status: "failed",
+        rawInput: { Action: "kill", TaskId: "c/task-2" },
+        rawOutput: { error: 'cannot kill task "c/task-2": task is not running (status: DONE)' },
+      }),
+    ).toBe("c/task-2");
+    expect(
+      extractBackgroundTaskTerminalStatus({
+        toolCallId: "s1",
+        title: "manage_task",
+        status: "completed",
+        rawInput: { Action: "status", TaskId: "c/task-3" },
+        rawOutput: { output: "Task: c/task-3\nStatus: DONE\nLog: file:///tmp/t.log" },
+      }),
+    ).toBe("c/task-3");
+    expect(
+      extractBackgroundTaskTerminalStatus({
+        toolCallId: "s2",
+        title: "manage_task",
+        status: "completed",
+        rawInput: { Action: "status", TaskId: "c/task-3" },
+        rawOutput: { output: "Task: c/task-3\nStatus: RUNNING\nLog: file:///tmp/t.log" },
+      }),
+    ).toBeUndefined();
+    const manageListPayload = {
+      toolCallId: "l1",
+      title: "manage_task",
+      status: "completed" as const,
+      rawInput: { Action: "list" },
+      rawOutput: { output: "No background tasks are currently running." },
+    };
+    expect(inferToolName(manageListPayload)).toBe("manage_task");
+    expect(extractBackgroundTaskListSnapshot(manageListPayload)).toEqual([]);
+    expect(
+      extractBackgroundTaskListSnapshot({
+        toolCallId: "l2",
+        title: "manage_task",
+        status: "completed",
+        rawInput: { Action: "list" },
+        rawOutput: {
+          output: 'You have 1 background task(s) currently running:\n[{"taskId":"c/task-9"}]',
+        },
+      }),
+    ).toEqual(["c/task-9"]);
+
+    // Direct SubagentManager checks: status/list reconciliation, omitted child tool step, and restart notice
+    const dir = await mkdtemp(path.join(os.tmpdir(), "agy-subagent-reconcile-"));
+    temporary.push(dir);
+    const childId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const grandchildId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const childLog = path.join(
+      dir,
+      "brain",
+      childId,
+      ".system_generated",
+      "logs",
+      "transcript_full.jsonl",
+    );
+    await mkdir(path.dirname(childLog), { recursive: true });
+    await writeFile(
+      childLog,
+      [
+        {
+          step_index: 0,
+          type: "USER_INPUT",
+          status: "DONE",
+          content: "<USER_REQUEST>\nDo work\n</USER_REQUEST>",
+        },
+        {
+          step_index: 1,
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          tool_calls: [
+            { id: "t1", name: "run_command", args: { CommandLine: "sleep 1" } },
+            { id: "t2", name: "run_command", args: { CommandLine: "sleep 2" } },
+            { id: "t3", name: "invoke_subagent", args: { TypeName: "self", Role: "Nested" } },
+          ],
+        },
+        {
+          step_index: 2,
+          type: "GENERIC",
+          status: "RUNNING",
+          content: `Tool is running as a background task with task id: ${childId}/task-1`,
+        },
+        {
+          step_index: 3,
+          type: "GENERIC",
+          status: "RUNNING",
+          content: `Tool is running as a background task with task id: ${childId}/task-2`,
+        },
+        {
+          step_index: 4,
+          type: "GENERIC",
+          status: "DONE",
+          content: JSON.stringify({ conversationIds: [grandchildId] }),
+        },
+        {
+          step_index: 5,
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          tool_calls: [
+            {
+              id: "t4",
+              name: "manage_task",
+              args: { Action: "status", TaskId: `${childId}/task-1` },
+            },
+          ],
+        },
+        {
+          step_index: 6,
+          type: "GENERIC",
+          status: "DONE",
+          content: `Task: ${childId}/task-1\nStatus: DONE\n`,
+        },
+        {
+          step_index: 7,
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          tool_calls: [{ id: "t5", name: "view_file", args: { AbsolutePath: "/tmp/x" } }],
+        },
+        // Step 8 omitted (canceled internally); next PLANNER_RESPONSE arrives directly
+        {
+          step_index: 9,
+          type: "SYSTEM_MESSAGE",
+          status: "DONE",
+          content:
+            "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-20T02:00:00Z sender=system priority=MESSAGE_PRIORITY_LOW content=[Notice] All your subagents and background tasks have been stopped due to server restart.\n</SYSTEM_MESSAGE>",
+        },
+        {
+          step_index: 10,
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          content: "Child finished cleanly.",
+        },
+      ]
+        .map((step) => JSON.stringify(step))
+        .join("\n") + "\n",
+      "utf8",
+    );
+
+    const emitted: ProviderEvent[] = [];
+    const manager = new SubagentManager("root", dir, dir, (event) => emitted.push(event));
+    manager.registerLaunch("root", { childSessionId: childId, toolCallId: "launch-1", cwd: dir });
+    await manager.pollAll(true);
+
+    expect(manager.hasRunning()).toBe(false);
+    expect(
+      emitted
+        .filter(
+          (e): e is Extract<ProviderEvent, { type: "session.turn" }> =>
+            e.type === "session.turn" && e.sessionId === childId,
+        )
+        .map((e) => e.state),
+    ).toEqual(["started", "completed"]);
+    expect(
+      emitted
+        .filter(
+          (e): e is Extract<ProviderEvent, { type: "session.turn" }> =>
+            e.type === "session.turn" && e.sessionId === grandchildId,
+        )
+        .map((e) => e.state),
+    ).toEqual(["started", "canceled"]);
+    expect(
+      emitted.some(
+        (e) =>
+          e.type === "timeline.item" &&
+          e.sessionId === childId &&
+          e.item.type === "tool_call" &&
+          e.item.id === "t5" &&
+          e.item.status === "failed",
+      ),
+    ).toBe(true);
+    manager.close();
+  });
+
+  it("prevents TURN_ACTIVE deadlocks across chained autonomous background tasks, post-cancel fallout, and low-priority cancel notices", async () => {
+    const h = await setupHarness();
+    await h.open(undefined, "s", "full-access");
+
+    // 1. Autonomous wakeup launches a chained background task whose ACP tool_call stays in_progress
+    //    when the wakeup PLANNER_RESPONSE finishes: wakeup-1 settles instead of wedging TURN_ACTIVE.
+    await h.prompt("BG_WAKEUP_CHAINS_BG_TASK");
+    expect(await h.assistantMessageContaining("CHAINED_BG_TASK_LAUNCHED")).toBe(
+      "CHAINED_BG_TASK_LAUNCHED",
+    );
+    await h.turnCompleted("wakeup-1");
+    expect(await h.canStopRuntime()).toBe(false);
+    await h.prompt("HELLO");
+
+    // 2. Interrupting an autonomous wakeup suppresses post-cancel ACP fallout and low-priority
+    //    force-cancel transcript notices so no zombie wakeup-2 blocks follow-up prompts.
+    const cancelSession = await setupHarness();
+    await cancelSession.open(undefined, "s-cancel", "full-access");
+    await cancelSession.prompt("BG_WAKEUP_CANCEL_FALLOUT", "s-cancel");
+    await cancelSession.wait(
+      (e) =>
+        e.type === "session.turn" &&
+        e.sessionId === "s-cancel" &&
+        e.turnId === "wakeup-1" &&
+        e.state === "started",
+    );
+    await cancelSession.wait(
+      (e) =>
+        e.type === "timeline.item" &&
+        e.sessionId === "s-cancel" &&
+        e.item.type === "tool_call" &&
+        e.item.id === "cancel-tool-1",
+    );
+    await cancelSession.sendRequest({
+      type: "session.interrupt",
+      requestId: "interrupt-cancel-fallout",
+      sessionId: "s-cancel",
+    });
+    await cancelSession.wait(
+      (e) =>
+        e.type === "session.turn" &&
+        e.sessionId === "s-cancel" &&
+        e.turnId === "wakeup-1" &&
+        e.state === "canceled",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(
+      cancelSession.events.some(
+        (e) => e.type === "session.turn" && e.sessionId === "s-cancel" && e.turnId === "wakeup-2",
+      ),
+    ).toBe(false);
+    expect(
+      cancelSession.events.some(
+        (e) =>
+          e.type === "timeline.item" &&
+          e.sessionId === "s-cancel" &&
+          e.item.type === "assistant_message" &&
+          e.item.text.includes("STRAY_POST_CANCEL_CHUNK"),
+      ),
+    ).toBe(false);
+    expect(await cancelSession.canStopRuntime("s-cancel")).toBe(true);
+    await cancelSession.prompt("HELLO", "s-cancel");
+
+    // 3. Standalone terminal tool_call_update + low-priority cancel notice after turn end
+    //    clears the background task without fabricating a phantom autonomous turn.
+    const lowPrioSession = await setupHarness();
+    await lowPrioSession.open(undefined, "s-lowprio", "full-access");
+    await lowPrioSession.prompt("BG_LOW_PRIORITY_CANCEL_NOTICE", "s-lowprio");
+    expect(await lowPrioSession.canStopRuntime("s-lowprio")).toBe(false);
+    await expect
+      .poll(() => lowPrioSession.canStopRuntime("s-lowprio"), {
+        timeout: 4500,
+        interval: 20,
+      })
+      .toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    expect(
+      lowPrioSession.events.some(
+        (e) =>
+          e.type === "session.turn" &&
+          e.sessionId === "s-lowprio" &&
+          e.turnId.startsWith("wakeup-"),
+      ),
+    ).toBe(false);
+    await lowPrioSession.prompt("HELLO", "s-lowprio");
   });
 });

@@ -1390,6 +1390,7 @@ export const ja: TranslationResources = {
         newAgentHere: "このホストで新しいエージェント",
         settings: "ホスト設定",
         more: "その他のホスト",
+        reorderHost: "{{name}} を移動",
         shownCount: "表示中のホスト: {{count}}",
         clear: "クリア",
         running: "実行中: {{count}}",
@@ -2736,6 +2737,14 @@ export const ja: TranslationResources = {
         label: "ターミナルスクロールバック",
         description: "組み込みターミナルバッファに保持する行数",
         accessibilityLabel: "ターミナルスクロールバック行数",
+      },
+      showReasoning: {
+        label: "思考過程を表示",
+        description: "チャットに Thinking などの思考記録を表示します",
+      },
+      showToolCalls: {
+        label: "ツール呼び出しを表示",
+        description: "チャットに Shell、検索などのツール呼び出しを表示します",
       },
       autoExpandReasoning: {
         label: "常に思考プロセスを展開",

@@ -38,6 +38,9 @@ function settleMobilePanelAtPosition(
   position: number,
 ): MobilePanelTransition {
   "worklet";
+  if (!Number.isFinite(position)) {
+    return { state };
+  }
   const isCanonicalMotion = state.target === state.motionTarget;
   const isAtTarget = Math.abs(position - getMobilePanelAnchor(state.target)) <= 0.002;
   if (state.gesture || !isCanonicalMotion || !isAtTarget || state.settledTarget === state.target) {
@@ -151,6 +154,9 @@ export function canBeginMobilePanelGesture(
   position: number,
 ): boolean {
   "worklet";
+  if (!Number.isFinite(position)) {
+    return false;
+  }
   const isCanonical = state.target === origin;
   const isMotionSettled = state.motionTarget === origin && state.settledTarget === origin;
   const isAtOrigin = Math.abs(position - getMobilePanelAnchor(origin)) <= 0.002;
@@ -174,11 +180,13 @@ export function isMobilePanelActive(
 
 export function getMobilePanelFrame(position: number, width: number) {
   "worklet";
-  const clampedPosition = Math.max(-1, Math.min(1, position));
+  const safePosition = Number.isFinite(position) ? position : 0;
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : 0;
+  const clampedPosition = Math.max(-1, Math.min(1, safePosition));
   return {
     leftBackdropOpacity: Math.max(0, -clampedPosition),
-    leftTranslateX: -Math.min(1, clampedPosition + 1) * width,
+    leftTranslateX: -Math.min(1, clampedPosition + 1) * safeWidth,
     rightBackdropOpacity: Math.max(0, clampedPosition),
-    rightTranslateX: Math.min(1, 1 - clampedPosition) * width,
+    rightTranslateX: Math.min(1, 1 - clampedPosition) * safeWidth,
   };
 }

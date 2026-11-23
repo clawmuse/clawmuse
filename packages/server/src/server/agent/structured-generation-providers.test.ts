@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 
-import { resolveStructuredGenerationProviders } from "./structured-generation-providers.js";
+import {
+  resolveArchiveReviewProviders,
+  resolveStructuredGenerationProviders,
+} from "./structured-generation-providers.js";
 import type { ProviderSnapshotEntry } from "./agent-sdk-types.js";
 
 const READY = "ready" as const;
@@ -239,5 +242,109 @@ describe("resolveStructuredGenerationProviders", () => {
 
     expect(providers).toEqual([{ provider: "current-provider", model: "configured-model" }]);
     expect(snapshots.calls).toEqual([{ cwd: "/tmp/repo", wait: true }]);
+  });
+});
+
+describe("resolveArchiveReviewProviders", () => {
+  test("uses only aiArchiveProviders when explicitly configured", async () => {
+    const snapshots = new ProviderSnapshots([
+      {
+        provider: "claude",
+        status: READY,
+        enabled: true,
+        models: [{ provider: "claude", id: "claude-haiku-2026", label: "Haiku", isDefault: true }],
+      },
+      {
+        provider: "codex",
+        status: READY,
+        enabled: true,
+        models: [{ provider: "codex", id: "gpt-5.4", label: "GPT 5.4", isDefault: true }],
+      },
+    ]);
+
+    const providers = await resolveArchiveReviewProviders({
+      cwd: "/tmp/repo",
+      providerSnapshotManager: snapshots,
+      daemonConfig: {
+        metadataGeneration: {
+          providers: [{ provider: "claude", model: "claude-haiku-2026" }],
+          aiArchiveProviders: [{ provider: "codex", model: "gpt-5.4" }],
+        },
+      },
+      currentSelection: { provider: "claude", model: "claude-haiku-2026" },
+      taskSelection: { provider: "claude", model: "claude-haiku-2026" },
+    });
+
+    expect(providers).toEqual([{ provider: "codex", model: "gpt-5.4" }]);
+  });
+
+  test("falls back to metadataGeneration.providers when aiArchiveProviders is empty", async () => {
+    const snapshots = new ProviderSnapshots([
+      {
+        provider: "claude",
+        status: READY,
+        enabled: true,
+        models: [{ provider: "claude", id: "claude-haiku-2026", label: "Haiku", isDefault: true }],
+      },
+      {
+        provider: "codex",
+        status: READY,
+        enabled: true,
+        models: [{ provider: "codex", id: "gpt-5.4", label: "GPT 5.4", isDefault: true }],
+      },
+    ]);
+
+    const providers = await resolveArchiveReviewProviders({
+      cwd: "/tmp/repo",
+      providerSnapshotManager: snapshots,
+      daemonConfig: {
+        metadataGeneration: {
+          providers: [{ provider: "claude", model: "claude-haiku-2026" }],
+          aiArchiveProviders: [],
+        },
+      },
+      taskSelection: { provider: "codex", model: "gpt-5.4" },
+    });
+
+    expect(providers).toEqual([{ provider: "claude", model: "claude-haiku-2026" }]);
+  });
+
+  test("falls back to taskSelection and enabled ready provider defaults in automatic mode", async () => {
+    const snapshots = new ProviderSnapshots([
+      {
+        provider: "custom-a",
+        status: READY,
+        enabled: true,
+        models: [{ provider: "custom-a", id: "alpha-1", label: "Alpha 1", isDefault: true }],
+      },
+      {
+        provider: "custom-b",
+        status: READY,
+        enabled: true,
+        models: [
+          { provider: "custom-b", id: "beta-1", label: "Beta 1", isDefault: true },
+          { provider: "custom-b", id: "beta-2", label: "Beta 2" },
+        ],
+      },
+      {
+        provider: "disabled-provider",
+        status: READY,
+        enabled: false,
+        models: [{ provider: "disabled-provider", id: "gamma-1", label: "Gamma 1" }],
+      },
+    ]);
+
+    const providers = await resolveArchiveReviewProviders({
+      cwd: "/tmp/repo",
+      providerSnapshotManager: snapshots,
+      daemonConfig: { metadataGeneration: { providers: [] } },
+      taskSelection: { provider: "custom-b", model: "beta-2" },
+    });
+
+    expect(providers).toEqual([
+      { provider: "custom-b", model: "beta-2" },
+      { provider: "custom-a", model: "alpha-1" },
+      { provider: "custom-b", model: "beta-1" },
+    ]);
   });
 });

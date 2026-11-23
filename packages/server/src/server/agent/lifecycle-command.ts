@@ -13,6 +13,7 @@ export type LifecycleAgentSnapshot = Pick<ManagedAgent, "id" | "cwd" | "lifecycl
 export interface LifecycleAgentManager {
   getAgent(agentId: string): LifecycleAgentSnapshot | null;
   hasInFlightRun(agentId: string): boolean;
+  hasRunningProviderSubagents?(agentId: string): boolean;
   cancelAgentRun(agentId: string): Promise<AgentRunCancellationResult>;
   clearAgentAttention(agentId: string): Promise<void>;
   archiveAgent(agentId: string): Promise<{ archivedAt: string }>;
@@ -67,16 +68,18 @@ async function requestAgentRunCancellation(
   }
 
   const hasInFlightRun = agentManager.hasInFlightRun(agentId);
-  if (!hasInFlightRun) {
+  const hasRunningProviderSubagents =
+    !hasInFlightRun && (agentManager.hasRunningProviderSubagents?.(agentId) ?? false);
+  if (!hasInFlightRun && !hasRunningProviderSubagents) {
     logger.trace(
-      { agentId, lifecycle: agent.lifecycle, hasInFlightRun },
+      { agentId, lifecycle: agent.lifecycle, hasInFlightRun, hasRunningProviderSubagents },
       "cancelAgentRunCommand: skipping because agent is not running",
     );
     return { agent, cancelled: false, cancellation: { status: "not_running" } };
   }
 
   logger.debug(
-    { agentId, lifecycle: agent.lifecycle, hasInFlightRun },
+    { agentId, lifecycle: agent.lifecycle, hasInFlightRun, hasRunningProviderSubagents },
     "cancelAgentRunCommand: interrupting",
   );
   const startedAt = Date.now();

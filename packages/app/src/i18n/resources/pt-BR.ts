@@ -1403,6 +1403,7 @@ export const ptBR: TranslationResources = {
         newAgentHere: "Novo agente neste host",
         settings: "Configurações do host",
         more: "Mais hosts",
+        reorderHost: "Mover {{name}}",
         shownCount: "Hosts exibidos: {{count}}",
         clear: "Limpar",
         running: "Em execução: {{count}}",
@@ -2751,6 +2752,14 @@ export const ptBR: TranslationResources = {
         label: "Scrollback do terminal",
         description: "Linhas mantidas no buffer do terminal integrado",
         accessibilityLabel: "Linhas do scrollback do terminal",
+      },
+      showReasoning: {
+        label: "Mostrar raciocínio",
+        description: "Mostrar as etapas de raciocínio na conversa",
+      },
+      showToolCalls: {
+        label: "Mostrar chamadas de ferramentas",
+        description: "Mostrar chamadas de Shell, pesquisa e outras ferramentas na conversa",
       },
       autoExpandReasoning: {
         label: "Sempre expandir raciocínio",

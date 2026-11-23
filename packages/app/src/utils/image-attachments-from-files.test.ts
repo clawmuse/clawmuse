@@ -164,4 +164,41 @@ describe("filesToImageAttachments", () => {
     expect(attachment?.storageType).toBe("web-indexeddb");
     expect(attachment?.byteSize).toBe(4 * 1024 * 1024);
   });
+
+  it("throws and cleans up already-saved files if persisting one image in a batch fails", async () => {
+    const deletedIds: string[] = [];
+    let count = 0;
+    __setAttachmentStoreForTests({
+      ...createTestStore(),
+      async save(input) {
+        count += 1;
+        if (count === 2) {
+          throw new Error("Disk full");
+        }
+        return {
+          id: `att-${count}`,
+          mimeType: input.mimeType ?? "image/png",
+          storageType: "web-indexeddb",
+          storageKey: `att-${count}`,
+          fileName: input.fileName ?? null,
+          byteSize: 4,
+          createdAt: 1700000000000 + count,
+        };
+      },
+      async delete({ attachment }) {
+        deletedIds.push(attachment.id);
+      },
+    });
+
+    const first = new File([new Uint8Array([1])], "first.png", { type: "image/png" });
+    const second = new File([new Uint8Array([2])], "second.png", { type: "image/png" });
+
+    await expect(
+      filesToImageAttachments([
+        { file: first, mimeType: "image/png" },
+        { file: second, mimeType: "image/png" },
+      ]),
+    ).rejects.toThrow("Disk full");
+    expect(deletedIds).toEqual(["att-1"]);
+  });
 });

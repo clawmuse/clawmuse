@@ -49,14 +49,76 @@ describe("submitAgentInput", () => {
     });
     expect(setUserInput).toHaveBeenCalledWith("");
     expect(setAttachments).toHaveBeenCalledWith([]);
+    expect(clearDraft).toHaveBeenCalledTimes(1);
+    expect(clearDraft).toHaveBeenCalledWith("sent");
     expect(setSendError).toHaveBeenCalledWith(null);
     expect(setIsProcessing).toHaveBeenCalledWith(true);
-    expect(clearDraft).not.toHaveBeenCalled();
 
     deferred.resolve();
 
     await expect(submitPromise).resolves.toBe("submitted");
-    expect(clearDraft).toHaveBeenCalledWith("sent");
+    expect(clearDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves attachments and text added while an earlier submit is still in flight", async () => {
+    const deferred = createDeferredPromise<void>();
+    let currentDraftText = "  first message  ";
+    let currentDraftAttachments = [{ id: "img-1" }];
+    let persistedDraft: { text: string; attachments: Array<{ id: string }>; lifecycle: string } = {
+      text: currentDraftText,
+      attachments: currentDraftAttachments,
+      lifecycle: "active",
+    };
+
+    const submitPromise = submitAgentInput({
+      message: currentDraftText,
+      attachments: currentDraftAttachments,
+      isAgentRunning: false,
+      canSubmit: true,
+      queueMessage: vi.fn(),
+      submitMessage: async () => {
+        await deferred.promise;
+      },
+      clearDraft: (lifecycle) => {
+        persistedDraft = { text: "", attachments: [], lifecycle };
+      },
+      setUserInput: (text) => {
+        currentDraftText = text;
+        persistedDraft = {
+          ...persistedDraft,
+          text,
+          lifecycle: text || persistedDraft.attachments.length > 0 ? "active" : "abandoned",
+        };
+      },
+      setAttachments: (attachments) => {
+        currentDraftAttachments = attachments;
+        persistedDraft = {
+          ...persistedDraft,
+          attachments,
+          lifecycle: persistedDraft.text || attachments.length > 0 ? "active" : "abandoned",
+        };
+      },
+      setSendError: vi.fn(),
+      setIsProcessing: vi.fn(),
+    });
+
+    // Second image finishes persisting while first image upload is still in flight
+    currentDraftAttachments = [{ id: "img-2" }];
+    persistedDraft = {
+      text: "",
+      attachments: [{ id: "img-2" }],
+      lifecycle: "active",
+    };
+
+    deferred.resolve();
+    await expect(submitPromise).resolves.toBe("submitted");
+
+    expect(currentDraftAttachments).toEqual([{ id: "img-2" }]);
+    expect(persistedDraft).toEqual({
+      text: "",
+      attachments: [{ id: "img-2" }],
+      lifecycle: "active",
+    });
   });
 
   it("preserves the composer before an in-flight submit resolves when requested", async () => {
@@ -181,7 +243,48 @@ describe("submitAgentInput", () => {
     expect(setSendError).toHaveBeenNthCalledWith(2, "No host selected");
     expect(setIsProcessing).toHaveBeenNthCalledWith(1, true);
     expect(setIsProcessing).toHaveBeenNthCalledWith(2, false);
-    expect(clearDraft).not.toHaveBeenCalled();
+    expect(clearDraft).toHaveBeenCalledTimes(1);
+    expect(clearDraft).toHaveBeenCalledWith("sent");
+  });
+
+  it("merges failed draft with attachments added while the submit was in flight when restoreDraftOnError is provided", async () => {
+    const deferred = createDeferredPromise<void>();
+    let currentText = "first";
+    let currentAttachments = [{ id: "img-1" }];
+
+    const submitPromise = submitAgentInput({
+      message: currentText,
+      attachments: currentAttachments,
+      isAgentRunning: false,
+      canSubmit: true,
+      queueMessage: vi.fn(),
+      submitMessage: async () => {
+        await deferred.promise;
+        throw new Error("Upload rejected");
+      },
+      clearDraft: vi.fn(),
+      setUserInput: (text) => {
+        currentText = text;
+      },
+      setAttachments: (next) => {
+        currentAttachments = next;
+      },
+      restoreDraftOnError: (failed) => {
+        currentText = currentText ? `${failed.message}\n${currentText}` : failed.message;
+        currentAttachments = [...failed.attachments, ...currentAttachments];
+      },
+      setSendError: vi.fn(),
+      setIsProcessing: vi.fn(),
+    });
+
+    currentText = "second";
+    currentAttachments = [{ id: "img-2" }];
+
+    deferred.reject(new Error("Upload rejected"));
+    await expect(submitPromise).resolves.toBe("failed");
+
+    expect(currentText).toBe("first\nsecond");
+    expect(currentAttachments).toEqual([{ id: "img-1" }, { id: "img-2" }]);
   });
 
   it("restores a steered active-turn draft after an ambiguous immediate-send error", async () => {

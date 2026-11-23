@@ -901,6 +901,22 @@ describe("appearance settings", () => {
     expect(result.codeFontSize).toBe(DEFAULT_CODE_FONT_SIZE);
     expect(result.syntaxTheme).toBe("one");
     expect(result.chatDisplay).toBe("full");
+    expect(result.showReasoning).toBe(true);
+    expect(result.showToolCalls).toBe(true);
+  });
+
+  it("persists separate preferences for reasoning and tool calls", async () => {
+    const deps = makeDeps();
+    const queryClient = new QueryClient();
+    await saveAppSettings({
+      queryClient,
+      updates: { showReasoning: false, showToolCalls: false },
+      deps,
+    });
+    expect(await loadAppSettingsFromStorage(deps)).toMatchObject({
+      showReasoning: false,
+      showToolCalls: false,
+    });
   });
 
   it("migrates the enabled compact tool call preference to collapsed tool calls", async () => {

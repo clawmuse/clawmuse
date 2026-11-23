@@ -1,30 +1,41 @@
 # Changelog
 
-## 1.6.0-beta.1 - 2026-11-18
+## 1.6.0 - 2026-11-23
 
-- **Built-in Plugin Gallery**: Browse, install, and manage community plugins directly from `clawmuse.com/registry` inside host settings.
-- **Antigravity ACP & Account Resilience**: Upgrade Antigravity to the ACP driver with subagent transcript hydration and harden ClawMuse session restoration across transient failures.
-- **Opt-In Beta & Upstream Sync**: Launch `1.6.0-beta.1` opt-in updates alongside Paseo `v0.15.0–v0.16.1+` queued turns, background task status, and workspace archival fixes.
+- **Upgraded AI Archive Review:** Switch hosts directly inside the AI Archive sheet, inspect detailed live scan and net-cleanup status, trigger manual archive runs on demand, and configure archive models per host.
+- **Token Usage Analytics & Collector Accuracy:** Added a top-level computer switcher, `7d / 14d / 30d` windows, cache-hit and input/output composition breakdowns, daily average reference lines, per-day drill-downs, and accurate Antigravity, Claude Code, and Codex local token attribution.
+- **iOS Liquid Glass, Touch & Status Reliability:** Adopted native iOS Liquid Glass chrome on floating controls, eliminated mobile list touch lockups, added non-blocking offline/unreachable retry states, and prevented zombie Live Activities and duplicate lock-screen alerts.
+- **Cross-Device Host Ordering & Compact Sidebar:** Drag hosts to reorder them across synced devices, view corner activity dots and semantic status count pills, and toggle reasoning and tool calls in chat timelines.
+- **Antigravity ACP, Built-In Plugin Gallery & Composer Polish:** Added the built-in Plugin Gallery (`clawmuse.com/registry`), Antigravity ACP subagent hydration and `TURN_ACTIVE` recovery, pending image attachment placeholders with rollback and send-failure draft restore, and Paseo upstream (`v0.15.0–v0.16.1+`) improvements.
 
 ### Added
 
+- Upgrade AI Archive Review with multi-host switching, detailed scan and net-change status visibility, on-demand manual archive triggers, and per-host archive model configuration.
+- Add manual drag-to-reorder for hosts in the sidebar host strip and host picker with deterministic default ordering and cross-device account synchronization.
 - Add the built-in Plugin Gallery backed by `clawmuse.com/registry`.
+- Add chat settings to show or hide reasoning and tool calls in conversation timelines, plus a compact sidebar host strip with icon-corner activity dots and left-aligned semantic status count pills.
 - Upgrade Antigravity integration to the ACP driver with subagent transcript hydration, stream wakeup monitoring, and local usage and credential discovery.
 - Add an opt-in Beta release channel switcher (`?channel=beta`) on `clawmuse.com/download`.
 - Sync Paseo upstream improvements (`v0.15.0–v0.16.1+`), including queueing agent messages while turns run, plugin-appended agent instructions, background task status reporting in `get_agent_status` and `list_agents`, and effort-level updates without restarting Claude processes.
 
 ### Improved
 
-- Harden ClawMuse account session restoration and credential handling across transient gateway/network failures and desktop preload bridges.
-- Improve dark-theme composer voice and send button contrast.
-- Keep sidebar project lists intact while restoring hosts and keep desktop workspaces reachable when sidebar navigation overflows.
+- Upgrade the Usage modal and daily history card with a direct top-level computer switcher, `7d / 14d / 30d` range controls, multi-computer filter chips, input/cache-read/cache-write/output composition breakdown, color-coded stacked bars with daily average line, per-day host and model drill-down, and interactive model/tool/computer filtering.
+- Adopt native iOS Liquid Glass styling on floating action, scroll-to-bottom, and sidebar close buttons, and refine compact mobile sidebar footer padding and bottom inset clearance.
+- Harden ClawMuse account session restoration, Mac device pairing modal feedback, and credential handling across transient gateway or network failures.
+- Allow the local host to always revoke paired remote-access controllers.
+- Improve dark-theme composer voice and send button contrast, match compact host selection backgrounds to desktop, keep sidebar project lists intact while restoring hosts, and keep desktop workspaces reachable when sidebar navigation overflows.
 
 ### Fixed
 
-- Preserve workspace commits when archiving workspaces.
-- Reload the desktop window when its renderer exits and clean up stopped terminal worker copies on Windows.
-- Keep failed web and desktop downloads inside the app.
-- Clear superseded OpenCode questions when replaced by a new message and settle stuck agent runs on repeated cancellation.
+- Prevent zombie Live Activities and duplicate lock-screen alerts by unblocking background token sync, dismissing capsules on final task completion, and muting duplicate daemon task pushes when aggregate priority is enabled.
+- Prevent composer image attachment state loss by showing pending image placeholders, rolling back partial saves on failure, and restoring drafts when sends fail.
+- Fix Antigravity `TURN_ACTIVE` deadlocks after autonomous wakeups and interrupts, settle stale subagents across daemon restarts and timer cancellations, and prevent timeline/subagent reads from restarting collected runtimes.
+- Prevent mobile workspace lists from freezing across drawer transitions, interrupted gestures, and Fabric `pointerEvents` updates, and show non-blocking offline/unreachable banners with retry actions.
+- Fix Antigravity per-step `PLANNER_RESPONSE.model` usage attribution and harden Claude Code/Codex local token deduplication, custom provider directory resolution, and midnight cache rollover.
+- Remove unavailable accounts and hidden computers from the iPhone quota widget, filter harmless `always_allowed_app_ids` Codex Desktop diagnostics, keep turn timing labels aligned in narrow web footers, and preserve agent cancellation when an active run can stop directly.
+- Harden mobile OTA update status reporting, asset retries, and iOS reload lifecycle, and fix `PaseoScrollViewComponentView` content view handling on iOS.
+- Keep the sidebar overlay open after archiving the active workspace, allow horizontal and empty-state scrolling in the model browser sheet, preserve workspace commits on archive, reload crashed desktop renderers, clean up stopped terminal worker copies on Windows, keep failed downloads inside the app, clear superseded OpenCode questions, and settle stuck agent runs on repeated cancellation.
 
 ## 1.5.10 - 2026-11-16
 

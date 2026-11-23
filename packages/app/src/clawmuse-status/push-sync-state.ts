@@ -8,6 +8,7 @@ export class ClawMuseStatusPushSyncState {
   private readonly clearedAlertInstallations = new Set<string>();
   private readonly clearedPushToStartInstallations = new Set<string>();
   private readonly syncedPreferences = new Map<string, string>();
+  private readonly syncedPreferencesSupport = new Map<string, boolean>();
 
   shouldRegister(key: string): boolean {
     return !this.registered.has(key);
@@ -54,12 +55,18 @@ export class ClawMuseStatusPushSyncState {
     return this.syncedPreferences.get(installationId) !== serialized;
   }
 
-  markPreferencesSynced(installationId: string, serialized: string): void {
+  preferencesSupported(installationId: string): boolean | undefined {
+    return this.syncedPreferencesSupport.get(installationId);
+  }
+
+  markPreferencesSynced(installationId: string, serialized: string, supported = true): void {
     this.syncedPreferences.set(installationId, serialized);
+    this.syncedPreferencesSupport.set(installationId, supported);
   }
 
   invalidateRegistrations(): void {
     this.registered.clear();
     this.syncedPreferences.clear();
+    this.syncedPreferencesSupport.clear();
   }
 }

@@ -36,6 +36,9 @@ const patchedPackages = [
   // Layout constraints: backport of https://github.com/jpudysz/react-native-unistyles/pull/1357
   // (commit from the root the commit hands us, so a concurrent window-size commit is kept).
   // Remove the ShadowTreeManager hunk when the installed release includes that PR.
+  // iOS RCTHost reload isolation: scope UnistylesRegistry per JS runtime and run UnistylesModule
+  // invalidation on RCTJSThread so Updates.reloadAsync() never destroys an incoming runtime's
+  // registry or tears down JSI handles off-thread.
   {
     nodeModulesPath: "node_modules/react-native-unistyles",
     patchPrefix: "react-native-unistyles+",

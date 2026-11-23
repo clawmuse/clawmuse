@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { settingsStyles } from "@/styles/settings";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import type { UsageDisplay } from "./display";
-import { UsageHistoryCard } from "./history-card";
+import { useHosts } from "@/runtime/host-runtime";
+import { UsageHistoryCard, type HostDailyHistoryEntry } from "./history-card";
 import { useUsageSetting } from "./setting";
 import { UsageControls } from "./controls";
 import { UsageMonitoringSettings } from "./monitoring";
@@ -36,9 +37,20 @@ export function UsageSection({
   const [monitoring, setMonitoring] = useState(false);
   const manageMonitoring = useCallback(() => setMonitoring(true), []);
   const closeMonitoring = useCallback(() => setMonitoring(false), []);
-  const histories = useMemo(
-    () => (dailyUsage === undefined ? undefined : [dailyUsage]),
-    [dailyUsage],
+  const hostProfile = useHosts().find((host) => host.serverId === serverId);
+  const hostHistories = useMemo<HostDailyHistoryEntry[] | undefined>(
+    () =>
+      dailyUsage === undefined
+        ? undefined
+        : [
+            {
+              serverId,
+              label: hostProfile?.label ?? serverId,
+              color: hostProfile?.appearance.color,
+              dailyUsage,
+            },
+          ],
+    [dailyUsage, hostProfile?.appearance.color, hostProfile?.label, serverId],
   );
   const trailing = useMemo(
     () => (
@@ -63,8 +75,8 @@ export function UsageSection({
         </>
       ) : (
         <View style={styles.sectionBody}>
-          {view.kind === "ready" && histories ? (
-            <UsageHistoryCard histories={histories} scope="local" />
+          {view.kind === "ready" && hostHistories ? (
+            <UsageHistoryCard hostHistories={hostHistories} scope="local" />
           ) : null}
           <UsageBody serverId={serverId} view={view} display={display} onRefresh={onRefresh} />
         </View>

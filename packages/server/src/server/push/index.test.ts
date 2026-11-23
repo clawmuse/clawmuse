@@ -5,6 +5,7 @@ import type pino from "pino";
 import { afterEach, describe, expect, test } from "vitest";
 
 import { createPushNotifications } from "./index.js";
+import { PushService } from "./push-service.js";
 
 function createLogger(): pino.Logger {
   const logger = {
@@ -110,5 +111,42 @@ describe("push notifications", () => {
       { tokens: ["ExponentPushToken[running-preview]"], body: "Fix CI pipeline" },
       { tokens: ["ExponentPushToken[running-private]"], body: "Started working." },
     ]);
+  });
+
+  test("forwards _contentAvailable on terminal Expo push messages for iOS Live Activity cleanup", async () => {
+    const sentBodies: unknown[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
+      sentBodies.push(JSON.parse(String(init?.body ?? "[]")));
+      return new Response(JSON.stringify({ data: [{ status: "ok", id: "ticket-1" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    try {
+      const service = new PushService(createLogger(), () => undefined);
+      await service.sendPush(["ExponentPushToken[ios-device]"], {
+        title: "Task finished",
+        body: "All checks passed",
+        data: { serverId: "srv", agentId: "a1", reason: "finished" },
+        contentAvailable: true,
+      });
+
+      expect(sentBodies).toEqual([
+        [
+          {
+            to: "ExponentPushToken[ios-device]",
+            title: "Task finished",
+            body: "All checks passed",
+            data: { serverId: "srv", agentId: "a1", reason: "finished" },
+            sound: "default",
+            _contentAvailable: true,
+          },
+        ],
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

@@ -31,6 +31,7 @@ export interface BackgroundTaskInfo {
   isSchedule?: boolean;
   prompt?: string;
   scheduleSignature?: string;
+  timerCondition?: string;
 }
 
 export function mergeAcpToolCall(
@@ -68,12 +69,15 @@ const INPUT_FIELD_TOOL_NAMES: ReadonlyArray<[string, string]> = [
 ];
 
 export function inferToolName(tool: AcpToolCallPayload): string {
+  const title = tool.title?.trim();
   const input = asRecord(tool.rawInput);
   if (input) {
+    if (title === "manage_task" && !("ConversationIds" in input)) {
+      return "manage_task";
+    }
     const inferred = inferToolNameFromInput(input);
     if (inferred) return inferred;
   }
-  const title = tool.title?.trim();
   if (title) return title;
   return tool.kind?.trim() || "tool";
 }
@@ -656,13 +660,17 @@ function isPersistentBackgroundTask(name: string, rawInput: Record<string, unkno
 function buildScheduleMetadata(
   name: string,
   rawInput: Record<string, unknown>,
-): Pick<BackgroundTaskInfo, "isSchedule" | "prompt" | "scheduleSignature"> {
+): Pick<BackgroundTaskInfo, "isSchedule" | "prompt" | "scheduleSignature" | "timerCondition"> {
   if (name !== "schedule") return {};
   const prompt = stringField(rawInput, "Prompt");
+  const rawCondition = stringField(rawInput, "TimerCondition")?.trim();
+  const timerCondition =
+    rawCondition && rawCondition.toLowerCase() !== "never" ? rawCondition : undefined;
   return {
     isSchedule: true,
     ...(prompt ? { prompt } : {}),
     scheduleSignature: buildScheduleSignature(rawInput),
+    ...(timerCondition ? { timerCondition } : {}),
   };
 }
 
@@ -678,13 +686,86 @@ function buildScheduleSignature(rawInput: Record<string, unknown>): string {
 }
 
 export function extractBackgroundTaskKill(tool: AcpToolCallPayload): string | undefined {
-  if (tool.status === "failed") return undefined;
+  if (tool.status !== "completed" && tool.status !== "failed") return undefined;
   const name = inferToolName(tool);
   const rawInput = asRecord(tool.rawInput) ?? {};
-  if (name === "manage_task" && stringField(rawInput, "Action") === "kill") {
-    return stringField(rawInput, "TaskId");
+  if (name !== "manage_task" || stringField(rawInput, "Action") !== "kill") {
+    return undefined;
+  }
+  const taskId = stringField(rawInput, "TaskId");
+  if (tool.status === "completed") {
+    return taskId;
+  }
+  const output = extractToolOutputText(tool);
+  if (
+    output &&
+    /task is not running|already (?:finished|completed|stopped|canceled|cancelled)|not found|does not exist/i.test(
+      output,
+    )
+  ) {
+    return taskId ?? /cannot kill task "([^"]+)"/i.exec(output)?.[1];
   }
   return undefined;
+}
+
+const NON_TERMINAL_BACKGROUND_TASK_STATUSES = new Set([
+  "RUNNING",
+  "PENDING",
+  "ACTIVE",
+  "QUEUED",
+  "WAITING",
+  "WAITING_FOR_USER",
+]);
+
+export function extractBackgroundTaskTerminalStatus(tool: AcpToolCallPayload): string | undefined {
+  if (tool.status !== "completed") return undefined;
+  const name = inferToolName(tool);
+  const rawInput = asRecord(tool.rawInput) ?? {};
+  if (name !== "manage_task" || stringField(rawInput, "Action") !== "status") {
+    return undefined;
+  }
+  const output = extractToolOutputText(tool);
+  if (!output) return undefined;
+  const statusMatch = /^\s*Status:\s*([A-Z_]+)/im.exec(output);
+  if (!statusMatch) return undefined;
+  if (NON_TERMINAL_BACKGROUND_TASK_STATUSES.has(statusMatch[1]!.toUpperCase())) {
+    return undefined;
+  }
+  return stringField(rawInput, "TaskId") ?? /^\s*Task:\s*(\S+)/im.exec(output)?.[1];
+}
+
+export function extractBackgroundTaskListSnapshot(tool: AcpToolCallPayload): string[] | undefined {
+  if (tool.status !== "completed") return undefined;
+  const name = inferToolName(tool);
+  const rawInput = asRecord(tool.rawInput) ?? {};
+  const action = stringField(rawInput, "Action") ?? stringField(rawInput, "action");
+  if (action && action !== "list") return undefined;
+  const output = extractToolOutputText(tool);
+  if (!output) return undefined;
+
+  if (/No background tasks are currently running\b/i.test(output)) {
+    return [];
+  }
+  const headerMatch =
+    /You have\s+\d+\s+background task\(s\) currently running:\s*(\[[\s\S]*\])/i.exec(output);
+  const isManageListCall = name === "manage_task" && (!action || action === "list");
+  if (!isManageListCall && !headerMatch) return undefined;
+
+  const jsonCandidate = headerMatch?.[1] ?? output.trim();
+  if (!jsonCandidate.startsWith("[")) return undefined;
+
+  try {
+    const parsed: unknown = JSON.parse(jsonCandidate);
+    if (!Array.isArray(parsed)) return undefined;
+    const taskIds: string[] = [];
+    for (const item of parsed) {
+      const taskId = stringField(asRecord(item), "taskId");
+      if (taskId) taskIds.push(taskId);
+    }
+    return taskIds;
+  } catch {
+    return undefined;
+  }
 }
 
 function uriToFilePath(uri: string | undefined): string | undefined {

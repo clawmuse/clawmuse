@@ -16,6 +16,7 @@ export interface AgentInputSubmitActionInput<TAttachment> {
   clearDraft: (lifecycle: "sent" | "abandoned") => void;
   setUserInput: (text: string) => void;
   setAttachments: (attachments: TAttachment[]) => void;
+  restoreDraftOnError?: (failed: { message: string; attachments: TAttachment[] }) => void;
   setSendError: (message: string | null) => void;
   setIsProcessing: (isProcessing: boolean) => void;
   onSubmitError?: (error: unknown) => void;
@@ -51,24 +52,32 @@ export async function submitAgentInput<TAttachment>(
     return "queued";
   }
 
-  // Clear immediately so the submitted timeline row and composer state stay in sync.
+  // Clear immediately so the submitted timeline row and composer state stay in sync,
+  // and so new attachments or text added while sending are not wiped when the send settles.
   if (shouldClearOnSubmit) {
     input.setUserInput("");
     input.setAttachments([]);
+    input.clearDraft("sent");
   }
   input.setSendError(null);
   input.setIsProcessing(true);
 
   try {
     await input.submitMessage({ message: trimmedMessage, attachments });
-    input.clearDraft("sent");
+    if (!shouldClearOnSubmit) {
+      input.clearDraft("sent");
+    }
     input.setIsProcessing(false);
     return "submitted";
   } catch (error) {
     input.onSubmitError?.(error);
     if (shouldClearOnSubmit) {
-      input.setUserInput(trimmedMessage);
-      input.setAttachments(attachments);
+      if (input.restoreDraftOnError) {
+        input.restoreDraftOnError({ message: trimmedMessage, attachments });
+      } else {
+        input.setUserInput(trimmedMessage);
+        input.setAttachments(attachments);
+      }
     }
     input.setSendError(
       error instanceof Error

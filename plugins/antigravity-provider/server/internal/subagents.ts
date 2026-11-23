@@ -5,6 +5,8 @@ import { resolveConversationTranscriptPath, unrefTimer } from "./data-dir.js";
 import {
   extractBackgroundTaskKill,
   extractBackgroundTaskLaunch,
+  extractBackgroundTaskListSnapshot,
+  extractBackgroundTaskTerminalStatus,
   extractSubagentControlAction,
   extractSubagentLaunchInfo,
   extractSubagentListSnapshot,
@@ -46,7 +48,7 @@ interface ChildSubagentState {
   turnSeq: number;
   seenSteps: Set<number>;
   pendingToolCalls: PendingChildToolCall[];
-  activeTasks: Map<string, { persistent: boolean; prompt?: string }>;
+  activeTasks: Map<string, { persistent: boolean; prompt?: string; timerCondition?: string }>;
   forcedTerminalState: "canceled" | "failed" | null;
   settledByListSnapshot: boolean;
   sawAnyTranscriptStep: boolean;
@@ -475,6 +477,15 @@ export class SubagentManager {
     step: TranscriptStep,
     wakeup: SystemWakeupInfo,
   ): void {
+    if (wakeup.allTasksAndSubagentsStopped) {
+      child.activeTasks.clear();
+      for (const descendant of this.children.values()) {
+        if (descendant.parentSessionId === child.id && descendant !== child) {
+          this.markSubtreeCanceled(descendant);
+        }
+      }
+      return;
+    }
     if (wakeup.finishedTaskId || wakeup.failedTaskId) {
       const taskId = wakeup.finishedTaskId ?? wakeup.failedTaskId!;
       const task = child.activeTasks.get(taskId);
@@ -484,12 +495,26 @@ export class SubagentManager {
     } else if (wakeup.sender) {
       this.applyChildWakeupSender(child, step, wakeup.sender, wakeup.message);
     }
+    this.clearChildConditionalTimers(child, wakeup);
     this.clearChildScheduleWakeupTask(child, wakeup);
     if (wakeup.sender && this.children.has(wakeup.sender)) {
       const nested = this.children.get(wakeup.sender)!;
       void this.settleNestedAfterWakeup(nested);
     }
     this.ensureOpenedAndRunning(child);
+  }
+
+  private clearChildConditionalTimers(child: ChildSubagentState, wakeup: SystemWakeupInfo): void {
+    const matchedSenders = [wakeup.sender, wakeup.finishedTaskId, wakeup.failedTaskId].filter(
+      (id): id is string => Boolean(id),
+    );
+    if (matchedSenders.length === 0) return;
+    for (const [taskId, entry] of child.activeTasks) {
+      if (entry.persistent || !entry.timerCondition) continue;
+      if (entry.timerCondition === "any" || matchedSenders.includes(entry.timerCondition)) {
+        child.activeTasks.delete(taskId);
+      }
+    }
   }
 
   private clearChildScheduleWakeupTask(child: ChildSubagentState, wakeup: SystemWakeupInfo): void {
@@ -551,6 +576,9 @@ export class SubagentManager {
 
   private applyChildPlannerStep(child: ChildSubagentState, step: TranscriptStep): void {
     this.ensureOpenedAndRunning(child);
+    if (child.pendingToolCalls.length > 0) {
+      this.settlePendingChildTools(child, "failed");
+    }
     this.emitChildPlannerText(child, step);
 
     if (step.toolCalls.length > 0) {
@@ -664,11 +692,32 @@ export class SubagentManager {
       child.activeTasks.set(bgLaunch.taskId, {
         persistent: bgLaunch.persistent,
         ...(bgLaunch.prompt ? { prompt: bgLaunch.prompt } : {}),
+        ...(bgLaunch.timerCondition ? { timerCondition: bgLaunch.timerCondition } : {}),
       });
     }
     const killedTask = extractBackgroundTaskKill(updatedPayload);
     if (killedTask) {
       child.activeTasks.delete(killedTask);
+    }
+    const terminalStatusTask = extractBackgroundTaskTerminalStatus(updatedPayload);
+    if (terminalStatusTask) {
+      child.activeTasks.delete(terminalStatusTask);
+    }
+    const taskListSnapshot = extractBackgroundTaskListSnapshot(updatedPayload);
+    if (taskListSnapshot) {
+      this.reconcileChildActiveTasks(child, taskListSnapshot);
+    }
+  }
+
+  private reconcileChildActiveTasks(
+    child: ChildSubagentState,
+    runningTaskIds: readonly string[],
+  ): void {
+    const runningSet = new Set(runningTaskIds);
+    for (const taskId of child.activeTasks.keys()) {
+      if (runningSet.has(taskId)) continue;
+      if (taskId.startsWith("schedule:") && runningSet.size > 0) continue;
+      child.activeTasks.delete(taskId);
     }
   }
 

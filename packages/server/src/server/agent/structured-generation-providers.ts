@@ -13,6 +13,11 @@ export interface StructuredGenerationDaemonConfig {
       model?: string;
       thinkingOptionId?: string;
     }>;
+    aiArchiveProviders?: Array<{
+      provider: string;
+      model?: string;
+      thinkingOptionId?: string;
+    }>;
   };
 }
 
@@ -40,6 +45,97 @@ export interface ResolveStructuredGenerationProvidersOptions {
   };
 }
 
+export interface ResolveArchiveReviewProvidersOptions extends ResolveStructuredGenerationProvidersOptions {
+  taskSelection?: ResolveStructuredGenerationProvidersOptions["currentSelection"];
+}
+
+/**
+ * Resolves models for AI archive review in priority order:
+ * 1. Explicit `aiArchiveProviders` when configured (manual override for archive review)
+ * 2. Host `metadataGeneration.providers` when configured manually
+ * 3. Automatic: built-in fast defaults -> focused selection -> reviewed task's own model ->
+ *    any remaining enabled ready provider's default model.
+ */
+export async function resolveArchiveReviewProviders(
+  options: ResolveArchiveReviewProvidersOptions,
+): Promise<StructuredGenerationProvider[]> {
+  const configuredArchiveProviders = readConfiguredProviderList(
+    options.daemonConfig?.metadataGeneration?.aiArchiveProviders,
+  );
+  const providerEntries = await options.providerSnapshotManager.listProviders({
+    cwd: options.cwd,
+    wait: true,
+  });
+  const enabledEntries = providerEntries.filter((entry) => entry.enabled);
+  const modelEntries = enabledEntries.filter((entry) => (entry.models?.length ?? 0) > 0);
+  const entriesByProvider = new Map(enabledEntries.map((entry) => [entry.provider, entry]));
+
+  if (configuredArchiveProviders.length > 0) {
+    return resolveConfiguredList(configuredArchiveProviders, modelEntries, entriesByProvider);
+  }
+
+  const configuredMetadataProviders = readConfiguredProviders(options.daemonConfig);
+  if (configuredMetadataProviders.length > 0) {
+    return resolveConfiguredList(configuredMetadataProviders, modelEntries, entriesByProvider);
+  }
+
+  const providers: StructuredGenerationProvider[] = [];
+  for (const identifier of DEFAULT_STRUCTURED_GENERATION_PROVIDERS) {
+    const resolved = resolveByModelSubstring(modelEntries, identifier);
+    if (resolved) {
+      providers.push(resolved);
+    }
+  }
+
+  const currentSelection = resolveCurrentSelection(
+    options.currentSelection,
+    modelEntries,
+    entriesByProvider,
+  );
+  if (currentSelection) {
+    providers.push(currentSelection);
+  }
+
+  const taskSelection = resolveCurrentSelection(
+    options.taskSelection,
+    modelEntries,
+    entriesByProvider,
+  );
+  if (taskSelection) {
+    providers.push(taskSelection);
+  }
+
+  for (const entry of modelEntries) {
+    const model = selectDefaultModel(entry.models ?? []);
+    if (!model) {
+      continue;
+    }
+    const thinkingOptionId = resolveThinkingOptionId(model, undefined);
+    providers.push({
+      provider: entry.provider,
+      model: model.id,
+      ...(thinkingOptionId ? { thinkingOptionId } : {}),
+    });
+  }
+
+  return dedupeProviders(providers);
+}
+
+function resolveConfiguredList(
+  configured: ReadonlyArray<{ provider: string; model?: string; thinkingOptionId?: string }>,
+  modelEntries: readonly ProviderSnapshotEntry[],
+  entriesByProvider: ReadonlyMap<AgentProvider, ProviderSnapshotEntry>,
+): StructuredGenerationProvider[] {
+  const providers: StructuredGenerationProvider[] = [];
+  for (const entry of configured) {
+    const resolved = resolveConfiguredCandidate(entry, modelEntries, entriesByProvider);
+    if (resolved) {
+      providers.push(resolved);
+    }
+  }
+  return dedupeProviders(providers);
+}
+
 /**
  * A non-empty configured list means Manual: only those models are tried, in order.
  * An empty list means Automatic: built-in defaults, then the current selection.
@@ -55,21 +151,12 @@ export async function resolveStructuredGenerationProviders(
   const enabledEntries = providerEntries.filter((entry) => entry.enabled);
   const modelEntries = enabledEntries.filter((entry) => (entry.models?.length ?? 0) > 0);
   const entriesByProvider = new Map(enabledEntries.map((entry) => [entry.provider, entry]));
-  const providers: StructuredGenerationProvider[] = [];
 
   if (configuredProviders.length > 0) {
-    for (const configured of configuredProviders) {
-      const resolvedConfigured = resolveConfiguredCandidate(
-        configured,
-        modelEntries,
-        entriesByProvider,
-      );
-      if (resolvedConfigured) {
-        providers.push(resolvedConfigured);
-      }
-    }
-    return dedupeProviders(providers);
+    return resolveConfiguredList(configuredProviders, modelEntries, entriesByProvider);
   }
+
+  const providers: StructuredGenerationProvider[] = [];
 
   for (const identifier of DEFAULT_STRUCTURED_GENERATION_PROVIDERS) {
     const resolved = resolveByModelSubstring(modelEntries, identifier);
@@ -248,6 +335,12 @@ function resolveByModelSubstring(
   return null;
 }
 
+function readConfiguredProviderList(
+  providers: unknown,
+): Array<{ provider: string; model?: string; thinkingOptionId?: string }> {
+  return Array.isArray(providers) ? providers : [];
+}
+
 function readConfiguredProviders(
   daemonConfig: ResolveStructuredGenerationProvidersOptions["daemonConfig"],
 ): Array<{ provider: string; model?: string; thinkingOptionId?: string }> {
@@ -256,7 +349,7 @@ function readConfiguredProviders(
     return [];
   }
   const providers = "providers" in metadataGeneration ? metadataGeneration.providers : undefined;
-  return Array.isArray(providers) ? providers : [];
+  return readConfiguredProviderList(providers);
 }
 
 function selectDefaultModel(models: readonly AgentModelDefinition[]): AgentModelDefinition | null {

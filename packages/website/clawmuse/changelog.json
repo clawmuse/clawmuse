@@ -1,6 +1,54 @@
 {
   "en": [
     {
+      "version": "1.6.0",
+      "date": "2026-11-23",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Upgrade AI Archive Review with multi-host switching, detailed scan and net-change status visibility, on-demand manual archive triggers, and per-host archive model configuration.",
+            "Add manual drag-to-reorder for hosts in the sidebar host strip and host picker with deterministic default ordering and cross-device account synchronization.",
+            "Add the built-in Plugin Gallery backed by clawmuse.com/registry.",
+            "Add chat settings to show or hide reasoning and tool calls in conversation timelines, plus a compact sidebar host strip with icon-corner activity dots and left-aligned semantic status count pills.",
+            "Upgrade Antigravity integration to the ACP driver with subagent transcript hydration, stream wakeup monitoring, and local usage and credential discovery.",
+            "Add an opt-in Beta release channel switcher (?channel=beta) on clawmuse.com/download.",
+            "Sync Paseo upstream improvements (v0.15.0–v0.16.1+), including queueing agent messages while turns run, plugin-appended agent instructions, background task status reporting in get_agent_status and list_agents, and effort-level updates without restarting Claude processes."
+          ]
+        },
+        {
+          "title": "Improved",
+          "items": [
+            "Upgrade the Usage modal and daily history card with a direct top-level computer switcher, 7d / 14d / 30d range controls, multi-computer filter chips, input/cache-read/cache-write/output composition breakdown, color-coded stacked bars with daily average line, per-day host and model drill-down, and interactive model/tool/computer filtering.",
+            "Adopt native iOS Liquid Glass styling on floating action, scroll-to-bottom, and sidebar close buttons, and refine compact mobile sidebar footer padding and bottom inset clearance.",
+            "Harden ClawMuse account session restoration, Mac device pairing modal feedback, and credential handling across transient gateway or network failures.",
+            "Allow the local host to always revoke paired remote-access controllers.",
+            "Improve dark-theme composer voice and send button contrast, match compact host selection backgrounds to desktop, keep sidebar project lists intact while restoring hosts, and keep desktop workspaces reachable when sidebar navigation overflows."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Prevent zombie Live Activities and duplicate lock-screen alerts by unblocking background token sync, dismissing capsules on final task completion, and muting duplicate daemon task pushes when aggregate priority is enabled.",
+            "Prevent composer image attachment state loss by showing pending image placeholders, rolling back partial saves on failure, and restoring drafts when sends fail.",
+            "Fix Antigravity TURN_ACTIVE deadlocks after autonomous wakeups and interrupts, settle stale subagents across daemon restarts and timer cancellations, and prevent timeline/subagent reads from restarting collected runtimes.",
+            "Prevent mobile workspace lists from freezing across drawer transitions, interrupted gestures, and Fabric pointerEvents updates, and show non-blocking offline/unreachable banners with retry actions.",
+            "Fix Antigravity per-step PLANNER_RESPONSE.model usage attribution and harden Claude Code/Codex local token deduplication, custom provider directory resolution, and midnight cache rollover.",
+            "Remove unavailable accounts and hidden computers from the iPhone quota widget, filter harmless always_allowed_app_ids Codex Desktop diagnostics, keep turn timing labels aligned in narrow web footers, and preserve agent cancellation when an active run can stop directly.",
+            "Harden mobile OTA update status reporting, asset retries, and iOS reload lifecycle, and fix PaseoScrollViewComponentView content view handling on iOS.",
+            "Keep the sidebar overlay open after archiving the active workspace, allow horizontal and empty-state scrolling in the model browser sheet, preserve workspace commits on archive, reload crashed desktop renderers, clean up stopped terminal worker copies on Windows, keep failed downloads inside the app, clear superseded OpenCode questions, and settle stuck agent runs on repeated cancellation."
+          ]
+        }
+      ],
+      "notes": [
+        "- Upgraded AI Archive Review: Switch hosts directly inside the AI Archive sheet, inspect detailed live scan and net-cleanup status, trigger manual archive runs on demand, and configure archive models per host.",
+        "- Token Usage Analytics & Collector Accuracy: Added a top-level computer switcher, 7d / 14d / 30d windows, cache-hit and input/output composition breakdowns, daily average reference lines, per-day drill-downs, and accurate Antigravity, Claude Code, and Codex local token attribution.",
+        "- iOS Liquid Glass, Touch & Status Reliability: Adopted native iOS Liquid Glass chrome on floating controls, eliminated mobile list touch lockups, added non-blocking offline/unreachable retry states, and prevented zombie Live Activities and duplicate lock-screen alerts.",
+        "- Cross-Device Host Ordering & Compact Sidebar: Drag hosts to reorder them across synced devices, view corner activity dots and semantic status count pills, and toggle reasoning and tool calls in chat timelines.",
+        "- Antigravity ACP, Built-In Plugin Gallery & Composer Polish: Added the built-in Plugin Gallery (clawmuse.com/registry), Antigravity ACP subagent hydration and TURN_ACTIVE recovery, pending image attachment placeholders with rollback and send-failure draft restore, and Paseo upstream (v0.15.0–v0.16.1+) improvements."
+      ]
+    },
+    {
       "version": "1.5.10",
       "date": "2026-11-16",
       "sections": [
@@ -94,27 +142,57 @@
         }
       ],
       "notes": []
-    },
+    }
+  ],
+  "zh-CN": [
     {
-      "version": "1.5.5",
-      "date": "2026-11-05",
+      "version": "1.6.0",
+      "date": "2026-11-23",
       "sections": [
         {
-          "title": "Fixed",
+          "title": "新增",
           "items": [
-            "Translate interactive questions, option descriptions and plan confirmations while preserving original submitted answers.",
-            "Keep Markdown structure, prioritize current questions and allow retry with the original text available.",
-            "Complete the plugin migration reference and Chinese release notes for the translation update.",
-            "Keep copy-button feedback from leaving a stuck hover highlight; include main-branch connection recovery updates."
+            "全面升级 AI 归档功能，支持多电脑直接切换、查看扫描/归档详细净量状态、手动一键归档，以及按主机独立配置 AI 归档模型。",
+            "支持在侧边栏主机条与主机选择器中拖拽调整主机排序，统一多端默认排序规则并支持账号设备目录跨设备同步。",
+            "新增内置插件市场（Plugin Gallery），使用 clawmuse.com/registry 作为插件索引数据源。",
+            "聊天设置新增「显示思考过程」与「显示工具调用」开关；侧边栏主机条采用紧凑布局，通过图标角标点与左对齐语义徽标展示各状态分组数量。",
+            "将 Antigravity 集成升级为 ACP 驱动架构，支持子 Agent 会话日志还原、流唤醒监控及本地用量与凭据探测。",
+            "为 clawmuse.com/download 下载页新增可选 Beta 通道切换入口（?channel=beta），默认仍保持稳定版。",
+            "同步 Paseo 上游新特性（v0.15.0–v0.16.1+）：支持在对话轮次执行期间排队发送消息、插件追加 agent 指令、get_agent_status 与 list_agents 上报后台任务状态，以及在不重启 Claude 进程的情况下切换推理强度。"
+          ]
+        },
+        {
+          "title": "改进",
+          "items": [
+            "全面升级首页 Token 用量弹窗与历史卡片：支持顶部多电脑直切、多电脑组合筛选、堆叠趋势柱状图与日均参考线、单日按电脑/模型下钻及多维联动筛选。",
+            "为移动端悬浮操作按钮、回到底部按钮与侧边栏关闭按钮接入 iOS 原生液态玻璃样式，并优化紧凑移动端侧边栏底部留白与底栏间距。",
+            "增强 ClawMuse 账号会话在瞬时网关或网络波动下的恢复韧性，完善 Mac 端设备配对弹窗滚动反馈与桌面 preload 桥接稳定性。",
+            "允许本机主机随时撤销已配对控制端的远程访问权限。",
+            "优化深色主题下输入框语音与发送按钮对比度，统一移动端与桌面端主机选中背景样式，恢复主机连接时保留项目列表，并在侧边栏溢出时保持工作区可访问。"
+          ]
+        },
+        {
+          "title": "修复",
+          "items": [
+            "修复灵动岛（Live Activity）残留与锁屏重复推送告警问题：解除锁屏后台 Token 同步阻塞、最终任务完成时立即关闭胶囊，并在开启聚合优先级时静音多余的守护进程任务推送。",
+            "修复输入框图片附件发送流程，支持上传中占位显示、部分保存失败自动回滚以及发送失败后自动恢复草稿与附件。",
+            "修复 Antigravity 在自主唤醒和中断后的 TURN_ACTIVE 死锁、守护进程重启/定时取消后的陈旧子 Agent 状态收敛，并确保只读获取时间线与子 Agent 详情不会误重启已回收的运行时。",
+            "修复手机端侧边栏与工作区列表在抽屉动画、手势中断及 Fabric pointerEvents 不同步时的卡死无响应，并在无网络或主机离线时展示非阻塞提示与重试入口。",
+            "修复 Antigravity 日志每步 PLANNER_RESPONSE.model 归因与 Claude Code/Codex 跨文件去重、计数重置、自定义配置目录与跨零点缓存失效问题。",
+            "修复 iPhone 额度小组件清理不可用账号与隐藏主机、过滤 Codex 桌面端 always_allowed_app_ids 无害告警、窄屏聊天底栏耗时换行，以及直接取消活跃运行中 Agent 时的卡顿。",
+            "加固移动端 OTA 更新状态报告、资源重试与 iOS 重载生命周期，修复 iOS PaseoScrollViewComponentView 覆盖 contentView 的问题。",
+            "归档当前活动工作区后保持侧边栏抽屉开启、支持模型浏览弹窗横向与空状态滚动、归档保留工作区提交记录、桌面渲染进程崩溃自动重载、清理 Windows 已停止终端 worker 副本、保持失败下载应用内提示、清理被替换的 OpenCode 问题，并在重复取消后正确收敛卡住的运行状态。"
           ]
         }
       ],
       "notes": [
-        "This iOS/TestFlight update requires the updated conversation-translation plugin on the connected host for interactive card translations."
+        "- AI 归档全面升级：支持在 AI 归档面板中直接切换不同电脑、查看净量与扫描/归档详细状态、随时手动触发归档，并支持按主机独立配置归档所用模型。",
+        "- Token 用量洞察与采集准确度升级：首页用量弹窗新增顶部多电脑直切栏、7天 / 14天 / 30天 周期切换、输入/缓存命中/缓存写入/输出构成拆分与命中率展示、日均参考线与单日下钻，并精准修复 Antigravity 分步模型与 Claude Code/Codex 去重统计。",
+        "- iOS 液态玻璃、触控与实时状态可靠性：移动端悬浮控件接入 iOS 原生液态玻璃样式，根治抽屉与列表触控卡死，增加无网/离线非阻塞重试提示，并修复僵尸灵动岛（Live Activity）与锁屏重复告警。",
+        "- 跨设备拖拽排序主机与紧凑侧边栏：支持在侧边栏与主机选择器中拖拽调整主机顺序并跨设备同步，新增角标活动点、语义状态徽标，以及时间线思考/工具调用显示开关。",
+        "- Antigravity ACP、插件市场与输入体验完善：内置插件市场（clawmuse.com/registry）、Antigravity ACP 子代理还原与 TURN_ACTIVE 死锁恢复、图片上传占位与发送失败草稿恢复，并同步 Paseo 上游（v0.15.0–v0.16.1+）核心改进。"
       ]
-    }
-  ],
-  "zh-CN": [
+    },
     {
       "version": "1.5.10",
       "date": "2026-11-16",
@@ -209,22 +287,6 @@
         }
       ],
       "notes": []
-    },
-    {
-      "version": "1.5.5",
-      "date": "2026-11-05",
-      "sections": [
-        {
-          "title": "修复",
-          "items": [
-            "翻译交互题目、选项说明和计划确认内容，同时保留原始答案提交值。",
-            "保留 Markdown 结构，优先翻译当前提问；失败时保留原文并支持重试。",
-            "补齐翻译更新的插件迁移参考文档和中文更新日志。",
-            "修复复制反馈结束后按钮高亮残留，并包含主分支的网络恢复与消息重发改进。"
-          ]
-        }
-      ],
-      "notes": ["本次为 iOS/TestFlight 更新，交互卡片翻译还需要连接主机上的新版会话翻译插件。"]
     }
   ]
 }

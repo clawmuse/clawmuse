@@ -1,11 +1,11 @@
 import { createAgentArchiveReview } from "./session/agent-archive-review.js";
 import { withTimeout } from "../utils/promise-timeout.js";
 import {
-  TaskDecisionSchema,
+  parseTaskDecisionText,
   taskReviewInstructions,
   taskReviewInput,
 } from "./session/voice/task-review.js";
-import { resolveStructuredGenerationProviders } from "./agent/structured-generation-providers.js";
+import { resolveArchiveReviewProviders } from "./agent/structured-generation-providers.js";
 import { deleteWorkspace } from "./workspace-delete-service.js";
 import { createVoiceAssistantTaskHost } from "./session/voice/voice-assistant-host.js";
 import { DiffSession } from "./diff/index.js";
@@ -760,6 +760,24 @@ interface ClientActivity {
   appVisibilityChangedAt: Date;
 }
 
+function collectConfiguredProviderEnvs(
+  providers: Record<string, unknown> | undefined,
+): Array<Record<string, string | undefined>> | undefined {
+  if (!providers) return undefined;
+  const envs: Array<Record<string, string | undefined>> = [];
+  for (const entry of Object.values(providers)) {
+    if (!entry || typeof entry !== "object" || !("env" in entry)) continue;
+    const rawEnv = (entry as { env?: unknown }).env;
+    if (!rawEnv || typeof rawEnv !== "object" || Array.isArray(rawEnv)) continue;
+    const env: Record<string, string | undefined> = {};
+    for (const [k, v] of Object.entries(rawEnv)) {
+      if (typeof v === "string") env[k] = v;
+    }
+    if (Object.keys(env).length > 0) envs.push(env);
+  }
+  return envs.length > 0 ? envs : undefined;
+}
+
 const sharedLocalDailyUsageCollector = new LocalDailyUsageCollector();
 
 export class Session {
@@ -1155,7 +1173,11 @@ export class Session {
       logger: this.sessionLogger,
     });
     this.usageSession = new UsageSession({
-      collectDailyUsage: (forceRefresh) => sharedLocalDailyUsageCollector.collect(forceRefresh),
+      collectDailyUsage: (forceRefresh) =>
+        sharedLocalDailyUsageCollector.collect(
+          forceRefresh,
+          collectConfiguredProviderEnvs(daemonConfigStore.get().providers),
+        ),
       isEnabled: () => daemonConfigStore.get().usage?.enabled !== false,
       emit: (msg) => this.emit(msg),
       runtime: pluginRuntime,
@@ -1425,22 +1447,38 @@ export class Session {
       },
       evaluate: async (task) => {
         const cwd = task.cwd ?? this.paseoHome;
-        const providers = await resolveStructuredGenerationProviders({
+        const agentPayload = await this.getAgentPayloadById(task.id);
+        const providers = await resolveArchiveReviewProviders({
           cwd,
           providerSnapshotManager,
           daemonConfig: this.readStructuredGenerationDaemonConfig(),
           currentSelection: this.getFocusedAgentSelectionForCwd(cwd),
+          taskSelection: agentPayload
+            ? {
+                provider: agentPayload.provider,
+                model: agentPayload.model,
+                thinkingOptionId: agentPayload.thinkingOptionId,
+              }
+            : undefined,
         });
+        if (providers.length === 0) {
+          throw new Error(
+            "No model available for archive review. Configure an AI archive model or enable a provider on this host.",
+          );
+        }
         const available = await providerSnapshotManager.listProviders({ cwd, wait: true });
         const signal = AbortSignal.timeout(90_000);
-        let failure: unknown = new Error("No model available for archive review");
+        const failures: string[] = [];
         for (const provider of providers) {
           signal.throwIfAborted();
+          const models = available.find((entry) => entry.provider === provider.provider)?.models;
+          const model =
+            provider.model ?? models?.find((entry) => entry.isDefault)?.id ?? models?.[0]?.id;
+          if (!model) {
+            failures.push(`${provider.provider}: No model available`);
+            continue;
+          }
           try {
-            const models = available.find((entry) => entry.provider === provider.provider)?.models;
-            const model =
-              provider.model ?? models?.find((entry) => entry.isDefault)?.id ?? models?.[0]?.id;
-            if (!model) throw new Error(`No model available for ${provider.provider}`);
             const text = await this.agentManager.generateText(
               {
                 ...provider,
@@ -1450,13 +1488,20 @@ export class Session {
               },
               { timeoutMs: 60_000, signal },
             );
-            const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(text.trim());
-            return TaskDecisionSchema.parse(JSON.parse(fenced ? fenced[1]! : text));
+            const decision = parseTaskDecisionText(text);
+            return {
+              ...decision,
+              evaluatedBy: { provider: provider.provider, model },
+            };
           } catch (error) {
-            failure = error;
+            failures.push(
+              `${provider.provider}/${model}: ${error instanceof Error ? error.message : String(error)}`,
+            );
           }
         }
-        throw failure;
+        throw new Error(
+          failures.length > 0 ? failures.join(" · ") : "No model available for archive review",
+        );
       },
     });
 
@@ -8994,6 +9039,7 @@ export class Session {
         agentManager: this.agentManager,
         agentStorage: this.agentStorage,
         logger: this.sessionLogger,
+        purpose: "history",
       });
       this.emit({
         type: "agent.provider_subagents.list.response",

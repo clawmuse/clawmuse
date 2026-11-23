@@ -1,9 +1,5 @@
 import type { UsageDailyHistory } from "@getpaseo/protocol/messages";
 import type { ClawMuseStatusUsage, ClawMuseStatusUsageWindow } from "@/clawmuse-status/summary";
-import type {
-  ClawMuseProviderPlan,
-  ClawMuseProviderPlanWindow,
-} from "@/clawmuse-status/usage-windows";
 import type { Agent } from "@/stores/session-store";
 import type {
   AvailableUsageReport,
@@ -57,6 +53,19 @@ export interface MobileUsageWidgetDay {
   tokens: number[];
   /** Tokens per top model in `usage.models` order. */
   modelTokens?: number[];
+  /** Optional non-cached input tokens for the day. */
+  inputTokens?: number;
+  /** Optional cache-read tokens for the day. */
+  cacheReadTokens?: number;
+  /** Optional cache-write tokens for the day. */
+  cacheWriteTokens?: number;
+  /** Optional output tokens for the day. */
+  outputTokens?: number;
+  /** Optional per-model breakdown arrays aligned with `modelTokens`. */
+  modelInputTokens?: number[];
+  modelCacheReadTokens?: number[];
+  modelCacheWriteTokens?: number[];
+  modelOutputTokens?: number[];
 }
 
 export interface MobileUsageWidgetModel {
@@ -301,11 +310,94 @@ interface ModelTotalRecord {
   name: string;
   harness: string;
   byDay: number[];
+  inputByDay: number[];
+  cacheReadByDay: number[];
+  cacheWriteByDay: number[];
+  outputByDay: number[];
   total: number;
 }
 
 function createZeroNumbers(length: number): number[] {
   return Array.from({ length }, () => 0);
+}
+
+function dayHasBreakdown(day: MobileUsageWidgetDay): boolean {
+  return (
+    day.inputTokens !== undefined &&
+    day.cacheReadTokens !== undefined &&
+    day.cacheWriteTokens !== undefined &&
+    day.outputTokens !== undefined
+  );
+}
+
+function dayHasModelBreakdown(day: MobileUsageWidgetDay, expectedLength: number): boolean {
+  return (
+    day.modelInputTokens?.length === expectedLength &&
+    day.modelCacheReadTokens?.length === expectedLength &&
+    day.modelCacheWriteTokens?.length === expectedLength &&
+    day.modelOutputTokens?.length === expectedLength
+  );
+}
+
+function addAt(target: number[], index: number, value: number | undefined): void {
+  if (!value) return;
+  target[index] = (target[index] ?? 0) + value;
+}
+
+function addDayBreakdownToArrays(
+  day: MobileUsageWidgetDay,
+  dayIdx: number,
+  targets: {
+    inputByDay: number[];
+    cacheReadByDay: number[];
+    cacheWriteByDay: number[];
+    outputByDay: number[];
+  },
+): void {
+  if (!dayHasBreakdown(day)) return;
+  addAt(targets.inputByDay, dayIdx, day.inputTokens);
+  addAt(targets.cacheReadByDay, dayIdx, day.cacheReadTokens);
+  addAt(targets.cacheWriteByDay, dayIdx, day.cacheWriteTokens);
+  addAt(targets.outputByDay, dayIdx, day.outputTokens);
+}
+
+function addModelSlotBreakdownToArrays(
+  day: MobileUsageWidgetDay,
+  slotIdx: number,
+  dayIdx: number,
+  targets: {
+    inputByDay: number[];
+    cacheReadByDay: number[];
+    cacheWriteByDay: number[];
+    outputByDay: number[];
+  },
+): void {
+  addAt(targets.inputByDay, dayIdx, day.modelInputTokens?.[slotIdx]);
+  addAt(targets.cacheReadByDay, dayIdx, day.modelCacheReadTokens?.[slotIdx]);
+  addAt(targets.cacheWriteByDay, dayIdx, day.modelCacheWriteTokens?.[slotIdx]);
+  addAt(targets.outputByDay, dayIdx, day.modelOutputTokens?.[slotIdx]);
+}
+
+function getOrCreateModelRecord(
+  modelTotals: Map<string, ModelTotalRecord>,
+  model: MobileUsageWidgetModel,
+  dayCount: number,
+): ModelTotalRecord {
+  const key = `${model.harness}\u0000${model.name}`;
+  const existing = modelTotals.get(key);
+  if (existing) return existing;
+  const created: ModelTotalRecord = {
+    name: model.name,
+    harness: model.harness,
+    byDay: createZeroNumbers(dayCount),
+    inputByDay: createZeroNumbers(dayCount),
+    cacheReadByDay: createZeroNumbers(dayCount),
+    cacheWriteByDay: createZeroNumbers(dayCount),
+    outputByDay: createZeroNumbers(dayCount),
+    total: 0,
+  };
+  modelTotals.set(key, created);
+  return created;
 }
 
 function accumulateHostModelTokens(input: {
@@ -316,39 +408,44 @@ function accumulateHostModelTokens(input: {
   dayCount: number;
   modelTotals: Map<string, ModelTotalRecord>;
   otherByDay: number[];
+  otherInputByDay: number[];
+  otherCacheReadByDay: number[];
+  otherCacheWriteByDay: number[];
+  otherOutputByDay: number[];
 }): boolean {
   const { usage, day, dayTokens, dayIdx, dayCount, modelTotals, otherByDay } = input;
-  if (
-    !usage.models ||
-    usage.models.length === 0 ||
-    !day.modelTokens ||
-    day.modelTokens.length !== usage.models.length + 1
-  ) {
+  const otherTargets = {
+    inputByDay: input.otherInputByDay,
+    cacheReadByDay: input.otherCacheReadByDay,
+    cacheWriteByDay: input.otherCacheWriteByDay,
+    outputByDay: input.otherOutputByDay,
+  };
+  const models = usage.models;
+  const expectedLen = (models?.length ?? 0) + 1;
+  if (!models || models.length === 0 || day.modelTokens?.length !== expectedLen) {
     if (dayTokens > 0) {
-      otherByDay[dayIdx] = (otherByDay[dayIdx] ?? 0) + dayTokens;
+      addAt(otherByDay, dayIdx, dayTokens);
+      addDayBreakdownToArrays(day, dayIdx, otherTargets);
     }
     return false;
   }
 
-  for (let m = 0; m < usage.models.length; m += 1) {
-    const model = usage.models[m]!;
+  const hasPerModelBreakdown = dayHasModelBreakdown(day, expectedLen);
+  for (let m = 0; m < models.length; m += 1) {
     const value = day.modelTokens[m] ?? 0;
     if (value <= 0) continue;
-    const key = `${model.harness}\u0000${model.name}`;
-    let record = modelTotals.get(key);
-    if (!record) {
-      record = {
-        name: model.name,
-        harness: model.harness,
-        byDay: createZeroNumbers(dayCount),
-        total: 0,
-      };
-      modelTotals.set(key, record);
-    }
-    record.byDay[dayIdx] = (record.byDay[dayIdx] ?? 0) + value;
+    const record = getOrCreateModelRecord(modelTotals, models[m]!, dayCount);
+    addAt(record.byDay, dayIdx, value);
     record.total += value;
+    if (hasPerModelBreakdown) {
+      addModelSlotBreakdownToArrays(day, m, dayIdx, record);
+    }
   }
-  otherByDay[dayIdx] = (otherByDay[dayIdx] ?? 0) + (day.modelTokens[usage.models.length] ?? 0);
+  const otherIdx = models.length;
+  addAt(otherByDay, dayIdx, day.modelTokens[otherIdx]);
+  if (hasPerModelBreakdown) {
+    addModelSlotBreakdownToArrays(day, otherIdx, dayIdx, otherTargets);
+  }
   return true;
 }
 
@@ -376,13 +473,34 @@ function mergeSingleDayAcrossHosts(input: {
   }[];
   modelTotals: Map<string, ModelTotalRecord>;
   otherByDay: number[];
-}): { day: MobileUsageWidgetDay; sawModelSeries: boolean } {
-  const { dayKey, dayIdx, dayCount, perHostDays, modelTotals, otherByDay } = input;
+  otherInputByDay: number[];
+  otherCacheReadByDay: number[];
+  otherCacheWriteByDay: number[];
+  otherOutputByDay: number[];
+}): { day: MobileUsageWidgetDay; sawModelSeries: boolean; hasCompleteBreakdown: boolean } {
+  const {
+    dayKey,
+    dayIdx,
+    dayCount,
+    perHostDays,
+    modelTotals,
+    otherByDay,
+    otherInputByDay,
+    otherCacheReadByDay,
+    otherCacheWriteByDay,
+    otherOutputByDay,
+  } = input;
   const money: number[] = [];
   const tokens: number[] = [];
   let paid = 0;
   let activeContributors = 0;
   let allActiveContributorsHaveCost = true;
+  let tokenContributors = 0;
+  let allTokenContributorsHaveBreakdown = true;
+  let inputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheWriteTokens = 0;
+  let outputTokens = 0;
   let sawModelSeries = false;
 
   for (const { usage, map } of perHostDays) {
@@ -399,6 +517,17 @@ function mergeSingleDayAcrossHosts(input: {
       activeContributors += 1;
       allActiveContributorsHaveCost = allActiveContributorsHaveCost && hasCost;
     }
+    if (dayTokens > 0) {
+      tokenContributors += 1;
+      if (dayHasBreakdown(day)) {
+        inputTokens += day.inputTokens ?? 0;
+        cacheReadTokens += day.cacheReadTokens ?? 0;
+        cacheWriteTokens += day.cacheWriteTokens ?? 0;
+        outputTokens += day.outputTokens ?? 0;
+      } else {
+        allTokenContributorsHaveBreakdown = false;
+      }
+    }
 
     const hadModels = accumulateHostModelTokens({
       usage,
@@ -408,6 +537,10 @@ function mergeSingleDayAcrossHosts(input: {
       dayCount,
       modelTotals,
       otherByDay,
+      otherInputByDay,
+      otherCacheReadByDay,
+      otherCacheWriteByDay,
+      otherOutputByDay,
     });
     sawModelSeries = sawModelSeries || hadModels;
   }
@@ -418,6 +551,7 @@ function mergeSingleDayAcrossHosts(input: {
     perHostDays.some(({ map }) => map.get(dayKey)?.costAvailable === true);
   const costAvailable =
     activeContributors > 0 ? allActiveContributorsHaveCost : hasExplicitZeroCost;
+  const hasCompleteBreakdown = tokenContributors > 0 && allTokenContributorsHaveBreakdown;
 
   return {
     day: {
@@ -425,9 +559,38 @@ function mergeSingleDayAcrossHosts(input: {
       paid,
       tokens,
       costAvailable,
+      ...(hasCompleteBreakdown
+        ? { inputTokens, cacheReadTokens, cacheWriteTokens, outputTokens }
+        : {}),
     },
     sawModelSeries,
+    hasCompleteBreakdown,
   };
+}
+
+function toWidgetUsageDay(day: UsageDailyHistory["daily"][number]): MobileUsageWidgetDay {
+  const result: MobileUsageWidgetDay = {
+    money: day.money,
+    paid: day.paid,
+    tokens: day.tokens,
+    modelTokens: day.modelTokens,
+    // COMPAT(widgetHistoryCost): added in v1.5.6, remove after 2027-05-09.
+    // Beta hosts sent placeholder zero costs without availability metadata.
+    costAvailable: day.costAvailable ?? day.money.some((cost) => cost > 0),
+  };
+  if (day.inputTokens !== undefined) result.inputTokens = day.inputTokens;
+  if (day.cacheReadTokens !== undefined) result.cacheReadTokens = day.cacheReadTokens;
+  if (day.cacheWriteTokens !== undefined) result.cacheWriteTokens = day.cacheWriteTokens;
+  if (day.outputTokens !== undefined) result.outputTokens = day.outputTokens;
+  if (day.modelInputTokens !== undefined) result.modelInputTokens = day.modelInputTokens;
+  if (day.modelCacheReadTokens !== undefined) {
+    result.modelCacheReadTokens = day.modelCacheReadTokens;
+  }
+  if (day.modelCacheWriteTokens !== undefined) {
+    result.modelCacheWriteTokens = day.modelCacheWriteTokens;
+  }
+  if (day.modelOutputTokens !== undefined) result.modelOutputTokens = day.modelOutputTokens;
+  return result;
 }
 
 export function toWidgetUsageHistory(
@@ -437,15 +600,7 @@ export function toWidgetUsageHistory(
   return {
     scope,
     days: dailyUsage?.days ?? [],
-    daily: (dailyUsage?.daily ?? []).map((day) => ({
-      money: day.money,
-      paid: day.paid,
-      tokens: day.tokens,
-      modelTokens: day.modelTokens,
-      // COMPAT(widgetHistoryCost): added in v1.5.6, remove after 2027-05-09.
-      // Beta hosts sent placeholder zero costs without availability metadata.
-      costAvailable: day.costAvailable ?? day.money.some((cost) => cost > 0),
-    })),
+    daily: (dailyUsage?.daily ?? []).map(toWidgetUsageDay),
     models: dailyUsage?.models,
   };
 }
@@ -481,20 +636,30 @@ export function mergeWidgetUsageHistories(
   const mergedDays = [...daySet].sort().slice(-MERGED_HISTORY_DAYS);
   const modelTotals = new Map<string, ModelTotalRecord>();
   const otherByDay = createZeroNumbers(mergedDays.length);
+  const otherInputByDay = createZeroNumbers(mergedDays.length);
+  const otherCacheReadByDay = createZeroNumbers(mergedDays.length);
+  const otherCacheWriteByDay = createZeroNumbers(mergedDays.length);
+  const otherOutputByDay = createZeroNumbers(mergedDays.length);
+  const completeBreakdownByDay: boolean[] = [];
   let hasModelSeries = false;
 
   const mergedDaily: MobileUsageWidgetDay[] = mergedDays.map((dayKey, dayIdx) => {
-    const { day, sawModelSeries } = mergeSingleDayAcrossHosts({
+    const { day, sawModelSeries, hasCompleteBreakdown } = mergeSingleDayAcrossHosts({
       dayKey,
       dayIdx,
       dayCount: mergedDays.length,
       perHostDays,
       modelTotals,
       otherByDay,
+      otherInputByDay,
+      otherCacheReadByDay,
+      otherCacheWriteByDay,
+      otherOutputByDay,
     });
     if (sawModelSeries) {
       hasModelSeries = true;
     }
+    completeBreakdownByDay.push(hasCompleteBreakdown);
     return day;
   });
 
@@ -509,6 +674,24 @@ export function mergeWidgetUsageHistories(
         ...ranked.map((model) => model.byDay[d] ?? 0),
         otherByDay[d] ?? 0,
       ];
+      if (completeBreakdownByDay[d]) {
+        mergedDaily[d]!.modelInputTokens = [
+          ...ranked.map((model) => model.inputByDay[d] ?? 0),
+          otherInputByDay[d] ?? 0,
+        ];
+        mergedDaily[d]!.modelCacheReadTokens = [
+          ...ranked.map((model) => model.cacheReadByDay[d] ?? 0),
+          otherCacheReadByDay[d] ?? 0,
+        ];
+        mergedDaily[d]!.modelCacheWriteTokens = [
+          ...ranked.map((model) => model.cacheWriteByDay[d] ?? 0),
+          otherCacheWriteByDay[d] ?? 0,
+        ];
+        mergedDaily[d]!.modelOutputTokens = [
+          ...ranked.map((model) => model.outputByDay[d] ?? 0),
+          otherOutputByDay[d] ?? 0,
+        ];
+      }
     }
   }
 
@@ -863,17 +1046,26 @@ function shortWindowTag(window: UsageWindow): string {
   return window.label.slice(0, 6);
 }
 
-function resolveAvailableContent(entry: UsageReportEntry): {
-  content: AvailableUsageReport | null;
+function resolveQuotaReading(entry: UsageReportEntry): {
+  report: AvailableUsageReport;
+  fetchedAt: string;
   stale: boolean;
-} {
+} | null {
   if (entry.report.status === "available") {
-    return { content: entry.report, stale: false };
+    return {
+      report: entry.report,
+      fetchedAt: entry.successfulAt ?? entry.fetchedAt,
+      stale: false,
+    };
   }
-  if (entry.lastSuccessful) {
-    return { content: entry.lastSuccessful.report, stale: true };
+  // The final report can describe just one login. Another login may have timed out.
+  const hasFetchError =
+    entry.report.status === "error" ||
+    entry.loginErrors?.some(({ report }) => report.status === "error");
+  if (hasFetchError && entry.lastSuccessful) {
+    return { ...entry.lastSuccessful, stale: true };
   }
-  return { content: null, stale: true };
+  return null;
 }
 
 function resolveWindowRemainingPct(window: UsageWindow): number {
@@ -884,13 +1076,14 @@ function resolveWindowRemainingPct(window: UsageWindow): number {
 }
 
 function buildSubscriptionSourceFromReport(
-  entry: UsageReportEntry,
+  entry: Pick<UsageReportEntry, "id" | "sourceId" | "sourceLabel" | "account">,
+  content: AvailableUsageReport,
+  stale: boolean,
   activeProviders: ReadonlySet<string>,
   nowMs: number,
   strings: Record<string, string>,
 ): MobileUsageWidgetSource | null {
-  const { content, stale } = resolveAvailableContent(entry);
-  const windows = content?.windows ?? [];
+  const { windows } = content;
   if (windows.length === 0) return null;
 
   const logo = mapSourceLogo(entry.sourceId);
@@ -950,7 +1143,7 @@ function buildSubscriptionSourceFromReport(
 
   const detail: MobileUsageWidgetDetail = {
     title: displayName,
-    plan: content?.planLabel ?? "",
+    plan: content.planLabel ?? "",
     rings,
     bigValue: String(remaining),
     bigUnit: "%",
@@ -972,7 +1165,7 @@ function buildSubscriptionSourceFromReport(
     value: String(remaining),
     unit: "%",
     label: null,
-    sub: content?.planLabel ?? null,
+    sub: content.planLabel ?? null,
     level,
     fill,
     reserve: false,
@@ -1021,9 +1214,10 @@ function formatBalanceAmount(rawAmount: number): string {
 function buildBalanceSource(
   entry: UsageReportEntry,
   balance: UsageBalance,
+  planLabel: string | undefined,
+  stale: boolean,
   activeProviders: ReadonlySet<string>,
 ): MobileUsageWidgetSource | null {
-  const { content, stale } = resolveAvailableContent(entry);
   const rawAmount = balance.remaining ?? balance.used;
   if (rawAmount === undefined || rawAmount === null || !Number.isFinite(rawAmount)) return null;
 
@@ -1044,7 +1238,7 @@ function buildBalanceSource(
     value: formatBalanceAmount(rawAmount),
     unit,
     label: null,
-    sub: content?.planLabel ?? null,
+    sub: planLabel ?? null,
     level,
     fill,
     reserve: false,
@@ -1058,7 +1252,7 @@ function buildBalanceSource(
 function toSyntheticUsageWindow(
   id: "session" | "weekly",
   label: "5h" | "7d",
-  window: ClawMuseProviderPlanWindow | ClawMuseStatusUsageWindow | null | undefined,
+  window: ClawMuseStatusUsageWindow | null | undefined,
 ): UsageWindow | null {
   if (!window || window.unlimited) return null;
   return {
@@ -1070,55 +1264,18 @@ function toSyntheticUsageWindow(
   };
 }
 
-function buildSyntheticPlanWindows(input: {
-  session?: ClawMuseProviderPlanWindow | ClawMuseStatusUsageWindow | null;
-  weekly?: ClawMuseProviderPlanWindow | ClawMuseStatusUsageWindow | null;
-}): UsageWindow[] {
-  const session = toSyntheticUsageWindow("session", "5h", input.session);
-  const weekly = toSyntheticUsageWindow("weekly", "7d", input.weekly);
-  return [session, weekly].filter((item): item is UsageWindow => item !== null);
-}
-
-function buildSourcesFromFallbackPlans(
-  plans: readonly ClawMuseProviderPlan[],
+function buildSourcesFromServiceUsages(
   serviceUsages: readonly ClawMuseStatusUsage[],
   activeProviders: ReadonlySet<string>,
   nowMs: number,
   strings: Record<string, string>,
 ): MobileUsageWidgetSource[] {
   const sources: MobileUsageWidgetSource[] = [];
-  const seenProviders = new Set<string>();
-  const nowIso = new Date(nowMs).toISOString();
-
-  for (const plan of plans) {
-    seenProviders.add(plan.provider);
-    const windows = buildSyntheticPlanWindows(plan);
-    if (windows.length === 0) continue;
-    const built = buildSubscriptionSourceFromReport(
-      {
-        id: `plan:${plan.provider}:${plan.name}`,
-        sourceId: plan.provider,
-        sourceLabel: plan.name,
-        account: { label: plan.name },
-        fetchedAt: nowIso,
-        successfulAt: nowIso,
-        report: {
-          status: "available",
-          planLabel: plan.planLabel ?? undefined,
-          windows,
-        },
-      },
-      activeProviders,
-      nowMs,
-      strings,
-    );
-    if (built) sources.push(built);
-  }
-
   for (const usage of serviceUsages) {
-    if (seenProviders.has(usage.provider)) continue;
-    const windows = buildSyntheticPlanWindows(usage);
-    if (windows.length === 0) continue;
+    const windows = [
+      toSyntheticUsageWindow("session", "5h", usage.session),
+      toSyntheticUsageWindow("weekly", "7d", usage.weekly),
+    ].filter((window) => window !== null);
     const label = usage.label ?? usage.provider;
     const built = buildSubscriptionSourceFromReport(
       {
@@ -1126,10 +1283,9 @@ function buildSourcesFromFallbackPlans(
         sourceId: usage.provider,
         sourceLabel: label,
         account: { label },
-        fetchedAt: nowIso,
-        successfulAt: nowIso,
-        report: { status: "available", windows },
       },
+      { status: "available", windows },
+      false,
       activeProviders,
       nowMs,
       strings,
@@ -1207,9 +1363,9 @@ export function buildWidgetLocalizedStrings(locale: string): Record<string, stri
 }
 
 export interface BuildHostUsageWidgetSnapshotInput {
-  reports: readonly UsageReportEntry[];
-  fallbackPlans?: readonly ClawMuseProviderPlan[];
-  fallbackServiceUsages?: readonly ClawMuseStatusUsage[];
+  reports?: readonly UsageReportEntry[];
+  previousSnapshot?: MobileUsageWidgetSnapshot;
+  serviceUsages?: readonly ClawMuseStatusUsage[];
   agents: readonly AgentUsageSample[];
   dailyUsage?: UsageDailyHistory;
   locale: string;
@@ -1218,36 +1374,53 @@ export interface BuildHostUsageWidgetSnapshotInput {
 
 function collectSourcesFromReports(
   reports: readonly UsageReportEntry[],
+  previousSourceIds: ReadonlySet<string> | undefined,
   activeProviders: ReadonlySet<string>,
   nowMs: number,
   strings: Record<string, string>,
-): MobileUsageWidgetSource[] {
+): { sources: MobileUsageWidgetSource[]; updatedAtMs: number | null } {
   const sources: MobileUsageWidgetSource[] = [];
+  let updatedAtMs: number | null = null;
   for (const entry of reports) {
-    const subscription = buildSubscriptionSourceFromReport(entry, activeProviders, nowMs, strings);
-    if (subscription) {
+    const reading = resolveQuotaReading(entry);
+    if (!reading) continue;
+    const { report, stale, fetchedAt } = reading;
+    const countBefore = sources.length;
+    const subscription = buildSubscriptionSourceFromReport(
+      entry,
+      report,
+      stale,
+      activeProviders,
+      nowMs,
+      strings,
+    );
+    // A transient failure can retain a visible reading, but must not restore one already removed.
+    if (subscription && (!stale || !previousSourceIds || previousSourceIds.has(subscription.id))) {
       sources.push(subscription);
     }
-    const { content } = resolveAvailableContent(entry);
-    for (const balance of content?.balances ?? []) {
-      const builtBalance = buildBalanceSource(entry, balance, activeProviders);
-      if (builtBalance) {
+    for (const balance of report.balances ?? []) {
+      const builtBalance = buildBalanceSource(
+        entry,
+        balance,
+        report.planLabel,
+        stale,
+        activeProviders,
+      );
+      if (
+        builtBalance &&
+        (!stale || !previousSourceIds || previousSourceIds.has(builtBalance.id))
+      ) {
         sources.push(builtBalance);
       }
     }
-  }
-  return sources;
-}
-
-function findLatestReportTimestampMs(reports: readonly UsageReportEntry[]): number | null {
-  let latest: number | null = null;
-  for (const entry of reports) {
-    const ts = Date.parse(entry.successfulAt ?? entry.fetchedAt);
-    if (Number.isFinite(ts) && (latest === null || ts > latest)) {
-      latest = ts;
+    if (sources.length > countBefore) {
+      const timestamp = Date.parse(fetchedAt);
+      if (Number.isFinite(timestamp) && (updatedAtMs === null || timestamp > updatedAtMs)) {
+        updatedAtMs = timestamp;
+      }
     }
   }
-  return latest;
+  return { sources, updatedAtMs };
 }
 
 export function buildHostUsageWidgetSnapshot(input: BuildHostUsageWidgetSnapshotInput): {
@@ -1263,30 +1436,26 @@ export function buildHostUsageWidgetSnapshot(input: BuildHostUsageWidgetSnapshot
     }
   }
 
-  const sources = collectSourcesFromReports(input.reports, activeProviders, nowMs, strings);
-  if (
-    sources.length === 0 &&
-    (input.fallbackPlans?.length || input.fallbackServiceUsages?.length)
-  ) {
+  const { sources, updatedAtMs } = collectSourcesFromReports(
+    input.reports ?? [],
+    input.previousSnapshot && new Set(input.previousSnapshot.sources.map(({ id }) => id)),
+    activeProviders,
+    nowMs,
+    strings,
+  );
+  if (input.reports === undefined && input.serviceUsages) {
     sources.push(
-      ...buildSourcesFromFallbackPlans(
-        input.fallbackPlans ?? [],
-        input.fallbackServiceUsages ?? [],
-        activeProviders,
-        nowMs,
-        strings,
-      ),
+      ...buildSourcesFromServiceUsages(input.serviceUsages, activeProviders, nowMs, strings),
     );
   }
 
   const usage = toWidgetUsageHistory(input.dailyUsage, "local");
-  const latestReportAtMs = findLatestReportTimestampMs(input.reports);
 
   return {
     snapshot: {
       version: 1,
       generatedAtMs: nowMs,
-      updatedAtMs: latestReportAtMs ?? nowMs,
+      updatedAtMs: updatedAtMs ?? (sources.length > 0 ? nowMs : null),
       locale: input.locale,
       moneySymbol: "$",
       sources,

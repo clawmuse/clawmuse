@@ -144,25 +144,39 @@ function omitProvidersFromConfig<T extends { providers?: Record<string, unknown>
 }
 
 function omitMetadataGenerationProvidersFromConfig<
-  T extends { metadataGeneration?: { providers?: Array<{ provider?: unknown }> } },
+  T extends {
+    metadataGeneration?: {
+      providers?: Array<{ provider?: unknown }>;
+      aiArchiveProviders?: Array<{ provider?: unknown }>;
+    };
+  },
 >(config: T, providers: readonly string[]): T {
-  if (providers.length === 0 || !config.metadataGeneration?.providers) {
+  const metadataGeneration = config.metadataGeneration;
+  if (providers.length === 0 || !metadataGeneration) {
     return config;
   }
 
   const removedProviderIds = new Set(providers);
-  const nextProviders = config.metadataGeneration.providers.filter((entry) => {
-    return typeof entry.provider !== "string" || !removedProviderIds.has(entry.provider);
-  });
-  if (nextProviders.length === config.metadataGeneration.providers.length) {
+  const filterEntries = <E extends { provider?: unknown }>(entries: E[] | undefined) => {
+    if (!entries) return { next: undefined, changed: false };
+    const next = entries.filter(
+      (entry) => typeof entry.provider !== "string" || !removedProviderIds.has(entry.provider),
+    );
+    return { next, changed: next.length !== entries.length };
+  };
+
+  const mainProviders = filterEntries(metadataGeneration.providers);
+  const archiveProviders = filterEntries(metadataGeneration.aiArchiveProviders);
+  if (!mainProviders.changed && !archiveProviders.changed) {
     return config;
   }
 
   return {
     ...config,
     metadataGeneration: {
-      ...config.metadataGeneration,
-      providers: nextProviders,
+      ...metadataGeneration,
+      ...(mainProviders.changed ? { providers: mainProviders.next } : {}),
+      ...(archiveProviders.changed ? { aiArchiveProviders: archiveProviders.next } : {}),
     },
   } as T;
 }
@@ -818,6 +832,24 @@ function mergeMutablePatchIntoPersistedConfig(params: {
   } as PersistedConfig;
 }
 
+function filterRemovedMetadataProviders(
+  metadataGeneration: NonNullable<PersistedConfig["agents"]>["metadataGeneration"],
+  removeProviders: readonly string[],
+) {
+  if (!metadataGeneration) return undefined;
+  const removed = new Set(removeProviders);
+  const next = { ...metadataGeneration };
+  if (metadataGeneration.providers) {
+    next.providers = metadataGeneration.providers.filter((entry) => !removed.has(entry.provider));
+  }
+  if (metadataGeneration.aiArchiveProviders) {
+    next.aiArchiveProviders = metadataGeneration.aiArchiveProviders.filter(
+      (entry) => !removed.has(entry.provider),
+    );
+  }
+  return next;
+}
+
 function mergeMutableAgentPatch(
   persistedAgents: PersistedConfig["agents"],
   patch: Omit<SupportedMutableConfigPatch, "removeProviders">,
@@ -851,14 +883,11 @@ function mergeMutableAgentPatch(
       ...persistedAgents?.metadataGeneration,
       ...patch.metadataGeneration,
     };
-  } else if (removeProviders.length > 0 && persistedAgents?.metadataGeneration?.providers) {
-    const removed = new Set(removeProviders);
-    next["metadataGeneration"] = {
-      ...persistedAgents.metadataGeneration,
-      providers: persistedAgents.metadataGeneration.providers.filter(
-        (entry) => !removed.has(entry.provider),
-      ),
-    };
+  } else if (removeProviders.length > 0 && persistedAgents?.metadataGeneration) {
+    next["metadataGeneration"] = filterRemovedMetadataProviders(
+      persistedAgents.metadataGeneration,
+      removeProviders,
+    );
   }
 
   if (patch.skills?.selection !== undefined) {

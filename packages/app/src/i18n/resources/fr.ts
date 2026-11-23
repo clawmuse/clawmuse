@@ -1407,6 +1407,7 @@ export const fr: TranslationResources = {
         newAgentHere: "Nouvel agent sur cet hôte",
         settings: "Réglages de l'hôte",
         more: "Plus d'hôtes",
+        reorderHost: "Déplacer {{name}}",
         shownCount: "Hôtes affichés : {{count}}",
         clear: "Effacer",
         running: "En cours : {{count}}",
@@ -2771,6 +2772,15 @@ export const fr: TranslationResources = {
         label: "Historique du terminal",
         description: "Lignes conservées dans le tampon du terminal intégré",
         accessibilityLabel: "Lignes d’historique du terminal",
+      },
+      showReasoning: {
+        label: "Afficher le raisonnement",
+        description: "Afficher les étapes de réflexion dans la conversation",
+      },
+      showToolCalls: {
+        label: "Afficher les appels aux outils",
+        description:
+          "Afficher les appels Shell, les recherches et les autres outils dans la conversation",
       },
       autoExpandReasoning: {
         label: "Toujours afficher le raisonnement",

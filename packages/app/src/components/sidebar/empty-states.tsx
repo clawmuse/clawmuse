@@ -1,11 +1,16 @@
 import { type ReactNode, useCallback, useMemo } from "react";
-import { Import, Plus } from "@/components/icons/app-icons";
+import { Import, Plus, RefreshCcw } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useClawMuseDeviceLabel } from "@/clawmuse/device-label";
 import { Button } from "@/components/ui/button";
-import { useHostRuntimeConnectionStatuses, useVisibleHosts } from "@/runtime/host-runtime";
+import {
+  getHostRuntimeStore,
+  useHostRuntimeConnectionStatuses,
+  useVisibleHosts,
+} from "@/runtime/host-runtime";
+import { useNetworkStatus } from "@/runtime/network-status/model";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 
 function SidebarEmptyStateCard({
@@ -72,15 +77,28 @@ export function SidebarFilterEmptyState() {
 export function SidebarProjectEmptyState({
   onAddProject,
   onImportSession,
+  onRefresh,
 }: {
   onAddProject?: () => void;
   onImportSession?: () => void;
+  onRefresh?: () => void;
 }) {
   const { t } = useTranslation();
-  const awayHosts = useAwayPinnedHosts();
+  const networkStatus = useNetworkStatus();
+  const awayState = useAwayHosts();
 
-  if (awayHosts) {
-    return <SidebarHostAwayEmptyState hosts={awayHosts} />;
+  if (!networkStatus.online) {
+    return <SidebarNetworkOfflineEmptyState onRefresh={onRefresh} />;
+  }
+
+  if (awayState) {
+    return (
+      <SidebarHostAwayEmptyState
+        hosts={awayState.hosts}
+        isFiltered={awayState.isFiltered}
+        onRefresh={onRefresh}
+      />
+    );
   }
 
   return (
@@ -119,56 +137,123 @@ interface AwayHost {
 }
 
 /**
- * The pinned hosts when none of them is online, else null. A host that is away has no
- * directory to list, so "no projects yet" would be false: the projects are there, the host
- * is not.
+ * The active target hosts (pinned hosts when filtered, otherwise every visible host) when none
+ * of them is online, else null. A host that is away has no directory to list, so "no projects
+ * yet" would be false: the projects are there, the host is not.
  */
-function useAwayPinnedHosts(): AwayHost[] | null {
+function useAwayHosts(): { hosts: AwayHost[]; isFiltered: boolean } | null {
   const hosts = useVisibleHosts();
   const hostFilters = useSidebarViewStore((state) => state.hostFilters);
   const deviceLabel = useClawMuseDeviceLabel();
-  const pinned = useMemo(
-    () => hosts.filter((host) => hostFilters.includes(host.serverId)),
-    [hostFilters, hosts],
-  );
-  const pinnedIds = useMemo(() => pinned.map((host) => host.serverId), [pinned]);
-  const statuses = useHostRuntimeConnectionStatuses(pinnedIds);
+  const isFiltered = hostFilters.length > 0;
+  const targets = useMemo(() => {
+    if (!isFiltered) return hosts;
+    return hosts.filter((host) => hostFilters.includes(host.serverId));
+  }, [hostFilters, hosts, isFiltered]);
+  const targetIds = useMemo(() => targets.map((host) => host.serverId), [targets]);
+  const statuses = useHostRuntimeConnectionStatuses(targetIds);
   return useMemo(() => {
-    if (pinned.length === 0) return null;
-    if (pinned.some((host) => statuses.get(host.serverId) === "online")) return null;
-    return pinned.map((host) => ({
-      label: deviceLabel(host.serverId, host.label),
-      connecting: statuses.get(host.serverId) === "connecting",
-    }));
-  }, [deviceLabel, pinned, statuses]);
+    if (targets.length === 0) return null;
+    if (targets.some((host) => statuses.get(host.serverId) === "online")) return null;
+    return {
+      isFiltered,
+      hosts: targets.map((host) => ({
+        label: deviceLabel(host.serverId, host.label),
+        connecting: statuses.get(host.serverId) === "connecting",
+      })),
+    };
+  }, [deviceLabel, isFiltered, statuses, targets]);
 }
 
-function SidebarHostAwayEmptyState({ hosts }: { hosts: AwayHost[] }) {
+function SidebarNetworkOfflineEmptyState({ onRefresh }: { onRefresh?: () => void }) {
+  const { t } = useTranslation();
+  const handleRetry = useCallback(() => {
+    const runtime = getHostRuntimeStore();
+    runtime.ensureConnectedAll({ verify: true });
+    void runtime.runProbeCycleNow();
+    onRefresh?.();
+  }, [onRefresh]);
+
+  return (
+    <SidebarEmptyStateCard
+      testID="sidebar-network-offline-empty-state"
+      title={t("connectionResilience.list.offlineTitle")}
+      description={t("connectionResilience.list.offlineDescription")}
+    >
+      <Button
+        variant="secondary"
+        size="sm"
+        leftIcon={RefreshCcw}
+        style={styles.action}
+        textStyle={styles.actionText}
+        onPress={handleRetry}
+        testID="sidebar-network-offline-retry"
+      >
+        {t("common.actions.retry")}
+      </Button>
+    </SidebarEmptyStateCard>
+  );
+}
+
+function SidebarHostAwayEmptyState({
+  hosts,
+  isFiltered,
+  onRefresh,
+}: {
+  hosts: AwayHost[];
+  isFiltered: boolean;
+  onRefresh?: () => void;
+}) {
   const { t } = useTranslation();
   const clearHostFilters = useSidebarViewStore((state) => state.clearHostFilters);
+  const handleRetry = useCallback(() => {
+    const runtime = getHostRuntimeStore();
+    runtime.ensureConnectedAll({ verify: true });
+    void runtime.runProbeCycleNow();
+    onRefresh?.();
+  }, [onRefresh]);
+
   const [only] = hosts;
-  let title = t("sidebar.display.hostFilter.allOfflineTitle");
+  let title = isFiltered
+    ? t("sidebar.display.hostFilter.allOfflineTitle")
+    : t("connectionResilience.list.hostsOfflineTitle");
   if (hosts.length === 1 && only) {
     title = only.connecting
       ? t("sidebar.display.hostFilter.connectingTitle", { name: only.label })
       : t("sidebar.display.hostFilter.offlineTitle", { name: only.label });
   }
+  const description = isFiltered
+    ? t("sidebar.display.hostFilter.offlineDescription")
+    : t("connectionResilience.list.hostsOfflineDescription");
 
   return (
     <SidebarEmptyStateCard
       testID="sidebar-host-away-empty-state"
       title={title}
-      description={t("sidebar.display.hostFilter.offlineDescription")}
+      description={description}
     >
       <Button
         variant="secondary"
         size="sm"
+        leftIcon={RefreshCcw}
         style={styles.action}
         textStyle={styles.actionText}
-        onPress={clearHostFilters}
+        onPress={handleRetry}
+        testID="sidebar-host-away-retry"
       >
-        {t("sidebar.display.hostFilter.showAll")}
+        {t("common.actions.retry")}
       </Button>
+      {isFiltered ? (
+        <Button
+          variant="outline"
+          size="sm"
+          style={styles.action}
+          textStyle={styles.actionText}
+          onPress={clearHostFilters}
+        >
+          {t("sidebar.display.hostFilter.showAll")}
+        </Button>
+      ) : null}
     </SidebarEmptyStateCard>
   );
 }

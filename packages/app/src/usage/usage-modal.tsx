@@ -1,18 +1,23 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { AdaptiveModalSheet, SheetHeaderSubtitle } from "@/components/adaptive-modal-sheet";
-import { SettingsSection } from "@/components/settings/headings/settings-section";
+import { HostStatusIcon } from "@/components/host-status-icon";
 import { ALL_HOSTS_OPTION_ID } from "@/components/hosts/host-picker-constants";
-import { builtinSidebarNavLabelKey } from "@/sidebar-nav/model";
-import { UsageMonitoringSettings } from "./monitoring";
+import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { Button } from "@/components/ui/button";
+import { PressHighlight } from "@/components/ui/press-highlight";
+import { hostLabelColorStyle } from "@/hosts/host-badge";
+import type { HostColor } from "@/hosts/appearance";
+import { useHosts } from "@/runtime/host-runtime";
+import { builtinSidebarNavLabelKey } from "@/sidebar-nav/model";
 import { hasUsageControls, UsageControls } from "./controls";
 import { useUsageDisplay, type UsageDisplay } from "./display";
-import { UsageHistoryCard } from "./history-card";
+import { UsageHistoryCard, type HostDailyHistoryEntry } from "./history-card";
 import { formatUsageHostLabel, useUsageHostSelection } from "./hosts";
 import type { UsageHost } from "./model";
+import { UsageMonitoringSettings } from "./monitoring";
 import { useHostsUsage } from "./queries";
 import type { UsageView } from "./types";
 import { UsageBody, UsageMessage } from "./usage-section";
@@ -25,8 +30,8 @@ interface UsageModalProps {
 
 /**
  * Usage over the current screen: a dialog on wide layouts, a bottom sheet on compact ones. It
- * shows the selected hosts' reports with pins, and Refresh all and Settings in its title row. With
- * more than one host, the host shown is the title's subtitle, and Settings is where it is picked.
+ * shows the selected hosts' token history and quota reports with pins, a direct computer switcher
+ * strip when multiple hosts are connected, and Refresh all + Settings in its title row.
  */
 export function UsageModal(props: UsageModalProps) {
   const { t } = useTranslation();
@@ -43,6 +48,97 @@ export function UsageModal(props: UsageModalProps) {
   );
 }
 
+const SELECTED_ACCESSIBILITY_STATE = { selected: true } as const;
+const UNSELECTED_ACCESSIBILITY_STATE = { selected: false } as const;
+
+function UsageModalHostChip({
+  serverId,
+  label,
+  color,
+  selected,
+  onSelect,
+}: {
+  serverId: string;
+  label: string;
+  color: HostColor;
+  selected: boolean;
+  onSelect: (serverId: string) => void;
+}) {
+  const handlePress = useCallback(() => onSelect(serverId), [onSelect, serverId]);
+  return (
+    <PressHighlight
+      accessibilityRole="button"
+      accessibilityState={selected ? SELECTED_ACCESSIBILITY_STATE : UNSELECTED_ACCESSIBILITY_STATE}
+      onPress={handlePress}
+      style={[styles.hostChip, selected && styles.hostChipSelected]}
+      highlightStyle={styles.hostChipPressed}
+      testID={`usage-modal-host-chip-${serverId}`}
+    >
+      <HostStatusIcon serverId={serverId} size={13} />
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.hostChipLabel,
+          selected && styles.hostChipLabelSelected,
+          hostLabelColorStyle(color),
+        ]}
+      >
+        {label}
+      </Text>
+    </PressHighlight>
+  );
+}
+
+function UsageModalHostSwitcher({
+  hosts,
+  hostColors,
+  serverId,
+  allLabel,
+  onSelectHost,
+}: {
+  hosts: readonly UsageHost[];
+  hostColors: ReadonlyMap<string, HostColor>;
+  serverId: string;
+  allLabel: string;
+  onSelectHost: (serverId: string) => void;
+}) {
+  const selectAll = useCallback(() => onSelectHost(ALL_HOSTS_OPTION_ID), [onSelectHost]);
+  if (hosts.length <= 1) return null;
+  const isAll = serverId === ALL_HOSTS_OPTION_ID;
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.hostSwitcherTrack}
+      style={styles.hostSwitcher}
+      testID="usage-modal-host-switcher"
+    >
+      <PressHighlight
+        accessibilityRole="button"
+        accessibilityState={isAll ? SELECTED_ACCESSIBILITY_STATE : UNSELECTED_ACCESSIBILITY_STATE}
+        onPress={selectAll}
+        style={[styles.hostChip, isAll && styles.hostChipSelected]}
+        highlightStyle={styles.hostChipPressed}
+        testID="usage-modal-host-chip-all"
+      >
+        <Text style={[styles.hostChipLabel, isAll && styles.hostChipLabelSelected]}>
+          {allLabel}
+        </Text>
+      </PressHighlight>
+      {hosts.map((host) => (
+        <UsageModalHostChip
+          key={host.serverId}
+          serverId={host.serverId}
+          label={host.label}
+          color={hostColors.get(host.serverId) ?? "none"}
+          selected={serverId === host.serverId}
+          onSelect={onSelectHost}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
 function HostUsageModal({
   serverId,
   hosts,
@@ -55,6 +151,11 @@ function HostUsageModal({
 }) {
   const [monitoring, setMonitoring] = useState(false);
   const { t } = useTranslation();
+  const hostProfiles = useHosts();
+  const hostColors = useMemo(
+    () => new Map(hostProfiles.map((profile) => [profile.serverId, profile.appearance.color])),
+    [hostProfiles],
+  );
   const manageMonitoring = useCallback(() => setMonitoring(true), []);
   const closeMonitoring = useCallback(() => setMonitoring(false), []);
   const selectedHosts = useMemo(
@@ -63,7 +164,16 @@ function HostUsageModal({
   );
   const { views, refresh, refreshHost } = useHostsUsage(selectedHosts);
   const reports = views.flatMap(({ view }) => (view.kind === "ready" ? view.reports : []));
-  const histories = useMemo(() => views.map(({ dailyUsage }) => dailyUsage), [views]);
+  const hostHistories = useMemo<HostDailyHistoryEntry[]>(
+    () =>
+      views.map(({ host, dailyUsage }) => ({
+        serverId: host.serverId,
+        label: host.label,
+        color: hostColors.get(host.serverId),
+        dailyUsage,
+      })),
+    [hostColors, views],
+  );
   const hasAnyReadyHost = views.some(({ view }) => view.kind === "ready");
   const { display } = useUsageDisplay(reports);
   const hostSelection = useMemo(
@@ -88,7 +198,8 @@ function HostUsageModal({
       ) : null,
     [hostSelection, manageMonitoring, refresh, serverId, settingsServerId, viewList],
   );
-  const hostLabel = formatUsageHostLabel(hostSelection, t("sidebar.display.hostFilter.all"));
+  const allHostsLabel = t("sidebar.display.hostFilter.all");
+  const hostLabel = formatUsageHostLabel(hostSelection, allHostsLabel);
   const showHostLabels = selectedHosts.length > 1;
   return (
     <UsageModalFrame {...props} actions={controls} subtitle={hostLabel}>
@@ -96,7 +207,15 @@ function HostUsageModal({
         <Button variant="ghost" size="sm" onPress={closeMonitoring}>
           {t("usageMonitoring.back")}
         </Button>
-      ) : null}
+      ) : (
+        <UsageModalHostSwitcher
+          hosts={hosts}
+          hostColors={hostColors}
+          serverId={serverId}
+          allLabel={allHostsLabel}
+          onSelectHost={onSelectHost}
+        />
+      )}
       {/* Keyed by host so state the cards hold, such as a refresh in flight, never shows on another
           host's cards. The frame is not keyed: remounting it would dismiss a compact sheet, and
           Usage with it. */}
@@ -111,7 +230,7 @@ function HostUsageModal({
           <>
             {hasAnyReadyHost ? (
               <UsageHistoryCard
-                histories={histories}
+                hostHistories={hostHistories}
                 scope={serverId === ALL_HOSTS_OPTION_ID ? "all" : "local"}
               />
             ) : null}
@@ -179,7 +298,7 @@ function UsageModalFrame({
       visible={visible}
       onClose={onClose}
       onDismiss={onDismiss}
-      desktopMaxWidth={640}
+      desktopMaxWidth={720}
       contextBridge={null}
       testID="usage-modal"
     >
@@ -189,6 +308,41 @@ function UsageModalFrame({
 }
 
 const styles = StyleSheet.create((theme) => ({
+  hostSwitcher: {
+    marginBottom: theme.spacing[3],
+  },
+  hostSwitcherTrack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+  },
+  hostChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[1.5],
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  hostChipSelected: {
+    backgroundColor: theme.colors.surface3,
+    borderColor: theme.colors.borderAccent,
+  },
+  hostChipPressed: {
+    backgroundColor: theme.colors.surface3,
+  },
+  hostChipLabel: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    maxWidth: 180,
+  },
+  hostChipLabelSelected: {
+    color: theme.colors.foreground,
+    fontWeight: theme.fontWeight.medium,
+  },
   content: {
     gap: theme.spacing[4],
   },

@@ -99,6 +99,29 @@ describe("attachment service", () => {
     ]);
   });
 
+  it("throws instead of silently dropping an image when encoding fails", async () => {
+    const first = createAttachment({ id: "att_ok", mimeType: "image/png" });
+    const second = createAttachment({
+      id: "att_missing",
+      mimeType: "image/png",
+      fileName: "second.png",
+    });
+    const store: AttachmentStore = {
+      ...createRecordingStore(),
+      async encodeBase64({ attachment }) {
+        if (attachment.id === "att_missing") {
+          throw new Error("Attachment att_missing was not found in IndexedDB.");
+        }
+        return `${attachment.id}:base64`;
+      },
+    };
+    __setAttachmentStoreForTests(store);
+
+    await expect(encodeAttachmentsForSend([first, second])).rejects.toThrow(
+      "Attachment att_missing was not found in IndexedDB.",
+    );
+  });
+
   it("does not collect an attachment persisted while garbage collection is starting", async () => {
     let releaseSave: () => void = () => undefined;
     let reportSaveStarted: () => void = () => undefined;

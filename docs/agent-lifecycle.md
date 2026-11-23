@@ -241,12 +241,7 @@ lifecycle is separate from public workspace visibility and is not a public creat
 
 Archive is a **soft delete**: the agent record stays on disk with `archivedAt` set, the runtime is closed, and the agent disappears from active lists. Archive is **global** — it lives on the server and propagates to every connected client.
 
-**AI archive** in the sidebar checks unarchived agents on visible hosts. You can inspect its
-recommendations or archive completed tasks in one action. It uses the host's metadata-generation
-models in disposable text-only sessions, without workspace tools. A finished turn alone does not
-qualify: the review compares the latest user request, reply and recent activity, and must quote
-completion evidence from that reply. Missing history, errors, pending replies, permissions,
-background work and unarchived children keep the task open.
+**AI archive** in the sidebar lists unarchived agents with live runtime state per visible host (or across all visible hosts). You can switch hosts, inspect live status before scanning, check or manually archive individual agents, open an agent conversation directly, or archive verified completed tasks in one batch. Each host can configure dedicated AI archive models under `agents.metadataGeneration.aiArchiveProviders`, falling back to `agents.metadataGeneration.providers` and automatic provider discovery in disposable text-only sessions without workspace tools. A finished turn alone does not qualify: the review compares the latest user request, reply and recent activity, and must quote completion evidence from that reply. Missing history, errors, pending replies, permissions, background work and unarchived children keep the task open during AI review.
 
 An approval expires after ten minutes and belongs to the requesting session. Archive re-reads the
 conversation revision and enters the same settled-task lifecycle guard used by the voice assistant.
@@ -315,9 +310,12 @@ lifecycle queue. Resume chooses its history or interactive purpose from the dura
 entering that queue. Shutdown must finish before the manager releases runtime ownership; a failed
 close retains the runtime for cleanup and blocks replacement through that close operation.
 
-Authoritative timeline catch-up can use a runtime-only `history` resume purpose. The retained
-history session contains only the read results and must release its provider process once replay
-finishes. Codex reads the persisted thread and child histories on a temporary app-server and never
+Timeline reads and provider subagent lists load an agent without a live runtime through the
+runtime-only `history` resume purpose, including runnable unarchived agents. Clients issue both
+reads for every listed agent on reconnect, so an interactive load there would restart every
+collected runtime. The next prompt, configuration change, or rewind upgrades the history session
+to an interactive one. The retained history session contains only the read results and must
+release its provider process once replay finishes. Codex reads the persisted thread and child histories on a temporary app-server and never
 loads, resumes, or unarchives a native thread, including legacy records whose native archive failed.
 ACP providers spawn the CLI, replay the session through `session/load`, and terminate the process
 before returning. Interactive resume remains responsible for repairing a provider session archived

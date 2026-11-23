@@ -331,7 +331,6 @@ export const sidebarWorkspaceRowStyles = StyleSheet.create((theme) => ({
     lineHeight: 14,
   },
   hidden: { opacity: 0 },
-  replaced: { opacity: 0, position: "absolute", right: 0, top: 0 },
   fade: isWeb
     ? {
         transitionProperty: "opacity",
@@ -352,8 +351,8 @@ export const sidebarWorkspaceRowStyles = StyleSheet.create((theme) => ({
   trailingActionSlotReserved: {
     position: "relative",
     minWidth: 18,
-    marginLeft: theme.spacing[2],
     minHeight: 20,
+    marginLeft: theme.spacing[2],
     flexShrink: 0,
     alignItems: "flex-end",
     justifyContent: "flex-start",
@@ -375,7 +374,7 @@ export function SidebarWorkspaceShortcutBadge({ number }: { number: number }) {
   );
 }
 
-export type SidebarWorkspaceTrailingPresentation = "visible" | "hidden" | "replaced" | "absent";
+export type SidebarWorkspaceTrailingPresentation = "visible" | "hidden" | "absent";
 
 /**
  * What the trailing slot shows for a row. Derived in one place because three row renderers
@@ -415,9 +414,7 @@ export function resolveTrailingActionVisibility({
   const hasContent = hasTrailing && !(hasArchiveAction && isTouchPlatform);
   let trailingPresentation: SidebarWorkspaceTrailingPresentation = "absent";
   if (hasContent) {
-    trailingPresentation = "visible";
-    if (showKebab) trailingPresentation = "replaced";
-    if (showShortcut) trailingPresentation = "hidden";
+    trailingPresentation = showShortcut ? "hidden" : "visible";
   }
   return {
     trailingPresentation,
@@ -430,7 +427,7 @@ export function resolveTrailingActionVisibility({
     // touch, which shows the kebab without ever hovering, never gets one.
     showScrim: showKebab && isHovered,
     renderSlot: hasArchiveAction || hasTrailing,
-    reserveSlotWidth: hasContent || showKebab,
+    reserveSlotWidth: hasContent || (hasArchiveAction && isTouchPlatform),
   };
 }
 
@@ -472,7 +469,6 @@ export function SidebarWorkspaceTrailingActionBase({
         sidebarWorkspaceRowStyles.fade,
         reducedMotion && sidebarWorkspaceRowStyles.reducedMotion,
         presentation === "hidden" && sidebarWorkspaceRowStyles.hidden,
-        presentation === "replaced" && sidebarWorkspaceRowStyles.replaced,
       ]}
       testID="sidebar-workspace-trailing-metadata"
     >
@@ -564,10 +560,11 @@ const styles = StyleSheet.create((theme) => ({
   workspaceTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
     // The project icon lives inside the title row now (not in a taller outer slot), so the
     // row's layout is icon + title + trailing — spread the trailing group with marginLeft
     // auto on the right side, not justify-content on the row, so the icon can sit flush left.
+    // Spacing lives on the title slot and reserved trailing slot instead of row gap so an
+    // empty trailing slot does not consume 8px from the title when metadata is hidden.
   },
   shortcutBadgeOverlay: {
     position: "absolute",
@@ -605,10 +602,12 @@ const styles = StyleSheet.create((theme) => ({
   workspaceTitleSlot: {
     flex: 1,
     minWidth: 0,
+    marginLeft: theme.spacing[2],
   },
   workspaceTitleEditorSlot: {
     height: TITLE_LINE_HEIGHT,
     flex: 1,
     minWidth: 0,
+    marginLeft: theme.spacing[2],
   },
 }));

@@ -205,21 +205,15 @@ interface StopAgentBackgroundWorkOptions {
   stopToken: string;
 }
 
-async function resolveResumePurpose(
+// A history read stays a history read even when the agent could run: clients read the
+// timeline of every listed agent, so starting runtimes here would undo idle collection.
+// Prompts, mode changes and rewinds upgrade through ensureInteractiveSession.
+function resolveResumePurpose(
   record: StoredAgentRecord | null,
   requested: AgentResumePurpose | undefined,
-  cwd: string,
-): Promise<AgentResumePurpose> {
-  if (!record) return requested ?? "interactive";
-  if (record.archivedAt) return "history";
-  if (requested !== "history") return "interactive";
-  try {
-    await stat(cwd);
-    return "interactive";
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "history";
-    throw error;
-  }
+): AgentResumePurpose {
+  if (record?.archivedAt) return "history";
+  return requested ?? "interactive";
 }
 
 interface PreparedSessionConfig {
@@ -1216,6 +1210,10 @@ export class AgentManager {
     );
   }
 
+  hasRunningProviderSubagents(agentId: string): boolean {
+    return this.providerSubagents.list(agentId).some((child) => child.status === "running");
+  }
+
   subscribe(callback: AgentSubscriber, options?: SubscribeOptions): () => void {
     const targetAgentId =
       options?.agentId == null ? null : validateAgentId(options.agentId, "subscribe");
@@ -1832,7 +1830,7 @@ export class AgentManager {
     // settled before the config is prepared, because a history load reads an archived
     // agent whose working directory may be gone.
     const record = this.registry ? await this.registry.get(resolvedAgentId) : null;
-    const purpose = await resolveResumePurpose(record, resumeOptions?.purpose, mergedConfig.cwd);
+    const purpose = resolveResumePurpose(record, resumeOptions?.purpose);
     const currentResumeOptions = { purpose } satisfies AgentResumeSessionOptions;
 
     const launchEnv = record?.launchEnv;
@@ -2278,7 +2276,7 @@ export class AgentManager {
       !this.foregroundMutationTails.has(agent.id) &&
       !this.replacementMutationTails.has(agent.id) &&
       !this.sessionEventTails.has(agent.id) &&
-      !this.providerSubagents.list(agent.id).some((child) => child.status === "running")
+      !this.hasRunningProviderSubagents(agent.id)
     );
   }
 
@@ -4115,7 +4113,7 @@ export class AgentManager {
       this.runs.getRun(agentId) ??
       (agent.lifecycle === "running" ? this.runs.trackAutonomousRun(agentId, null) : null);
     if (!run) {
-      return { status: "not_running" };
+      return this.cancelIdleProviderSubagents(agent);
     }
 
     const interruptAcknowledged = await this.interruptSession(agent.session, agentId);
@@ -4172,6 +4170,26 @@ export class AgentManager {
       this.emitState(agent);
     }
     return { status: "settled" };
+  }
+
+  private async cancelIdleProviderSubagents(
+    agent: ActiveManagedAgent,
+  ): Promise<AgentRunCancellationResult> {
+    if (!this.hasRunningProviderSubagents(agent.id)) {
+      return { status: "not_running" };
+    }
+    const interruptAcknowledged = await this.interruptSession(agent.session, agent.id);
+    await this.drainSessionEvents(agent.id);
+    const stillRunning = this.hasRunningProviderSubagents(agent.id);
+    if (!interruptAcknowledged) {
+      return { status: stillRunning ? "refused" : "settled" };
+    }
+    if (!stillRunning && agent.pendingPermissions.size > 0) {
+      this.resolvePendingPermissionsForAgent(agent, agent.provider, undefined, "Interrupted");
+      this.touchUpdatedAt(agent);
+      this.emitState(agent);
+    }
+    return { status: stillRunning ? "not_running" : "settled" };
   }
 
   private async cancelAgentRunBefore(

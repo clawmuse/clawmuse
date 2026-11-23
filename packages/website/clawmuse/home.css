@@ -64,7 +64,8 @@
     margin-inline-start: auto;
   }
 
-  .site-header .header-login {
+  .site-header .header-login,
+  .site-header .header-github {
     display: none;
   }
 

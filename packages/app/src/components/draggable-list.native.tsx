@@ -15,6 +15,7 @@ import DraggableFlatList, {
 } from "react-native-draggable-flatlist";
 import type { GestureType } from "react-native-gesture-handler";
 import { useUnistyles } from "react-native-unistyles";
+import { useAttachSheetContentDrag } from "@/components/ui/bottom-sheet-scope";
 import { useContentDrag } from "@/components/ui/scroll-view";
 import { createDragHold } from "./drag-reorder/drag-hold";
 import { movedItemKey } from "./drag-reorder/native-drop";
@@ -117,7 +118,8 @@ export function DraggableList<T>({
   const [isDragging, setIsDragging] = useState(false);
   // Inside a sheet the sheet would otherwise take the vertical move from an armed row.
   const contentDrag = useContentDrag();
-  const { attach: attachContentDrag } = contentDrag;
+  const sheetAttach = useAttachSheetContentDrag();
+  const attachContentDrag = contentDrag.attach ?? sheetAttach;
   const dragGestureRef = useRef<GestureType | undefined>(undefined);
   // Passive effects run after the list's gesture detector has attached and filled the ref.
   useEffect(() => attachContentDrag?.(dragGestureRef), [attachContentDrag]);

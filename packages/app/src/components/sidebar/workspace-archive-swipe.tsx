@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+export type WorkspaceArchiveSwipeAction = () => void | boolean | Promise<boolean>;
+
 export function WorkspaceArchiveSwipe({
   children,
   disabled: _disabled,
@@ -7,7 +9,7 @@ export function WorkspaceArchiveSwipe({
 }: {
   children: ReactNode;
   disabled?: boolean;
-  onArchive: () => void;
+  onArchive: WorkspaceArchiveSwipeAction;
 }) {
   return children;
 }

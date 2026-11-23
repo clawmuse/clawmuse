@@ -5,7 +5,11 @@ import {
   createCodexAppServerChildProcess,
   createFakeCodexAppServer,
 } from "./test-utils/fake-app-server.js";
-import { CodexAppServerClient, CodexAppServerExitError } from "./app-server-transport.js";
+import {
+  CodexAppServerClient,
+  CodexAppServerExitError,
+  stripIgnoredCodexConfigWarnings,
+} from "./app-server-transport.js";
 
 describe("Codex app-server transport", () => {
   test("classifies startup diagnostics delivered after the child exits", async () => {
@@ -229,6 +233,56 @@ describe("Codex app-server transport", () => {
     codex.child.stdout.end();
     codex.child.stderr.end();
     codex.child.stdin.end();
+  });
+
+  test("strips Codex Desktop always_allowed_app_ids warnings while preserving real config warnings and crash stderr", async () => {
+    expect(
+      stripIgnoredCodexConfigWarnings(
+        [
+          "Codex is ignoring 1 unrecognized configuration setting. Check for typos or deprecated settings.",
+          "  user (C:\\Users\\Administrator\\.codex\\config.toml): `computer_use.windows.always_allowed_app_ids` is ignored.",
+        ].join("\n"),
+      ),
+    ).toBe("");
+
+    expect(
+      stripIgnoredCodexConfigWarnings(
+        [
+          "Codex is ignoring 2 unrecognized configuration settings. Check for typos or deprecated settings.",
+          "  user (C:\\Users\\Administrator\\.codex\\config.toml): `computer_use.windows.always_allowed_app_ids` is ignored.",
+          "  user (C:\\Users\\Administrator\\.codex\\config.toml): `unknown_setting` is ignored.",
+        ].join("\n"),
+      ),
+    ).toBe(
+      [
+        "Codex is ignoring 1 unrecognized configuration setting. Check for typos or deprecated settings.",
+        "  user (C:\\Users\\Administrator\\.codex\\config.toml): `unknown_setting` is ignored.",
+      ].join("\n"),
+    );
+
+    const child = createCodexAppServerChildProcess();
+    const client = new CodexAppServerClient(child, createTestLogger());
+    const terminationErrors: Error[] = [];
+    client.setUnexpectedTerminationHandler((error) => {
+      terminationErrors.push(error);
+    });
+
+    child.stderr.write(
+      [
+        "\u001b[2m2026-11-20T01:33:42.719016Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_app_server\u001b[0m\u001b[2m:\u001b[0m Codex is ignoring 1 unrecognized configuration setting. Check for typos or deprecated settings.",
+        "  user (C:\\Users\\Administrator\\.codex\\config.toml): `computer_use.windows.always_allowed_app_ids` is ignored.",
+        "fatal transport failure",
+      ].join("\n"),
+    );
+    child.emit("exit", 1, null);
+
+    expect(terminationErrors).toHaveLength(1);
+    expect(terminationErrors[0]?.message).toBe(
+      "Codex app-server exited with code 1 and signal null\nfatal transport failure",
+    );
+    child.stdout.end();
+    child.stderr.end();
+    child.stdin.end();
   });
 });
 

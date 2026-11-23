@@ -27,6 +27,7 @@ export interface MobileNotificationPreferences {
 
 export interface StatusInstallationPushPreferences {
   taskAlerts: boolean;
+  completionPushActive: boolean;
   needsAction: boolean;
   completed: boolean;
   runningAlert: boolean;
@@ -90,10 +91,10 @@ function parsePersistedPreferences(raw: unknown): MobileNotificationPreferences 
     showPreview: readBoolean(record.showPreview, defaults.showPreview),
     suppressWhenActive: readBoolean(record.suppressWhenActive, defaults.suppressWhenActive),
     foregroundBanner: readBoolean(record.foregroundBanner, defaults.foregroundBanner),
-    singleTaskChannelPriority: readBoolean(
-      record.singleTaskChannelPriority,
-      defaults.singleTaskChannelPriority,
-    ),
+    // Per-agent host notifications always own task alerts; normalize legacy
+    // persisted false values so upgraded devices never stay stuck on duplicate
+    // or context-free aggregate Status alerts.
+    singleTaskChannelPriority: true,
     liveActivityEnabled: readBoolean(record.liveActivityEnabled, defaults.liveActivityEnabled),
     liveActivityPushToStart: readBoolean(
       record.liveActivityPushToStart,
@@ -126,8 +127,10 @@ export function toStatusPushPreferences(
   prefs: MobileNotificationPreferences,
 ): StatusInstallationPushPreferences {
   const taskAlerts = prefs.pushEnabled && !prefs.singleTaskChannelPriority;
+  const completionPushActive = prefs.pushEnabled && prefs.taskCompleted;
   return {
     taskAlerts,
+    completionPushActive,
     needsAction: prefs.needsAction,
     completed: prefs.taskCompleted,
     runningAlert: prefs.taskRunning,

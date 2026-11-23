@@ -142,6 +142,7 @@ describe("iOS app config", () => {
     expect(infoPlist["UISupportedInterfaceOrientations~ipad"]).toEqual(orientations);
     expect(infoPlist.NSSupportsLiveActivities).toBe(true);
     expect(infoPlist.UIBackgroundModes).toContain("audio");
+    expect(infoPlist.UIBackgroundModes).toContain("remote-notification");
     expect(infoPlist.NSLocalNetworkUsageDescription).toBe(
       "Connect to coding agent hosts on your local network.",
     );

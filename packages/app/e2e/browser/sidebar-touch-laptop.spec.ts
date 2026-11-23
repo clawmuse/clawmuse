@@ -30,6 +30,7 @@ test("a touchscreen laptop keeps sidebar actions visible with a fine primary poi
     "sidebar-add-project",
     "sidebar-usage-icon",
     "sidebar-hosts-trigger",
+    "clawmuse-open-account",
     "sidebar-help",
     "sidebar-settings",
   ]);

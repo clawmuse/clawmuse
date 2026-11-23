@@ -109,6 +109,8 @@ export interface AppSettings {
   /** How usage reads and which windows the sidebar summary shows. */
   usage: UsagePreferences;
   autoExpandReasoning: boolean;
+  showReasoning: boolean;
+  showToolCalls: boolean;
   chatDisplay: ChatDisplay;
   chatOutlineEnabled: boolean;
   vimKeybindings: boolean;
@@ -170,6 +172,8 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   sidebarFooterItems: [],
   usage: DEFAULT_USAGE_PREFERENCES,
   autoExpandReasoning: false,
+  showReasoning: true,
+  showToolCalls: true,
   chatDisplay: "collapseTurns",
   chatOutlineEnabled: true,
   vimKeybindings: false,
@@ -276,6 +280,8 @@ const StoredAppSettingsSchema = z
     sidebarFooterItems: z.array(z.object({ key: z.string(), visible: z.boolean() })).catch([]),
     usage: UsagePreferencesSchema,
     autoExpandReasoning: z.boolean().catch(false),
+    showReasoning: z.boolean().catch(true),
+    showToolCalls: z.boolean().catch(true),
     chatDisplay: z.enum(["full", "collapseToolCalls", "collapseTurns"]).optional().catch("full"),
     // COMPAT(toolCallDetailLevel): replaced by chatDisplay in v0.13, remove after 2027-04-24.
     toolCallDetailLevel: z

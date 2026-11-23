@@ -128,3 +128,134 @@ it("lists every model in the 30-day breakdown instead of folding the tail into O
   }
   expect(breakdown).not.toContain("Other");
 });
+
+it("switches time ranges, filters by computer/model/tool, and displays token composition", async () => {
+  const days: string[] = [];
+  const start = Date.parse("2026-10-23T00:00:00Z");
+  for (let i = 0; i < 30; i += 1) {
+    days.push(new Date(start + i * 86_400_000).toISOString().slice(0, 10));
+  }
+  const lastDay = days[days.length - 1]!;
+  const macHistory: UsageDailyHistory = {
+    days,
+    daily: days.map((d) =>
+      d === lastDay
+        ? {
+            money: [0, 0, 0, 0],
+            paid: 0,
+            costAvailable: false,
+            tokens: [10_000_000, 0, 0, 20_000_000],
+            modelTokens: [20_000_000, 10_000_000, 0],
+            inputTokens: 1_000_000,
+            cacheReadTokens: 27_000_000,
+            cacheWriteTokens: 1_000_000,
+            outputTokens: 1_000_000,
+            modelInputTokens: [500_000, 500_000, 0],
+            modelCacheReadTokens: [19_000_000, 8_000_000, 0],
+            modelCacheWriteTokens: [0, 1_000_000, 0],
+            modelOutputTokens: [500_000, 500_000, 0],
+          }
+        : {
+            money: [0, 0, 0, 0],
+            paid: 0,
+            costAvailable: false,
+            tokens: [1_000_000, 0, 0, 0],
+            modelTokens: [0, 1_000_000, 0],
+            inputTokens: 100_000,
+            cacheReadTokens: 800_000,
+            cacheWriteTokens: 50_000,
+            outputTokens: 50_000,
+            modelInputTokens: [0, 100_000, 0],
+            modelCacheReadTokens: [0, 800_000, 0],
+            modelCacheWriteTokens: [0, 50_000, 0],
+            modelOutputTokens: [0, 50_000, 0],
+          },
+    ),
+    models: [
+      { name: "Gemini 4 Neon (XHigh)", harness: "antigravity" },
+      { name: "Opus 5.5", harness: "claude-code" },
+    ],
+  };
+  const winHistory: UsageDailyHistory = {
+    days,
+    daily: days.map((d) =>
+      d === lastDay
+        ? {
+            money: [0, 0, 0, 0],
+            paid: 0,
+            costAvailable: false,
+            tokens: [0, 50_000_000, 0, 0],
+            modelTokens: [50_000_000, 0],
+            inputTokens: 2_000_000,
+            cacheReadTokens: 47_000_000,
+            cacheWriteTokens: 0,
+            outputTokens: 1_000_000,
+            modelInputTokens: [2_000_000, 0],
+            modelCacheReadTokens: [47_000_000, 0],
+            modelCacheWriteTokens: [0, 0],
+            modelOutputTokens: [1_000_000, 0],
+          }
+        : {
+            money: [0, 0, 0, 0],
+            paid: 0,
+            costAvailable: false,
+            tokens: [0, 0, 0, 0],
+            modelTokens: [0, 0],
+          },
+    ),
+    models: [{ name: "GPT-6.2-ASTRA", harness: "codex" }],
+  };
+
+  act(() =>
+    root.render(
+      <UsageHistoryCard
+        hostHistories={[
+          { serverId: "mac", label: "MacBook Pro", color: "blue", dailyUsage: macHistory },
+          { serverId: "win", label: "Windows PC", color: "emerald", dailyUsage: winHistory },
+        ]}
+        scope="all"
+      />,
+    ),
+  );
+  const view = within(container);
+  const click = async (element: HTMLElement) => {
+    await act(async () => {
+      element.click();
+    });
+  };
+
+  // Initial 30d combined view shows composition strip and host sub-filter chips
+  expect(view.getByTestId("usage-history-composition").textContent).toContain("Cache read");
+  expect(view.getByTestId("usage-history-host-chips").textContent).toContain("MacBook Pro");
+  expect(view.getByTestId("usage-history-host-chips").textContent).toContain("Windows PC");
+  expect(view.getByTestId("usage-history-today-tokens").textContent).toBe("80M");
+
+  // Switch to 7d range
+  await click(view.getByTestId("usage-history-range-7"));
+  expect(view.getByTestId("usage-history-month-tokens").textContent).toBe("86M");
+
+  // Solo Windows PC via computer chip
+  await click(view.getByTestId("usage-history-host-chip-win"));
+  expect(view.getByTestId("usage-history-month-tokens").textContent).toBe("50M");
+  expect(view.getByTestId("usage-history-models").textContent).toContain("GPT-6.2-ASTRA");
+  expect(view.getByTestId("usage-history-models").textContent).not.toContain("Opus 5.5");
+
+  // Return to All computers
+  await click(view.getByTestId("usage-history-host-chip-all"));
+  expect(view.getByTestId("usage-history-month-tokens").textContent).toBe("86M");
+
+  // Switch to Computers tab
+  await click(view.getByTestId("usage-history-tab-hosts"));
+  expect(view.getByTestId("usage-history-hosts").textContent).toContain("MacBook Pro");
+  expect(view.getByTestId("usage-history-hosts").textContent).toContain("Windows PC");
+
+  // Switch to Tools tab and filter to Antigravity
+  await click(view.getByTestId("usage-history-tab-harnesses"));
+  await click(view.getByTestId("usage-history-harness-row-antigravity"));
+  expect(view.getByTestId("usage-history-filter-badge").textContent).toContain("Antigravity");
+  expect(view.getByTestId("usage-history-month-tokens").textContent).toBe("20M");
+
+  // Clear filter restores full total
+  await click(view.getByTestId("usage-history-clear-filter"));
+  expect(view.getByTestId("usage-history-month-tokens").textContent).toBe("86M");
+});

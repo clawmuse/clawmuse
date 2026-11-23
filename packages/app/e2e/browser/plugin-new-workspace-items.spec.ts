@@ -26,7 +26,7 @@ test("a branch chosen while Local applies once the user switches to a new worktr
   await withNewWorkspaceIssuesExample(page, { compact: false }, async (screen) => {
     await screen.chooseIssue("PAS-101 Slow sidebar");
     await screen.chooseWorktree();
-    const created = await screen.createWorkspace({ prompt: "" });
+    const created = await screen.createWorkspace();
     expect(created.branch).toBe("pas-101-slow-sidebar");
     expect(created.metadata).toEqual({ "new-workspace-issues.issue": "PAS-101" });
   });

@@ -27,6 +27,8 @@ export interface SystemWakeupInfo {
   sender?: string;
   finishedTaskId?: string;
   failedTaskId?: string;
+  allTasksAndSubagentsStopped?: boolean;
+  lowPriority?: boolean;
   message: string;
 }
 
@@ -427,29 +429,66 @@ export function cleanUserInputText(rawContent: string | undefined): string {
     .trim();
 }
 
-export function parseSystemWakeupMessage(step: TranscriptStep): SystemWakeupInfo | null {
-  const content = step.content ?? "";
-  if (step.type !== "SYSTEM_MESSAGE" && !/<SYSTEM_MESSAGE>/i.test(content)) {
-    return null;
+function extractSystemMessageBody(content: string): string {
+  const withoutPreamble = content.replace(/^The following is a <SYSTEM_MESSAGE>[^\n]*\n+/i, "");
+  const openMatch = /<SYSTEM_MESSAGE>/i.exec(withoutPreamble);
+  if (!openMatch) {
+    return withoutPreamble.trim();
   }
-  const inner =
-    /<SYSTEM_MESSAGE>\s*([\s\S]*?)\s*<\/SYSTEM_MESSAGE>/i.exec(content)?.[1] ?? content.trim();
-  const sender = /\bsender=([^\s>]+)/.exec(inner)?.[1];
+  const afterOpen = withoutPreamble.slice(openMatch.index + openMatch[0].length);
+  const closeIdx = afterOpen.toLowerCase().lastIndexOf("</system_message>");
+  return (closeIdx >= 0 ? afterOpen.slice(0, closeIdx) : afterOpen).trim();
+}
+
+function isIgnoredStepTypeForWakeup(stepType: string): boolean {
+  return stepType === "PLANNER_RESPONSE" || stepType === "GENERIC" || stepType === "USER_INPUT";
+}
+
+const LOW_PRIORITY_WAKEUP_VALUES = new Set(["LOW", "MESSAGE_PRIORITY_LOW"]);
+
+function isLowPriorityHeader(header: string): boolean {
+  const priority = /\bpriority=([^\s>]+)/i.exec(header)?.[1]?.toUpperCase();
+  return priority !== undefined && LOW_PRIORITY_WAKEUP_VALUES.has(priority);
+}
+
+function parseSystemWakeupInfo(inner: string): SystemWakeupInfo | null {
+  const contentIdx = inner.indexOf("content=");
+  const header = contentIdx >= 0 ? inner.slice(0, contentIdx) : inner;
+  const sender = /\bsender=([^\s>]+)/.exec(header)?.[1];
+  const lowPriority = isLowPriorityHeader(header);
   const finishedTaskId =
     /Task id "([^"]+)"\s+(?:finished|completed)/i.exec(inner)?.[1] ?? undefined;
   const failedTaskId =
-    /Task id "([^"]+)"\s+(?:failed|stopped|killed|terminated|canceled|cancelled)/i.exec(
+    /Task id "([^"]+)"\s+(?:was\s+)?(?:failed|stopped|killed|terminated|canceled|cancelled)/i.exec(
       inner,
     )?.[1] ?? undefined;
-  const contentIdx = inner.indexOf("content=");
+  if (!/^\[Message\]\b/i.test(inner) && !sender && !finishedTaskId && !failedTaskId) {
+    return null;
+  }
   const message = contentIdx >= 0 ? inner.slice(contentIdx + "content=".length).trim() : inner;
+  const allTasksAndSubagentsStopped =
+    sender === "system" &&
+    /All your subagents and background tasks have been stopped/i.test(message);
 
   return {
     ...(sender ? { sender } : {}),
     ...(finishedTaskId ? { finishedTaskId } : {}),
     ...(failedTaskId ? { failedTaskId } : {}),
+    ...(allTasksAndSubagentsStopped ? { allTasksAndSubagentsStopped: true } : {}),
+    ...(lowPriority ? { lowPriority: true } : {}),
     message,
   };
+}
+
+export function parseSystemWakeupMessage(step: TranscriptStep): SystemWakeupInfo | null {
+  if (isIgnoredStepTypeForWakeup(step.type)) {
+    return null;
+  }
+  const content = step.content ?? "";
+  if (step.type !== "SYSTEM_MESSAGE" && !/<SYSTEM_MESSAGE>/i.test(content)) {
+    return null;
+  }
+  return parseSystemWakeupInfo(extractSystemMessageBody(content));
 }
 
 export function computeStepContextWindowTokens(step: TranscriptStep): number | undefined {

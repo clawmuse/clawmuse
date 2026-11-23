@@ -148,6 +148,96 @@ describe("usage-widget-sync", () => {
     expect(snapshot.strings.tokenUnit).toBe("总 token");
   });
 
+  it("drops past quota and balances when the account reports no active plan or an unusable login", () => {
+    const fetchedAt = "2026-11-09T12:00:00.000Z";
+    const lastSuccessful: NonNullable<UsageReportEntry["lastSuccessful"]> = {
+      fetchedAt: "2026-11-08T12:00:00.000Z",
+      report: {
+        status: "available",
+        windows: [{ id: "weekly", label: "7d", remainingPct: 36 }],
+        balances: [{ id: "credits", label: "Credits", unit: "usd", remaining: 42 }],
+      },
+    };
+    const reports: UsageReportEntry[] = [
+      {
+        id: "no-plan",
+        sourceId: "claude",
+        sourceLabel: "Claude",
+        account: { label: "No active plan" },
+        fetchedAt,
+        report: { status: "unavailable", problem: { kind: "no_quota", detail: "No active plan" } },
+        lastSuccessful,
+      },
+      {
+        id: "rejected",
+        sourceId: "grok",
+        sourceLabel: "Grok",
+        account: {},
+        fetchedAt,
+        report: { status: "unavailable", problem: { kind: "rejected", status: 401 } },
+        lastSuccessful,
+      },
+      {
+        id: "expired",
+        sourceId: "codex",
+        sourceLabel: "Codex",
+        account: {},
+        fetchedAt,
+        report: {
+          status: "unavailable",
+          problem: { kind: "expired", expiresAt: lastSuccessful.fetchedAt },
+        },
+        lastSuccessful,
+      },
+      {
+        id: "temporary",
+        sourceId: "claude",
+        sourceLabel: "Claude",
+        account: { label: "Temporary failure" },
+        fetchedAt,
+        report: { status: "error", error: "Usage fetch timed out" },
+        lastSuccessful,
+      },
+    ];
+
+    const { snapshot } = buildHostUsageWidgetSnapshot({
+      reports,
+      agents: [],
+      locale: "en",
+      nowMs: Date.parse(fetchedAt),
+    });
+    expect(snapshot.sources.map(({ id, stale }) => ({ id, stale }))).toEqual([
+      { id: "temporary", stale: true },
+      { id: "temporary:balance:credits", stale: true },
+    ]);
+    expect(snapshot.updatedAtMs).toBe(Date.parse(lastSuccessful.fetchedAt));
+
+    for (const entry of reports) {
+      entry.report = { status: "error", error: "Usage fetch timed out" };
+    }
+    const next = buildHostUsageWidgetSnapshot({
+      reports,
+      previousSnapshot: snapshot,
+      agents: [],
+      locale: "en",
+      nowMs: Date.parse(fetchedAt) + 60_000,
+    });
+    expect(next.snapshot.sources.map(({ id }) => id)).toEqual([
+      "temporary",
+      "temporary:balance:credits",
+    ]);
+
+    const removed = buildHostUsageWidgetSnapshot({
+      reports: [],
+      previousSnapshot: next.snapshot,
+      agents: [],
+      locale: "en",
+      nowMs: Date.parse(fetchedAt) + 120_000,
+    });
+    expect(removed.snapshot.sources).toEqual([]);
+    expect(removed.snapshot.updatedAtMs).toBeNull();
+  });
+
   it("shows unavailable history instead of inventing thirty zero days", () => {
     const { snapshot } = buildHostUsageWidgetSnapshot({
       reports: [],

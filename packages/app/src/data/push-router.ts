@@ -438,9 +438,17 @@ function applyDaemonConfigStatus(input: {
       ),
     );
     void input.queryClient.cancelQueries({ queryKey: ["usage", input.serverId] }).then(() => {
-      input.queryClient.setQueriesData<UsageReportEntry[]>(
-        { queryKey: ["usage", input.serverId] },
-        (reports) => reports?.filter((report) => !changedSources.has(report.sourceId)),
+      input.queryClient.setQueriesData<unknown>(
+        {
+          queryKey: ["usage", input.serverId],
+          predicate: (query) => query.queryKey[2] !== "dailyHistory",
+        },
+        (reports: unknown) =>
+          Array.isArray(reports)
+            ? (reports as UsageReportEntry[]).filter(
+                (report) => !changedSources.has(report.sourceId),
+              )
+            : reports,
       );
       return input.queryClient.invalidateQueries({ queryKey: ["usage", input.serverId] });
     });

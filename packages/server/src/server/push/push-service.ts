@@ -4,6 +4,11 @@ export interface PushPayload {
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  /**
+   * Requests an iOS background wakeup (`aps["content-available"] = 1`) alongside
+   * the alert so native Live Activity reconciliation can clean up stranded cards.
+   */
+  contentAvailable?: boolean;
 }
 
 interface ExpoPushMessage {
@@ -12,6 +17,7 @@ interface ExpoPushMessage {
   body: string;
   data?: Record<string, unknown>;
   sound?: "default";
+  _contentAvailable?: boolean;
 }
 
 interface ExpoPushTicket {
@@ -48,6 +54,7 @@ export class PushService {
       body: payload.body,
       data: payload.data,
       sound: "default",
+      ...(payload.contentAvailable ? { _contentAvailable: true } : {}),
     }));
 
     // Batch tokens (max 100 per request per Expo limits)

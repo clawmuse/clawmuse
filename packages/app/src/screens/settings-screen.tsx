@@ -75,12 +75,9 @@ import {
   type Settings as EffectiveSettings,
 } from "@/hooks/use-settings";
 import { useHostRuntimeIsConnected, useHosts } from "@/runtime/host-runtime";
+import { useOrderedHosts } from "@/hosts/host-order";
 import { useSessionStore } from "@/stores/session-store";
-import {
-  orderHostsLocalFirst,
-  resolveActiveHostServerId,
-  type HostProfile,
-} from "@/types/host-connection";
+import { resolveActiveHostServerId, type HostProfile } from "@/types/host-connection";
 import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
 import { WindowChromeRegion, WindowChromeSafeArea } from "@/utils/desktop-window";
 import { confirmDialog } from "@/utils/confirm-dialog";
@@ -764,11 +761,8 @@ function DesktopAppUpdateRow() {
 // Sidebar
 // ---------------------------------------------------------------------------
 
-/**
- * Local daemon first, then remaining hosts in their existing order.
- */
-function useSortedHosts(hosts: HostProfile[], localServerId: string | null): HostProfile[] {
-  return useMemo(() => orderHostsLocalFirst(hosts, localServerId), [hosts, localServerId]);
+function useSortedHosts(hosts: HostProfile[]): HostProfile[] {
+  return useOrderedHosts(hosts);
 }
 
 interface SidebarSectionButtonProps {
@@ -974,8 +968,7 @@ function SettingsSidebar({
   const { theme, rt } = useUnistyles();
   const { t } = useTranslation();
   const hosts = useHosts();
-  const localServerId = useLocalDaemonServerId();
-  const sortedHosts = useSortedHosts(hosts, localServerId);
+  const sortedHosts = useSortedHosts(hosts);
   const hasHosts = sortedHosts.length > 0;
   const enableBuiltInDaemonOption = useEnableBuiltInDaemonOption();
   const isDesktopApp = isElectronRuntime();
@@ -1174,7 +1167,7 @@ export default function SettingsScreen({ view }: SettingsScreenProps) {
   const insetBottomStyle = useMemo(() => ({ paddingBottom: insets.bottom }), [insets.bottom]);
   const hosts = useHosts();
   const localServerId = useLocalDaemonServerId();
-  const sortedHosts = useSortedHosts(hosts, localServerId);
+  const sortedHosts = useSortedHosts(hosts);
   const selectedSettingsHostServerId = useSettingsHostSelection();
 
   // The host the four sections scope to: the host on the active view, otherwise

@@ -12,10 +12,9 @@ import { create } from "zustand";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { HostStatusDotSlot } from "@/components/hosts/host-picker";
 import { isWeb } from "@/constants/platform";
-import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
+import { useOrderedVisibleHosts } from "@/hosts/host-order";
 import { OverlayLayerProvider, useGlobalOverlayLayer } from "@/lib/overlay-root";
-import { useVisibleHosts } from "@/runtime/host-runtime";
-import { orderHostsLocalFirst, type HostProfile } from "@/types/host-connection";
+import type { HostProfile } from "@/types/host-connection";
 
 type HostFilter = (host: HostProfile) => boolean;
 type HostChoiceHandler = (serverId: string) => void | Promise<void>;
@@ -61,15 +60,12 @@ function matchesHostQuery(host: HostProfile, query: string): boolean {
 
 export function useHostChooser() {
   const addHost = useAddHost();
-  const hosts = useVisibleHosts();
-  const localServerId = useLocalDaemonServerId();
+  const orderedHosts = useOrderedVisibleHosts();
   const open = useHostChooserStore((state) => state.open);
 
   return useCallback(
     (input: ChooseHostInput) => {
-      const availableHosts = orderHostsLocalFirst(hosts, localServerId).filter(
-        input.filter ?? (() => true),
-      );
+      const availableHosts = orderedHosts.filter(input.filter ?? (() => true));
 
       if (availableHosts.length === 0) {
         (input.onNoHosts ?? addHost)();
@@ -88,7 +84,7 @@ export function useHostChooser() {
       });
       return true;
     },
-    [hosts, localServerId, open, addHost],
+    [orderedHosts, open, addHost],
   );
 }
 
@@ -136,7 +132,7 @@ function HostChooserRow({
 
 export function HostChooserModal() {
   const { theme } = useUnistyles();
-  const hosts = useVisibleHosts();
+  const hosts = useOrderedVisibleHosts();
   const request = useHostChooserStore((state) => state.request);
   const close = useHostChooserStore((state) => state.close);
   const inputRef = useRef<EditingTextInputHandle>(null);

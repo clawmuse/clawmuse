@@ -43,6 +43,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { SegmentedControl, type SegmentedControlOption } from "@/components/ui/segmented-control";
 import { hostSupportsFeature } from "@/runtime/host-features";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
+import { useNetworkStatus } from "@/runtime/network-status/model";
 import { useSessionStore } from "@/stores/session-store";
 
 const GOALS_REFRESH_MS = 30_000;
@@ -538,7 +539,13 @@ function GoalsScreenContent(): ReactElement {
     closeDetail();
     router.setParams({ goalId: undefined, installationId: undefined, eventVersion: undefined });
   }, [closeDetail]);
-  const reload = useCallback(() => void load(), [load]);
+  const reload = useCallback(() => {
+    const runtime = getHostRuntimeStore();
+    runtime.ensureConnectedAll({ verify: true });
+    void runtime.runProbeCycleNow();
+    void load();
+  }, [load]);
+  const networkStatus = useNetworkStatus();
   const openPlan = useCallback(() => setSheet({ kind: "plan" }), []);
   const openCreate = useCallback(() => setSheet({ kind: "create" }), []);
   const openSubtask = useCallback(
@@ -624,20 +631,33 @@ function GoalsScreenContent(): ReactElement {
         testID="goals-list"
       >
         {notificationError ? <Alert variant="error" title={notificationError} /> : null}
-        <GoalsScrollBody
-          unavailable={unavailable}
-          unavailableReason={unavailableReason}
-          status={status}
-          error={error}
-          isInitialLoad={isInitialLoad}
-          goals={goals}
-          filter={filter}
-          hasRepos={repos.length > 0}
-          onCreate={openCreate}
-          onPlan={openPlan}
-          onPressGoal={onPressGoal}
-          retryButton={retryButton}
-        />
+        {!networkStatus.online ? (
+          <View style={styles.inset} testID="goals-offline-notice">
+            <Alert
+              variant="warning"
+              title={t("connectionResilience.list.offlineTitle")}
+              description={t("connectionResilience.list.offlineDescription")}
+            >
+              {retryButton}
+            </Alert>
+          </View>
+        ) : null}
+        {networkStatus.online || goals.length > 0 ? (
+          <GoalsScrollBody
+            unavailable={unavailable}
+            unavailableReason={unavailableReason}
+            status={status}
+            error={error}
+            isInitialLoad={isInitialLoad}
+            goals={goals}
+            filter={filter}
+            hasRepos={repos.length > 0}
+            onCreate={openCreate}
+            onPlan={openPlan}
+            onPressGoal={onPressGoal}
+            retryButton={retryButton}
+          />
+        ) : null}
       </ScrollView>
       {!unavailable && repos.length > 0 && goals.length > 0 ? (
         <FloatingActionButton

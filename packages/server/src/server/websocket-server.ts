@@ -94,6 +94,7 @@ import {
   createPushNotifications,
   type PushNotifications,
   type PushNotificationSender,
+  type PushPayload,
 } from "./push/index.js";
 import type { ScriptHealthState } from "./script-health-monitor.js";
 import type { ServiceProxySubsystem } from "./service-proxy.js";
@@ -1030,6 +1031,11 @@ export class VoiceAssistantWebSocketServer {
       listUsage: (): Promise<readonly UsageReportEntry[]> =>
         this.pluginRuntime?.listUsageReports() ?? Promise.resolve([]),
       hasActiveClient: () => this.hasActivePresentClient(),
+      hasTerminalPushSubscriber: (phase) =>
+        this.pushNotifications?.hasAlertSubscriber?.({
+          reason: phase === "failed" ? "error" : "finished",
+          hasPresentClient: this.hasActivePresentClient(),
+        }) ?? false,
       ...(input.clawmuseGoals ? { goals: input.clawmuseGoals } : {}),
     });
   }
@@ -2332,6 +2338,7 @@ export class VoiceAssistantWebSocketServer {
         hubAgentRpc: true,
         backgroundWorkspaces: true,
         aiAgentArchive: true,
+        aiArchiveModelConfig: true,
         workspaceDeletion: true,
         // COMPAT(backgroundAgents): added in v0.15.0; remove gate after 2027-05-03.
         backgroundAgents: true,
@@ -3571,35 +3578,15 @@ export class VoiceAssistantWebSocketServer {
     });
 
     if (!muted) {
-      if (this.pushNotificationSender.sendAgentEvent) {
-        const { hasPresentClient, focusedOnTarget } = this.summarizePresenceForAgent(
-          allStates,
-          params.agentId,
-          nowMs,
-        );
-        const withoutPreviewPayload = buildAgentAttentionNotificationPayload({
-          reason: params.reason,
-          serverId: this.serverId,
-          workspaceId: agent.workspaceId,
-          agentId: params.agentId,
-          includePreview: false,
-        });
-        void this.pushNotificationSender
-          .sendAgentEvent({
-            reason: params.reason,
-            hasPresentClient,
-            focusedOnTarget,
-            withPreviewPayload: notification,
-            withoutPreviewPayload,
-          })
-          .catch((err) => {
-            this.logger.warn({ err, agentId: params.agentId }, "Failed to send push notification");
-          });
-      } else if (plan.shouldPush) {
-        void this.pushNotificationSender.send(notification).catch((err) => {
-          this.logger.warn({ err, agentId: params.agentId }, "Failed to send push notification");
-        });
-      }
+      this.dispatchAgentAttentionPush({
+        agentId: params.agentId,
+        workspaceId: agent.workspaceId,
+        reason: params.reason,
+        allStates,
+        nowMs,
+        notification,
+        shouldPushFallback: plan.shouldPush,
+      });
     }
 
     for (const { ws } of clientEntries) {
@@ -3643,6 +3630,55 @@ export class VoiceAssistantWebSocketServer {
       if (message.type === "session" && this.sessions.get(ws)?.session.delivery.isModern(ws))
         this.sessions.get(ws)!.session.publishToSource(ws, message.message);
       else this.sendToClient(ws, message);
+    }
+  }
+
+  private dispatchAgentAttentionPush(input: {
+    agentId: string;
+    workspaceId: string;
+    reason: "finished" | "error" | "permission";
+    allStates: ClientPresenceState[];
+    nowMs: number;
+    notification: PushPayload;
+    shouldPushFallback: boolean;
+  }): void {
+    if (this.pushNotificationSender.sendAgentEvent) {
+      const { hasPresentClient, focusedOnTarget } = this.summarizePresenceForAgent(
+        input.allStates,
+        input.agentId,
+        input.nowMs,
+      );
+      const contentAvailable = input.reason === "finished" || input.reason === "error";
+      const withoutPreviewPayload: PushPayload = {
+        ...buildAgentAttentionNotificationPayload({
+          reason: input.reason,
+          serverId: this.serverId,
+          workspaceId: input.workspaceId,
+          agentId: input.agentId,
+          includePreview: false,
+        }),
+        ...(contentAvailable ? { contentAvailable: true } : {}),
+      };
+      const withPreviewPayload: PushPayload = contentAvailable
+        ? { ...input.notification, contentAvailable: true }
+        : input.notification;
+      void this.pushNotificationSender
+        .sendAgentEvent({
+          reason: input.reason,
+          hasPresentClient,
+          focusedOnTarget,
+          withPreviewPayload,
+          withoutPreviewPayload,
+        })
+        .catch((err) => {
+          this.logger.warn({ err, agentId: input.agentId }, "Failed to send push notification");
+        });
+      return;
+    }
+    if (input.shouldPushFallback) {
+      void this.pushNotificationSender.send(input.notification).catch((err) => {
+        this.logger.warn({ err, agentId: input.agentId }, "Failed to send push notification");
+      });
     }
   }
 

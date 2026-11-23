@@ -1,5 +1,6 @@
+import { retainAttachmentForGarbageCollection } from "@/attachments/gc-retention";
 import type { AttachmentMetadata } from "@/attachments/types";
-import { persistAttachmentFromBlob } from "@/attachments/service";
+import { deleteAttachments, persistAttachmentFromBlob } from "@/attachments/service";
 import { resolveRasterImageMimeType } from "@/attachments/file-types";
 
 export interface ClipboardItemLike {
@@ -48,23 +49,27 @@ export function collectImageFilesFromClipboardData(
 export async function filesToImageAttachments(
   files: readonly ClipboardImageFile[],
 ): Promise<ImageAttachmentFromFile[]> {
-  const attachments = await Promise.all(
-    files.map(async ({ file, mimeType }) => {
-      try {
-        return await persistAttachmentFromBlob({
+  const saved: ImageAttachmentFromFile[] = [];
+  const releases: Array<() => void> = [];
+  try {
+    return await Promise.all(
+      files.map(async ({ file, mimeType }) => {
+        const attachment = await persistAttachmentFromBlob({
           blob: file,
           mimeType,
           fileName: file.name,
         });
-      } catch (error) {
-        console.error("[attachments] Failed to persist file attachment", {
-          fileName: file.name,
-          error,
-        });
-        return null;
-      }
-    }),
-  );
-
-  return attachments.filter((entry): entry is ImageAttachmentFromFile => entry !== null);
+        releases.push(retainAttachmentForGarbageCollection(attachment.id));
+        saved.push(attachment);
+        return attachment;
+      }),
+    );
+  } catch (error) {
+    for (const release of releases) release();
+    releases.length = 0;
+    await deleteAttachments(saved);
+    throw error;
+  } finally {
+    for (const release of releases) release();
+  }
 }

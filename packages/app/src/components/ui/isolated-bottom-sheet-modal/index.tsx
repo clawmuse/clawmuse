@@ -29,6 +29,10 @@ import { SheetBackdrop } from "./sheet-backdrop";
 
 type GorhomBottomSheetModalMethods = ElementRef<typeof GorhomBottomSheetModal>;
 
+// Fail horizontal pans early so horizontal scrollers inside a sheet keep touches on iOS.
+const DEFAULT_SHEET_ACTIVE_OFFSET_Y: [number, number] = [-10, 10];
+const DEFAULT_SHEET_FAIL_OFFSET_X: [number, number] = [-15, 15];
+
 /**
  * Re-establishes React context on the far side of the portal.
  *
@@ -107,6 +111,8 @@ export const IsolatedBottomSheetModal = forwardRef<
     enableDismissOnClose = true,
     waitFor,
     simultaneousHandlers,
+    activeOffsetY = DEFAULT_SHEET_ACTIVE_OFFSET_Y,
+    failOffsetX = DEFAULT_SHEET_FAIL_OFFSET_X,
     ...bottomSheetProps
   } = props;
   // State, not a ref the child fills in: Gorhom builds its pan once per `waitFor`, and RNGH reads
@@ -149,6 +155,8 @@ export const IsolatedBottomSheetModal = forwardRef<
       backdropComponent={backdropOpacity === undefined ? undefined : renderBackdrop}
       waitFor={contentDragHandlers.waitFor}
       simultaneousHandlers={contentDragHandlers.simultaneousHandlers}
+      activeOffsetY={activeOffsetY}
+      failOffsetX={failOffsetX}
     >
       <BottomSheetScope attachContentDrag={attachContentDrag}>
         {contextBridge ? contextBridge(children) : children}

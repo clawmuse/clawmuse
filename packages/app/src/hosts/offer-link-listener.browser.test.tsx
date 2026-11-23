@@ -41,7 +41,7 @@ vi.mock("@/components/adaptive-modal-sheet", () => ({
     </div>
   ),
 }));
-vi.mock("@/components/pair-link-modal", () => ({
+vi.mock("@/hosts/add-host/internal/pair-link-modal", () => ({
   PairLinkModal: ({
     passwordRequired,
     onSaved,

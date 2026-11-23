@@ -1,6 +1,10 @@
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
+import { GlassSurface } from "@/components/ui/glass-surface";
+import { foregroundIconColorMapping } from "@/components/ui/icon-color";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { getQuestionResponseErrorMessage } from "@/components/question-form-card-core";
+import { compactChrome } from "@/constants/compact-chrome";
 import React, {
   forwardRef,
   memo,
@@ -309,6 +313,17 @@ function resolveBottomOverlayControlOffset(clearance: number | undefined): numbe
 const shouldDisableEntryExitAnimations = Platform.OS === "android";
 const scrollIndicatorFadeIn = shouldDisableEntryExitAnimations ? undefined : FadeIn.duration(200);
 const scrollIndicatorFadeOut = shouldDisableEntryExitAnimations ? undefined : FadeOut.duration(200);
+const SCROLL_TO_BOTTOM_BUTTON_SIZE = 48;
+const SCROLL_TO_BOTTOM_BUTTON_RADIUS = SCROLL_TO_BOTTOM_BUTTON_SIZE / 2;
+const ThemedChevronDown = withUnistyles(ChevronDown);
+
+const scrollToBottomButtonStyle = ({ pressed }: PressableStateCallbackType) => [
+  stylesheet.scrollToBottomButton,
+  pressed &&
+    (compactChrome.nativeGlass
+      ? stylesheet.scrollToBottomGlassPressed
+      : stylesheet.scrollToBottomPressed),
+];
 
 function ScrollToBottomButton({
   nearBottom,
@@ -328,18 +343,34 @@ function ScrollToBottomButton({
     [bottomOffset],
   );
   if (isNearBottom && !isTimelineDetached) return null;
+
+  const button = (
+    <PressHighlight
+      style={scrollToBottomButtonStyle}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={t("agentStream.scrollToBottom")}
+      testID="scroll-to-bottom-button"
+    >
+      <ThemedChevronDown size={24} uniProps={foregroundIconColorMapping} />
+    </PressHighlight>
+  );
+
   return (
     <View style={containerStyle} pointerEvents="box-none">
       <Animated.View entering={scrollIndicatorFadeIn} exiting={scrollIndicatorFadeOut}>
-        <Pressable
-          style={stylesheet.scrollToBottomButton}
-          onPress={onPress}
-          accessibilityRole="button"
-          accessibilityLabel={t("agentStream.scrollToBottom")}
-          testID="scroll-to-bottom-button"
-        >
-          <ChevronDown size={24} color={stylesheet.scrollToBottomIcon.color} />
-        </Pressable>
+        {compactChrome.nativeGlass ? (
+          <View style={stylesheet.scrollToBottomGlassHost}>
+            <GlassSurface
+              style={[StyleSheet.absoluteFill, stylesheet.scrollToBottomGlassSurface]}
+              pointerEvents="none"
+              isInteractive
+            />
+            {button}
+          </View>
+        ) : (
+          button
+        )}
       </Animated.View>
     </View>
   );
@@ -372,6 +403,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const { t } = useTranslation();
     const autoExpandReasoning = useSettings((settings) => settings.autoExpandReasoning);
     const chatDisplay = useSettings((settings) => settings.chatDisplay);
+    const showReasoning = useSettings((settings) => settings.showReasoning);
+    const showToolCalls = useSettings((settings) => settings.showToolCalls);
     const chatOutlineEnabled = useSettings((settings) => settings.chatOutlineEnabled);
     const contentMaxWidth = useSettings(resolveContentMaxWidth);
     const viewportRef = useRef<StreamViewportHandle | null>(null);
@@ -551,6 +584,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           transform: transformTimelineItem,
           display: chatDisplay,
           autoExpandReasoning,
+          showReasoning,
+          showToolCalls,
           expandedTurnHostIds,
           isTurnActive,
           activeTurnId: effectiveTurnPresentation.turnId,
@@ -562,6 +597,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         transformTimelineItem,
         chatDisplay,
         autoExpandReasoning,
+        showReasoning,
+        showToolCalls,
         expandedTurnHostIds,
         isTurnActive,
         effectiveTurnPresentation.turnId,
@@ -1814,17 +1851,38 @@ const stylesheet = StyleSheet.create((theme) => ({
     right: 0,
     alignItems: "center",
   },
-  scrollToBottomButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: theme.colors.surface2,
+  scrollToBottomGlassHost: {
+    width: SCROLL_TO_BOTTOM_BUTTON_SIZE,
+    height: SCROLL_TO_BOTTOM_BUTTON_SIZE,
     alignItems: "center",
     justifyContent: "center",
-    ...theme.shadow.sm,
   },
-  scrollToBottomIcon: {
-    color: theme.colors.foreground,
+  scrollToBottomGlassSurface: {
+    borderRadius: SCROLL_TO_BOTTOM_BUTTON_RADIUS,
+    borderCurve: "continuous",
+    backgroundColor: theme.colors.surface2,
+  },
+  scrollToBottomButton: {
+    width: SCROLL_TO_BOTTOM_BUTTON_SIZE,
+    height: SCROLL_TO_BOTTOM_BUTTON_SIZE,
+    borderRadius: SCROLL_TO_BOTTOM_BUTTON_RADIUS,
+    alignItems: "center",
+    justifyContent: "center",
+    ...(compactChrome.nativeGlass
+      ? {
+          backgroundColor: "transparent",
+          borderCurve: "continuous",
+        }
+      : {
+          backgroundColor: theme.colors.surface2,
+          ...theme.shadow.sm,
+        }),
+  },
+  scrollToBottomPressed: {
+    backgroundColor: theme.colors.surface3,
+  },
+  scrollToBottomGlassPressed: {
+    backgroundColor: theme.colors.interactionHighlight,
   },
 }));
 

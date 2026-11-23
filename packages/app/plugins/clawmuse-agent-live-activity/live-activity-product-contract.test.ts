@@ -31,16 +31,26 @@ function localizationKeys(contents: string): string[] {
 }
 
 describe("ClawMuse Live Activity product contract", () => {
-  it("ships no Bluetooth path and no app delegate subscriber", () => {
+  it("ships no Bluetooth path and registers the remote notification reconcile subscriber", () => {
     const moduleConfig = JSON.parse(readModule("expo-module.config.json"));
     const iosDirectory = path.join(MODULE_ROOT, "ios");
+    const moduleSwift = readModule("ios/ClawMuseAgentLiveActivityModule.swift");
+    const controllerSwift = readModule("ios/AgentLiveActivityController.swift");
 
-    expect(moduleConfig.ios.appDelegateSubscribers ?? []).toEqual([]);
+    expect(moduleConfig.ios.appDelegateSubscribers).toEqual([
+      "ClawMuseLiveActivityNotificationSubscriber",
+    ]);
     expect(fs.readdirSync(iosDirectory).filter((name) => /Bluetooth/i.test(name))).toEqual([]);
     expect(readModule("ios/ClawMuseAgentLiveActivity.podspec")).not.toMatch(/CoreBluetooth/);
     expect(
       fs.existsSync(path.join(iosDirectory, "AgentLiveActivityAppDelegateSubscriber.swift")),
     ).toBe(false);
+    expect(moduleSwift).toContain(
+      "public final class ClawMuseLiveActivityNotificationSubscriber: ExpoAppDelegateSubscriber",
+    );
+    expect(moduleSwift).toContain("didReceiveRemoteNotification userInfo: [AnyHashable: Any]");
+    expect(moduleSwift).toContain("reconcileTerminalPushArrival");
+    expect(controllerSwift).toContain("func reconcileTerminalPushArrival(");
   });
 
   it("uses the fixed native module name the app calls", () => {
@@ -84,6 +94,10 @@ describe("ClawMuse Live Activity product contract", () => {
     expect(controller).toContain("activityPushToken = (activityId, token)");
     expect(controller).toContain("token = activityPushToken?.token");
     expect(controller).toContain('return ["activityId": activity.id, "activities": tokens]');
+    expect(module).toContain("PendingActivityPushTokenStore.upsert(");
+    expect(module).toContain("[1_000_000_000, 2_000_000_000, 4_000_000_000]");
+    expect(module).toContain('AsyncFunction("reconcileBackgroundActivities")');
+    expect(controller).toContain("func reconcileBackgroundActivities(");
   });
 
   it("routes every Live Activity presentation to the aggregate home screen", () => {
@@ -133,21 +147,16 @@ describe("ClawMuse Live Activity product contract", () => {
     expect(localizationKeys(chinese).every((key) => key.startsWith("CLAWMUSE_"))).toBe(true);
 
     for (const strings of [chinese, english]) {
-      const bodies = strings
-        .split("\n")
-        .filter((line) => /^"CLAWMUSE_STATUS_(NEEDS_ACTION|COMPLETED|MIXED)_BODY"/.test(line));
-      expect(bodies).toHaveLength(3);
-      for (const body of bodies) {
-        // The APNs payload orders its args running / needs-action / completed.
-        expect(body).toMatch(/%3\$@/);
-        expect(body).toMatch(/%1\$@/);
-        expect(body).toMatch(/%2\$@/);
-      }
+      expect(strings).toMatch(/"CLAWMUSE_STATUS_NEEDS_ACTION_BODY" = "[^"]*%1\$@[^"]*"/);
+      expect(strings).toMatch(/"CLAWMUSE_STATUS_COMPLETED_BODY" = "[^"]*%2\$@[^"]*"/);
+      expect(strings).toMatch(/"CLAWMUSE_STATUS_MIXED_BODY" = "[^"]*%1\$@[^"]*%2\$@[^"]*"/);
+      expect(strings).not.toMatch(/"CLAWMUSE_STATUS_COMPLETED_BODY" = "[^"]*%3\$@/);
     }
     expect(chinese).toMatch(/"CLAWMUSE_LIVE_ACTIVITY_START_TITLE" = "ClawMuse 远程任务"/);
     expect(chinese).not.toMatch(/"Orca 远程任务"/);
-    expect(chinese).toMatch(
-      /"CLAWMUSE_LIVE_ACTIVITY_START_BODY" = "%3\$@ 个进行中，%1\$@ 个待操作，%2\$@ 个完成待查看"/,
+    expect(chinese).toMatch(/"CLAWMUSE_LIVE_ACTIVITY_START_BODY" = "%3\$@ 个任务正在运行"/);
+    expect(readTarget("ClawMuseAgentActivityPalette.swift")).toContain(
+      'if mayBeStale && showsUnverifiable { return "–" }',
     );
 
     expect(island).toMatch(/ClawMuseAgentCompactLeadingView/);
@@ -158,6 +167,8 @@ describe("ClawMuse Live Activity product contract", () => {
       expect(surface).not.toMatch(/UsageView|UsageBar|UsageWindow|featuredUsage|RemainingRing/);
     }
     expect(lockScreen).toContain("ClawMuseAgentActivitySummaryView");
+    expect(lockScreen).toContain("presentation.collapsesStaleSummary");
+    expect(lockScreen).toContain("ClawMuseAgentActivityCopy.staleHint");
     expect(island).toContain("ClawMuseAgentActivitySummaryView");
     for (const count of [
       "displayedRunningCount",

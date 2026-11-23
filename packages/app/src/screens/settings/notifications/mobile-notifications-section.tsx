@@ -199,14 +199,6 @@ export function MobileNotificationsSection() {
             testID="mobile-notifications-show-preview-switch"
             onValueChange={makeFieldHandler("showPreview")}
           />
-          <ToggleRow
-            title={t("notificationSettings.singleTaskPriority")}
-            hint={t("notificationSettings.singleTaskPriorityHint")}
-            value={preferences.singleTaskChannelPriority}
-            disabled={subToggleDisabled}
-            testID="mobile-notifications-single-task-priority-switch"
-            onValueChange={makeFieldHandler("singleTaskChannelPriority")}
-          />
         </View>
       </SettingsSection>
 

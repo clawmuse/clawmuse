@@ -42,10 +42,10 @@ function runChecked(command, args) {
   return `${result.stdout || ""}\n${result.stderr || ""}`.trim();
 }
 
-async function generateBlockmap(file) {
-  const { executeAppBuilderAsJson } = await import("app-builder-lib/out/util/appBuilder.js");
+export async function generateBlockmap(file) {
+  const { buildBlockMap } = await import("app-builder-lib/out/targets/blockmap/blockmap.js");
   const temporary = `${file}.blockmap.finalizing`;
-  const info = await executeAppBuilderAsJson(["blockmap", "--input", file, "--output", temporary]);
+  const info = await buildBlockMap(file, "gzip", temporary);
   renameSync(temporary, `${file}.blockmap`);
   return info;
 }

@@ -1,0 +1,3 @@
+- Upgraded AI Archive Review: Switch hosts directly inside the AI Archive sheet, inspect detailed live scan and net-cleanup status, trigger manual archive runs on demand, and configure archive models per host.
+
+Full notes: https://paseo.sh/changelog

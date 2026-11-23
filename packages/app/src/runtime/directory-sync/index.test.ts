@@ -351,6 +351,73 @@ describe("DirectorySync session readiness", () => {
     directory.dispose();
   });
 
+  it("retries cached directory restore after a transient read failure instead of staying unhydrated", async () => {
+    const serverId = "transient-cache-read-failure";
+    serverIds.add(serverId);
+    const client = new FakeDirectoryClient();
+    const cachedWorkspace = normalizeWorkspaceDescriptor({
+      id: "recovered-workspace",
+      projectId: "recovered-project",
+      projectDisplayName: "Recovered project",
+      projectRootPath: "/repo/recovered",
+      workspaceDirectory: "/repo/recovered",
+      projectKind: "git",
+      workspaceKind: "local_checkout",
+      name: "recovered",
+      status: "done",
+      statusEnteredAt: null,
+      activityAt: null,
+      archivingAt: null,
+      diffStat: null,
+      scripts: [],
+    });
+    const cachedProject = normalizeProjectDescriptor({
+      projectId: "recovered-project",
+      projectDisplayName: "Recovered project",
+      projectRootPath: "/repo/recovered",
+      projectKind: "git",
+    });
+    let attempts = 0;
+    const directory = new DirectorySync(
+      serverId,
+      {
+        onAgentStoppedRunning: () => undefined,
+        markAgentLoading: () => undefined,
+        markAgentReady: () => undefined,
+        markAgentError: () => undefined,
+      },
+      {
+        readAgent: async () => undefined,
+        readWorkspace: async () => undefined,
+        readDirectory: async () => {
+          attempts += 1;
+          if (attempts === 1) {
+            throw new Error("database busy");
+          }
+          return {
+            agents: new Map(),
+            workspaces: new Map([[cachedWorkspace.id, cachedWorkspace]]),
+            projects: new Map([[cachedProject.projectId, cachedProject]]),
+          };
+        },
+        commitDirectoryMutations: () => undefined,
+      },
+    );
+    useSessionStore.getState().initializeSession(serverId, client as unknown as DaemonClient, 1);
+
+    await expect(directory.restoreCachedDirectory()).rejects.toThrow("database busy");
+    await directory.restoreCachedDirectory();
+
+    expect(attempts).toBe(2);
+    expect(
+      useSessionStore.getState().sessions[serverId]?.workspaces.get(cachedWorkspace.id),
+    ).toEqual(cachedWorkspace);
+    expect(selectWorkspaceDirectoryServerIds(useSessionStore.getState(), [serverId])).toEqual([
+      serverId,
+    ]);
+    directory.dispose();
+  });
+
   it("prepares a cached agent workspace route without sidebar demand", async () => {
     const serverId = "cached-agent-route";
     serverIds.add(serverId);

@@ -20,6 +20,7 @@ const paths = new Set([
   "/clawmuse/devices/remove",
   "/clawmuse/devices/rename",
   "/clawmuse/devices/visibility",
+  "/clawmuse/devices/reorder",
   "/clawmuse/cloud",
   "/clawmuse/cloud/start",
   "/clawmuse/cloud/pause",

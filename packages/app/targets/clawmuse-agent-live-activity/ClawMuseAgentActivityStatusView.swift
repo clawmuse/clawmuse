@@ -60,19 +60,31 @@ struct ClawMuseAgentActivitySummaryView: View {
       metric(
         state.displayedRunningCount,
         label: ClawMuseAgentActivityCopy.running,
-        color: ClawMuseAgentActivityPalette.green,
+        color: presentation.metricColor(
+          ClawMuseAgentActivityPalette.green,
+          count: state.displayedRunningCount,
+          mayBeStale: true
+        ),
         mayBeStale: true
       )
       metric(
         state.displayedNeedsActionCount,
         label: ClawMuseAgentActivityCopy.needsAction,
-        color: ClawMuseAgentActivityPalette.amber,
+        color: presentation.metricColor(
+          ClawMuseAgentActivityPalette.amber,
+          count: state.displayedNeedsActionCount,
+          mayBeStale: true
+        ),
         mayBeStale: true
       )
       metric(
         state.displayedCompletedUnreadCount,
         label: ClawMuseAgentActivityCopy.completedCompact,
-        color: ClawMuseAgentActivityPalette.blue,
+        color: presentation.metricColor(
+          ClawMuseAgentActivityPalette.blue,
+          count: state.displayedCompletedUnreadCount,
+          mayBeStale: false
+        ),
         mayBeStale: false
       )
     }

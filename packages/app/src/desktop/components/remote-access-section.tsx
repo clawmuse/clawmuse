@@ -1,25 +1,37 @@
 import { useClawMuseAccount } from "@/clawmuse/account-provider";
 import { parseConnectionOfferFromUrl } from "@getpaseo/protocol/connection-offer";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as QRCode from "qrcode";
 import { SvgXml } from "react-native-svg";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import type { RemoteAccessState } from "@getpaseo/protocol/remote-access";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useFetchQuery } from "@/data/query";
 import { useHostRuntimeClient, getHostRuntimeStore } from "@/runtime/host-runtime";
+import { settingsStyles } from "@/styles/settings";
+import type { Theme } from "@/styles/theme";
 
-function useRemoteAccess(serverId: string) {
+const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
+const foregroundMutedColorMapping = (theme: Theme) => ({
+  color: theme.colors.foregroundMuted,
+});
+
+function useRemoteAccess(serverId: string, onPendingAppear?: () => void) {
   const { t } = useTranslation();
   const account = useClawMuseAccount();
   const client = useHostRuntimeClient(serverId);
   const cache = useQueryClient();
   const [copied, setCopied] = useState(false);
+  const [hasActiveInvitation, setHasActiveInvitation] = useState(false);
+  const knownPendingIdsRef = useRef<Set<string> | null>(null);
+  const pendingIdsBeforeInviteRef = useRef<Set<string> | null>(null);
   const state = useFetchQuery({
     queryKey: ["remote-access", serverId],
     queryFn: async () => {
@@ -27,7 +39,7 @@ function useRemoteAccess(serverId: string) {
       return (await client.getRemoteAccessState()).state;
     },
     enabled: Boolean(client?.isConnected),
-    refetchInterval: 2000,
+    refetchInterval: hasActiveInvitation ? 1000 : 2000,
     dataShape: "value",
     staleTimeMs: 0,
   });
@@ -42,6 +54,12 @@ function useRemoteAccess(serverId: string) {
     },
   });
   const invitation = useMutation({
+    onMutate: () => {
+      const current = state.data?.controllers
+        .filter((row) => row.status === "pending")
+        .map((row) => row.id);
+      pendingIdsBeforeInviteRef.current = new Set(current ?? []);
+    },
     mutationFn: async (input: { bootstrap?: boolean; manager?: boolean }) => {
       if (!client) throw new Error(t("remoteAccess.disconnected"));
       const { config } = await client.getDaemonConfig();
@@ -49,9 +67,34 @@ function useRemoteAccess(serverId: string) {
       const result = await client.createRemoteAccessInvitation(input);
       await refresh();
       setCopied(false);
+      setHasActiveInvitation(true);
       return result;
     },
   });
+  const { data: invitationData, reset: resetInvitation } = invitation;
+  useEffect(() => {
+    const controllers = state.data?.controllers;
+    if (!controllers) return;
+    const pendingIds = controllers.filter((row) => row.status === "pending").map((row) => row.id);
+    const prevSeen = knownPendingIdsRef.current;
+    const hasNewArrival = prevSeen !== null && pendingIds.some((id) => !prevSeen.has(id));
+    knownPendingIdsRef.current = new Set(pendingIds);
+
+    // A single-use invitation becomes invalid as soon as a scan turns into a pending request.
+    if (
+      invitationData &&
+      pendingIdsBeforeInviteRef.current !== null &&
+      pendingIds.some((id) => !pendingIdsBeforeInviteRef.current!.has(id))
+    ) {
+      pendingIdsBeforeInviteRef.current = null;
+      setCopied(false);
+      setHasActiveInvitation(false);
+      resetInvitation();
+    }
+    if (hasNewArrival) {
+      onPendingAppear?.();
+    }
+  }, [invitationData, onPendingAppear, resetInvitation, state.data?.controllers]);
   const copy = useMutation({
     mutationFn: async () => {
       if (!invitation.data) return;
@@ -110,12 +153,14 @@ type AccessModel = ReturnType<typeof useRemoteAccess>;
 export function RemoteAccessSection({
   serverId,
   legacy,
+  onPendingAppear,
 }: {
   serverId: string;
   legacy?: ReactNode;
+  onPendingAppear?: () => void;
 }) {
   const { t } = useTranslation();
-  const model = useRemoteAccess(serverId);
+  const model = useRemoteAccess(serverId, onPendingAppear);
   const { state, action, invitation, copy } = model;
   const error = action.error ?? invitation.error ?? state.error ?? copy.error;
   return (
@@ -145,15 +190,25 @@ function AccessContent({
   const { t } = useTranslation();
   // COMPAT(remoteAccessCanRevoke): added in v1.6.0, remove fallback after 2027-05-18 once daemon floor >= v1.6.0.
   const canRevoke = data.canRevoke ?? data.canManage;
+  const pendingControllers = data.controllers.filter((row) => row.status === "pending").reverse();
+  const authorizedControllers = data.controllers.filter((row) => row.status !== "pending");
+  const hasPending = pendingControllers.length > 0;
   return (
     <View style={styles.section}>
+      {hasPending ? (
+        <View style={styles.pendingList} testID="remote-access-pending-list">
+          {pendingControllers.map((row) => (
+            <PendingControllerCard key={row.id} controller={row} model={model} />
+          ))}
+        </View>
+      ) : null}
       <Text style={styles.text}>
         {t(data.controlledOnly ? "remoteAccess.controlledOnly" : "remoteAccess.description")}
       </Text>
       {!data.enabled && !data.canPair ? (
         <Text style={styles.text}>{t("remoteAccess.setupLocal")}</Text>
       ) : null}
-      <AccessControls model={model} data={data} />
+      <AccessControls model={model} data={data} hasPending={hasPending} />
       <ManagedAccessActions model={model} data={data} />
       {model.invitation.data ? (
         <InvitationLink
@@ -163,8 +218,13 @@ function AccessContent({
         />
       ) : null}
       {!data.enabled ? legacy : null}
-      {data.controllers.map((row) => (
-        <ControllerRow key={row.id} controller={row} model={model} canRevoke={canRevoke} />
+      {authorizedControllers.map((row) => (
+        <AuthorizedControllerRow
+          key={row.id}
+          controller={row}
+          model={model}
+          canRevoke={canRevoke}
+        />
       ))}
     </View>
   );
@@ -192,7 +252,15 @@ function ManagedAccessActions({ model, data }: { model: AccessModel; data: Remot
   );
 }
 
-function AccessControls({ model, data }: { model: AccessModel; data: RemoteAccessState }) {
+function AccessControls({
+  model,
+  data,
+  hasPending,
+}: {
+  model: AccessModel;
+  data: RemoteAccessState;
+  hasPending: boolean;
+}) {
   const { t } = useTranslation();
   if (!data.canPair) return null;
   const busy = model.action.isPending || model.invitation.isPending;
@@ -200,7 +268,12 @@ function AccessControls({ model, data }: { model: AccessModel; data: RemoteAcces
   return (
     <View style={styles.actions}>
       {!data.enabled || (!data.canManage && needsManager) ? (
-        <Button disabled={busy} loading={model.invitation.isPending} onPress={model.bootstrap}>
+        <Button
+          variant={hasPending ? "outline" : "default"}
+          disabled={busy}
+          loading={model.invitation.isPending}
+          onPress={model.bootstrap}
+        >
           {t("remoteAccess.bootstrap")}
         </Button>
       ) : null}
@@ -267,18 +340,20 @@ function InvitationLink({
       <Button variant="outline" loading={model.copy.isPending} onPress={model.copyLink}>
         {t(model.copied ? "remoteAccess.copied" : "remoteAccess.copy")}
       </Button>
+      <View style={styles.waitingRow}>
+        <ThemedLoadingSpinner size="small" uniProps={foregroundMutedColorMapping} />
+        <Text style={styles.waitingText}>{t("remoteAccess.waitingForScan")}</Text>
+      </View>
     </View>
   );
 }
 
-function ControllerRow({
+function PendingControllerCard({
   controller,
   model,
-  canRevoke,
 }: {
   controller: RemoteAccessState["controllers"][number];
   model: AccessModel;
-  canRevoke: boolean;
 }) {
   const { t } = useTranslation();
   const busy = model.action.isPending || model.invitation.isPending;
@@ -292,12 +367,56 @@ function ControllerRow({
   const temporary = useCallback(() => decide(true, false), [decide]);
   const persistent = useCallback(() => decide(true, true), [decide]);
   const deny = useCallback(() => decide(false, false), [decide]);
+
+  return (
+    <View
+      style={[settingsStyles.card, styles.pendingCard]}
+      testID={`remote-access-pending-${controller.id}`}
+    >
+      <View style={styles.pendingHeader}>
+        <Text style={styles.pendingTitle}>
+          {controller.label}
+          {controller.manager ? ` · ${t("remoteAccess.manager")}` : ""}
+        </Text>
+        <StatusBadge size="xs" variant="warning" label={t("remoteAccess.pendingBadge")} />
+      </View>
+      <Text selectable style={styles.fingerprint}>
+        {t("remoteAccess.fingerprint", { value: controller.fingerprint })}
+      </Text>
+      <Text style={styles.text}>{t("remoteAccess.pending")}</Text>
+      <View style={styles.actions}>
+        <Button disabled={busy} onPress={persistent}>
+          {t("remoteAccess.allowPersistent")}
+        </Button>
+        {!controller.manager ? (
+          <Button variant="outline" disabled={busy} onPress={temporary}>
+            {t("remoteAccess.allowOnce")}
+          </Button>
+        ) : null}
+        <Button variant="outline" disabled={busy} onPress={deny}>
+          {t("remoteAccess.deny")}
+        </Button>
+      </View>
+    </View>
+  );
+}
+
+function AuthorizedControllerRow({
+  controller,
+  model,
+  canRevoke,
+}: {
+  controller: RemoteAccessState["controllers"][number];
+  model: AccessModel;
+  canRevoke: boolean;
+}) {
+  const { t } = useTranslation();
+  const busy = model.action.isPending || model.invitation.isPending;
   const revoke = useCallback(
     () => model.action.mutate(() => model.client!.revokeRemoteController(controller.id)),
     [model, controller.id],
   );
-  let status = controller.expiresAt ? "remoteAccess.temporary" : "remoteAccess.persistent";
-  if (controller.status === "pending") status = "remoteAccess.pending";
+  const status = controller.expiresAt ? "remoteAccess.temporary" : "remoteAccess.persistent";
   return (
     <View style={styles.controller}>
       <Text style={styles.title}>
@@ -308,21 +427,6 @@ function ControllerRow({
         {t("remoteAccess.fingerprint", { value: controller.fingerprint })}
       </Text>
       <Text style={styles.text}>{t(status)}</Text>
-      {controller.status === "pending" ? (
-        <View style={styles.actions}>
-          {!controller.manager ? (
-            <Button variant="outline" disabled={busy} onPress={temporary}>
-              {t("remoteAccess.allowOnce")}
-            </Button>
-          ) : null}
-          <Button disabled={busy} onPress={persistent}>
-            {t("remoteAccess.allowPersistent")}
-          </Button>
-          <Button variant="outline" disabled={busy} onPress={deny}>
-            {t("remoteAccess.deny")}
-          </Button>
-        </View>
-      ) : null}
       {controller.status === "authorized" && canRevoke ? (
         <Button variant="outline" disabled={busy} onPress={revoke}>
           {t("remoteAccess.revoke")}
@@ -334,6 +438,40 @@ function ControllerRow({
 
 const styles = StyleSheet.create((theme) => ({
   section: { gap: theme.spacing[3] },
+  pendingList: { gap: theme.spacing[2] },
+  pendingCard: {
+    padding: theme.spacing[4],
+    gap: theme.spacing[2],
+  },
+  pendingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[2],
+  },
+  pendingTitle: {
+    flex: 1,
+    minWidth: 0,
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+  },
+  fingerprint: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontFamily: theme.fontFamily.mono,
+  },
+  waitingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  waitingText: {
+    flex: 1,
+    minWidth: 0,
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing[2] },
   title: {
     color: theme.colors.foreground,

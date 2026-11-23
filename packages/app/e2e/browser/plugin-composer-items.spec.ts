@@ -3,6 +3,7 @@ import {
   expectToolbarNeverCondensedOrClipped,
   recordToolbarFramesFromLoad,
   withComposerControlsExample,
+  withOverflowToggleComposerItems,
   withPickerComposerItem,
   withToggleAndWatcherComposerItems,
 } from "../support/helpers/plugin-composer-items";
@@ -31,7 +32,7 @@ test("a toolbar without room moves a plugin toggle to the overflow sheet and bac
   page,
 }) => {
   test.setTimeout(120_000);
-  await withToggleAndWatcherComposerItems(page, async (composer) => {
+  await withOverflowToggleComposerItems(page, async (composer) => {
     await composer.setWindowWidth(1000);
     await composer.expectToggleInlineAtFullDensity();
     // Too narrow for full labels, wide enough that the controls have not folded away.
@@ -59,7 +60,7 @@ test("the toolbar settles on one density without flipping as the window widens",
   page,
 }) => {
   test.setTimeout(120_000);
-  await withToggleAndWatcherComposerItems(page, async (composer) => {
+  await withOverflowToggleComposerItems(page, async (composer) => {
     await composer.setWindowWidth(880);
     await composer.expectToolbarWidthBetween(300, 395);
     await composer.startRecordingDensity();

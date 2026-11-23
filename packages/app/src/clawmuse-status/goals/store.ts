@@ -3,6 +3,7 @@ import type { GoalDetailWire, GoalRepoWire, GoalWire } from "@getpaseo/protocol/
 import { create } from "zustand";
 import { hostSupportsFeature } from "@/runtime/host-features";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
+import { getNetworkStatus } from "@/runtime/network-status/model";
 import { useSessionStore } from "@/stores/session-store";
 import type { ClawMuseStatusApiClient } from "../api";
 import { getClawMuseStatusApiClient, subscribeClawMuseStatusApiClient } from "../api-access";
@@ -604,7 +605,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => {
         return;
       }
 
-      if (hasSettlingHost) {
+      if (hasSettlingHost && getNetworkStatus().online) {
         set({
           unavailable: false,
           unavailableReason: null,

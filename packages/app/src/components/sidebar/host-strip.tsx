@@ -32,8 +32,11 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useClawMuseDeviceLabel } from "@/clawmuse/device-label";
+import type { DraggableRenderItemInfo } from "@/components/draggable-list.types";
 import { HostStatusIcon } from "@/components/host-status-icon";
 import { ALL_HOSTS_OPTION_ID, HostPicker } from "@/components/hosts/host-picker";
+import { useLongPressDragInteraction } from "@/components/sidebar/use-long-press-drag-interaction";
+import { SortableInlineList } from "@/components/sortable-inline-list";
 import { bySizing, TOUCH_TARGET } from "@/components/ui/control-geometry";
 import {
   ContextMenu,
@@ -41,6 +44,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
+  useContextMenu,
 } from "@/components/ui/context-menu";
 import {
   HorizontalScrollBoundaryShades,
@@ -53,17 +57,18 @@ import {
   deriveSidebarHostActivity,
   type SidebarHostActivity,
 } from "@/hooks/sidebar-workspaces-view-model";
-import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
+import { type HostOrderDrop, useOrderedVisibleHosts } from "@/hosts/host-order";
+import { useReorderHosts } from "@/hosts/use-reorder-hosts";
 import type { HostColor } from "@/hosts/appearance";
 import { hostLabelColorStyle } from "@/hosts/host-badge";
-import { getHostRuntimeStore, useVisibleHosts } from "@/runtime/host-runtime";
+import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
 import { useSessionStore } from "@/stores/session-store";
 import { workspaceEqualityFns } from "@/stores/session-store-hooks/selectors";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import { densityText } from "@/styles/density";
 import { SPACING, type Theme } from "@/styles/theme";
-import { orderHostsLocalFirst } from "@/types/host-connection";
+import type { HostProfile } from "@/types/host-connection";
 import { buildNewWorkspaceRoute } from "@/utils/host-routes";
 import { getStatusDotColor } from "@/utils/status-dot-color";
 
@@ -75,6 +80,7 @@ const ThemedSquarePen = withUnistyles(SquarePen);
 const ThemedSettings = withUnistyles(Settings);
 
 const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+const CHIP_HEIGHT = 26;
 const CHIP_ICON_SIZE = 14;
 // Even sizes keep the 1px knockout ring centered on whole pixels.
 const ACTIVITY_DOT_SHELL_SIZE = 8;
@@ -83,6 +89,8 @@ const ACTIVITY_DOT_OFFSET = -2;
 // Gap kept between a chip scrolled into view and the strip's edge; inside the edge fade's opaque end.
 const SCROLL_EDGE_INSET = 8;
 const MENU_ICON_SIZE = 14;
+const HOST_STRIP_DRAG_DISTANCE = 6;
+const GRABBING_CURSOR = { cursor: "grabbing" } as object;
 
 const selectOnlyLeading = <ThemedEye size={MENU_ICON_SIZE} uniProps={mutedColorMapping} />;
 const addToFilterLeading = <ThemedListPlus size={MENU_ICON_SIZE} uniProps={mutedColorMapping} />;
@@ -92,12 +100,18 @@ const removeFromFilterLeading = (
 const newAgentLeading = <ThemedSquarePen size={MENU_ICON_SIZE} uniProps={mutedColorMapping} />;
 const settingsLeading = <ThemedSettings size={MENU_ICON_SIZE} uniProps={mutedColorMapping} />;
 
+function hostKey(host: HostProfile): string {
+  return host.serverId;
+}
+
 /**
  * One press-sized chip per host above the workspace list, plus "All" and an overflow picker.
  *
  * It is a second view on `hostFilters`, not a second filter: the Host page in display
  * preferences reads and writes the same list, so the two can never disagree. A plain press pins
  * the sidebar to one host; long press, right click, or a modifier click adds hosts on top.
+ * Hosts can be reordered inline by dragging (directly on desktop/web; hold-and-move on mobile)
+ * or vertically from the overflow picker.
  */
 export function SidebarHostStrip({
   onOpenHostSettings,
@@ -110,18 +124,14 @@ export function SidebarHostStrip({
   panelGestureRef?: MutableRefObject<GestureType | undefined>;
 }): ReactElement | null {
   const { t } = useTranslation();
-  const hosts = useVisibleHosts();
-  const localServerId = useLocalDaemonServerId();
+  const orderedHosts = useOrderedVisibleHosts();
+  const reorderHosts = useReorderHosts();
   const deviceLabel = useClawMuseDeviceLabel();
   const hostFilters = useSidebarViewStore((state) => state.hostFilters);
   const selectOnlyHost = useSidebarViewStore((state) => state.selectOnlyHost);
   const toggleHostFilter = useSidebarViewStore((state) => state.toggleHostFilter);
   const clearHostFilters = useSidebarViewStore((state) => state.clearHostFilters);
 
-  const orderedHosts = useMemo(
-    () => orderHostsLocalFirst(hosts, localServerId),
-    [hosts, localServerId],
-  );
   const serverIds = useMemo(() => orderedHosts.map((host) => host.serverId), [orderedHosts]);
   const visible = orderedHosts.length > 1;
 
@@ -146,6 +156,21 @@ export function SidebarHostStrip({
   const trackRef = useRef<View>(null);
   const trackWidth = useRef(0);
   const viewportWidth = useRef(0);
+  const [trackWidthState, setTrackWidthState] = useState(0);
+  const [viewportWidthState, setViewportWidthState] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [openMenuCount, setOpenMenuCount] = useState(0);
+  const suppressPressRef = useRef(false);
+  const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (suppressTimerRef.current) {
+        clearTimeout(suppressTimerRef.current);
+      }
+    },
+    [],
+  );
 
   // Measured when needed rather than cached from `onLayout`: on web a chip's `onLayout` fires only
   // when its own size changes, so a chip pushed sideways by a neighbour that grew (e.g. a late
@@ -196,7 +221,9 @@ export function SidebarHostStrip({
   const handleTrackLayout = useCallback(
     (event: LayoutChangeEvent) => {
       const isFirstMeasure = trackWidth.current === 0;
-      trackWidth.current = event.nativeEvent.layout.width;
+      const width = event.nativeEvent.layout.width;
+      trackWidth.current = width;
+      setTrackWidthState((current) => (current === width ? current : width));
       if (isFirstMeasure && lastSelected) scrollChipIntoView(lastSelected);
     },
     [lastSelected, scrollChipIntoView],
@@ -204,7 +231,9 @@ export function SidebarHostStrip({
 
   const handleViewportLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      viewportWidth.current = event.nativeEvent.layout.width;
+      const width = event.nativeEvent.layout.width;
+      viewportWidth.current = width;
+      setViewportWidthState((current) => (current === width ? current : width));
       boundary.onLayout(event);
     },
     [boundary],
@@ -217,6 +246,40 @@ export function SidebarHostStrip({
     },
     [onBeforeNavigate],
   );
+
+  const handleDragBegin = useCallback(() => {
+    if (suppressTimerRef.current) {
+      clearTimeout(suppressTimerRef.current);
+      suppressTimerRef.current = null;
+    }
+    suppressPressRef.current = true;
+    setIsDragging(true);
+  }, []);
+
+  const handleDragRelease = useCallback(() => {
+    setIsDragging(false);
+    if (suppressTimerRef.current) {
+      clearTimeout(suppressTimerRef.current);
+    }
+    suppressTimerRef.current = setTimeout(() => {
+      suppressTimerRef.current = null;
+      suppressPressRef.current = false;
+    }, 0);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (nextHosts: HostProfile[], movedKey: string) => {
+      reorderHosts({
+        moved: movedKey,
+        after: nextHosts.map((host) => host.serverId),
+      });
+    },
+    [reorderHosts],
+  );
+
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    setOpenMenuCount((count) => Math.max(0, count + (open ? 1 : -1)));
+  }, []);
 
   const pickerHosts = useMemo(
     () => orderedHosts.map((host) => ({ serverId: host.serverId, label: host.label })),
@@ -238,6 +301,38 @@ export function SidebarHostStrip({
     return panelGestureRef ? native.blocksExternalGesture(panelGestureRef) : native;
   }, [panelGestureRef]);
 
+  const renderHostChip = useCallback(
+    ({ item, drag, isActive }: DraggableRenderItemInfo<HostProfile>) => (
+      <HostChip
+        serverId={item.serverId}
+        label={deviceLabel(item.serverId, item.label)}
+        color={item.appearance.color}
+        selected={selectedSet.has(item.serverId)}
+        isDragging={isActive}
+        isAnyDragging={isDragging}
+        drag={drag}
+        suppressPressRef={suppressPressRef}
+        onSelectOnly={selectOnlyHost}
+        onToggle={toggleHostFilter}
+        onNewAgent={handleNewAgent}
+        onOpenSettings={onOpenHostSettings}
+        onMenuOpenChange={handleMenuOpenChange}
+        register={registerChip}
+      />
+    ),
+    [
+      deviceLabel,
+      handleMenuOpenChange,
+      handleNewAgent,
+      isDragging,
+      onOpenHostSettings,
+      registerChip,
+      selectOnlyHost,
+      selectedSet,
+      toggleHostFilter,
+    ],
+  );
+
   if (!visible) return null;
 
   return (
@@ -249,27 +344,30 @@ export function SidebarHostStrip({
             <Animated.ScrollView
               ref={scrollRef}
               horizontal
+              scrollEnabled={!isDragging}
               showsHorizontalScrollIndicator={false}
               onContentSizeChange={boundary.onContentSizeChange}
               onScroll={boundary.onScroll}
               scrollEventThrottle={16}
               testID="sidebar-host-strip-scroll"
             >
-              <View ref={trackRef} onLayout={handleTrackLayout} style={styles.track}>
-                {orderedHosts.map((host) => (
-                  <HostChip
-                    key={host.serverId}
-                    serverId={host.serverId}
-                    label={deviceLabel(host.serverId, host.label)}
-                    color={host.appearance.color}
-                    selected={selectedSet.has(host.serverId)}
-                    onSelectOnly={selectOnlyHost}
-                    onToggle={toggleHostFilter}
-                    onNewAgent={handleNewAgent}
-                    onOpenSettings={onOpenHostSettings}
-                    register={registerChip}
-                  />
-                ))}
+              <View ref={trackRef} onLayout={handleTrackLayout}>
+                <SortableInlineList
+                  data={orderedHosts}
+                  keyExtractor={hostKey}
+                  renderItem={renderHostChip}
+                  style={styles.track}
+                  activationDistance={HOST_STRIP_DRAG_DISTANCE}
+                  disabled={orderedHosts.length < 2 || openMenuCount > 0}
+                  panelGestureRef={panelGestureRef}
+                  scrollViewRef={scrollRef}
+                  scrollOffset={boundary.offset}
+                  viewportWidth={viewportWidthState}
+                  contentWidth={trackWidthState}
+                  onDragBegin={handleDragBegin}
+                  onDragRelease={handleDragRelease}
+                  onDragEnd={handleDragEnd}
+                />
               </View>
             </Animated.ScrollView>
           </GestureDetector>
@@ -286,6 +384,7 @@ export function SidebarHostStrip({
           value={pickerValue(selected)}
           onSelect={handlePickerSelect}
           onOpenHostSettings={onOpenHostSettings}
+          onReorder={reorderHosts}
           title={t("sidebar.display.hostFilter.more")}
         />
       </View>
@@ -315,12 +414,8 @@ function pickerValue(selected: readonly string[]): string {
   return selected.length === 1 ? selected[0] : "";
 }
 
-function chipStyle(selected: boolean) {
-  return ({ hovered = false }: PressableStateCallbackType & { hovered?: boolean }) => [
-    styles.chip,
-    hovered && !selected && styles.chipHovered,
-    selected && styles.chipSelected,
-  ];
+function chipStyle(selected: boolean, hovered = false) {
+  return [styles.chip, hovered && !selected && styles.chipHovered, selected && styles.chipSelected];
 }
 
 function summaryClearStyle({
@@ -337,7 +432,6 @@ function AllHostsChip({
   onPress: () => void;
 }): ReactElement {
   const { t } = useTranslation();
-  const style = useMemo(() => chipStyle(selected), [selected]);
   const accessibilityState = useMemo(() => ({ selected }), [selected]);
   return (
     <PressHighlight
@@ -345,12 +439,16 @@ function AllHostsChip({
       accessibilityRole="button"
       accessibilityState={accessibilityState}
       accessibilityLabel={t("sidebar.display.hostFilter.all")}
-      style={style}
+      style={styles.chipTarget}
       testID="sidebar-host-strip-all"
     >
-      <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
-        {t("sidebar.display.hostFilter.allShort")}
-      </Text>
+      {({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => (
+        <View style={chipStyle(selected, hovered)}>
+          <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
+            {t("sidebar.display.hostFilter.allShort")}
+          </Text>
+        </View>
+      )}
     </PressHighlight>
   );
 }
@@ -372,52 +470,152 @@ const HostChip = memo(function HostChip({
   label,
   color,
   selected,
+  isDragging,
+  isAnyDragging,
+  drag,
+  suppressPressRef,
   onSelectOnly,
   onToggle,
   onNewAgent,
   onOpenSettings,
+  onMenuOpenChange,
   register,
 }: {
   serverId: string;
   label: string;
   color: HostColor;
   selected: boolean;
+  isDragging: boolean;
+  isAnyDragging: boolean;
+  drag: () => void;
+  suppressPressRef: MutableRefObject<boolean>;
   onSelectOnly: (serverId: string) => void;
   onToggle: (serverId: string) => void;
   onNewAgent: (serverId: string) => void;
   onOpenSettings: (serverId: string) => void;
+  onMenuOpenChange: (open: boolean) => void;
   register: (serverId: string, node: View | null) => void;
 }): ReactElement {
   const { t } = useTranslation();
-  const activity = useSidebarHostActivity(serverId);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const style = useMemo(() => chipStyle(selected), [selected]);
-  const accessibilityState = useMemo(() => ({ selected }), [selected]);
 
-  const handlePointerEnter = useCallback(() => setIsHovered(true), []);
-  const handlePointerLeave = useCallback(() => setIsHovered(false), []);
-
-  const handlePress = useCallback(
-    (event: GestureResponderEvent) => {
-      if (isAdditivePress(event)) {
-        onToggle(serverId);
-      } else {
-        onSelectOnly(serverId);
-      }
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      setMenuOpen((prev) => {
+        if (prev !== next) onMenuOpenChange(next);
+        return next;
+      });
     },
-    [onSelectOnly, onToggle, serverId],
+    [onMenuOpenChange],
   );
-  const handleRef = useCallback(
-    (node: View | null) => register(serverId, node),
-    [register, serverId],
-  );
+
   const handleSelectOnly = useCallback(() => onSelectOnly(serverId), [onSelectOnly, serverId]);
   const handleToggle = useCallback(() => onToggle(serverId), [onToggle, serverId]);
   const handleNewAgent = useCallback(() => onNewAgent(serverId), [onNewAgent, serverId]);
   const handleOpenSettings = useCallback(
     () => onOpenSettings(serverId),
     [onOpenSettings, serverId],
+  );
+
+  return (
+    <ContextMenu open={menuOpen} onOpenChange={handleOpenChange}>
+      <HostChipContent
+        serverId={serverId}
+        label={label}
+        color={color}
+        selected={selected}
+        menuOpen={menuOpen}
+        isDragging={isDragging}
+        isAnyDragging={isAnyDragging}
+        drag={drag}
+        suppressPressRef={suppressPressRef}
+        onSelectOnly={onSelectOnly}
+        onToggle={onToggle}
+        register={register}
+      />
+      <ContextMenuContent align="start" width={240} testID={`sidebar-host-strip-menu-${serverId}`}>
+        <ContextMenuItem leading={selectOnlyLeading} onSelect={handleSelectOnly}>
+          {t("sidebar.display.hostFilter.selectOnly")}
+        </ContextMenuItem>
+        <ContextMenuItem
+          leading={selected ? removeFromFilterLeading : addToFilterLeading}
+          onSelect={handleToggle}
+          testID={`sidebar-host-strip-toggle-${serverId}`}
+        >
+          {selected
+            ? t("sidebar.display.hostFilter.removeFromFilter")
+            : t("sidebar.display.hostFilter.addToFilter")}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem leading={newAgentLeading} onSelect={handleNewAgent}>
+          {t("sidebar.display.hostFilter.newAgentHere")}
+        </ContextMenuItem>
+        <ContextMenuItem leading={settingsLeading} onSelect={handleOpenSettings}>
+          {t("sidebar.display.hostFilter.settings")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+});
+
+function HostChipContent({
+  serverId,
+  label,
+  color,
+  selected,
+  menuOpen,
+  isDragging,
+  isAnyDragging,
+  drag,
+  suppressPressRef,
+  onSelectOnly,
+  onToggle,
+  register,
+}: {
+  serverId: string;
+  label: string;
+  color: HostColor;
+  selected: boolean;
+  menuOpen: boolean;
+  isDragging: boolean;
+  isAnyDragging: boolean;
+  drag: () => void;
+  suppressPressRef: MutableRefObject<boolean>;
+  onSelectOnly: (serverId: string) => void;
+  onToggle: (serverId: string) => void;
+  register: (serverId: string, node: View | null) => void;
+}): ReactElement {
+  const { t } = useTranslation();
+  const activity = useSidebarHostActivity(serverId);
+  const menuController = useContextMenu();
+  const interaction = useLongPressDragInteraction({ drag, menuController });
+  const [isHovered, setIsHovered] = useState(false);
+  const accessibilityState = useMemo(() => ({ selected }), [selected]);
+
+  const handleHoverIn = useCallback(() => setIsHovered(true), []);
+  const handleHoverOut = useCallback(() => setIsHovered(false), []);
+
+  const handlePress = useCallback(
+    (event: GestureResponderEvent) => {
+      if (interaction.didLongPressRef.current) {
+        interaction.didLongPressRef.current = false;
+        return;
+      }
+      if (suppressPressRef.current) {
+        suppressPressRef.current = false;
+        return;
+      }
+      if (isAdditivePress(event)) {
+        onToggle(serverId);
+      } else {
+        onSelectOnly(serverId);
+      }
+    },
+    [interaction.didLongPressRef, onSelectOnly, onToggle, serverId, suppressPressRef],
+  );
+  const handleRef = useCallback(
+    (node: View | null) => register(serverId, node),
+    [register, serverId],
   );
 
   const tooltipParts = [
@@ -432,23 +630,32 @@ const HostChip = memo(function HostChip({
   const hasActivityDot = activity.running > 0 || activity.needsInput;
 
   return (
-    <View
-      ref={handleRef}
-      collapsable={false}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
-    >
-      <ContextMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <Tooltip delayDuration={300} enabledOnDesktop={!menuOpen} enabledOnMobile={false}>
-          <TooltipTrigger asChild triggerRefProp="triggerRef">
-            <ContextMenuTrigger
-              onPress={handlePress}
-              accessibilityRole="button"
-              accessibilityState={accessibilityState}
-              accessibilityLabel={accessibilityLabel}
-              style={style}
-              testID={`sidebar-host-strip-chip-${serverId}`}
-            >
+    <View ref={handleRef} collapsable={false}>
+      <Tooltip
+        delayDuration={300}
+        enabledOnDesktop={!menuOpen && !isAnyDragging}
+        enabledOnMobile={false}
+      >
+        <TooltipTrigger
+          asChild
+          triggerRefProp="triggerRef"
+          onHoverIn={handleHoverIn}
+          onHoverOut={handleHoverOut}
+        >
+          <ContextMenuTrigger
+            enabledOnMobile={false}
+            onPress={handlePress}
+            onLongPress={interaction.handleLongPress}
+            onPressIn={interaction.handlePressIn}
+            onTouchMove={interaction.handleTouchMove}
+            onPressOut={interaction.handlePressOut}
+            accessibilityRole="button"
+            accessibilityState={accessibilityState}
+            accessibilityLabel={accessibilityLabel}
+            style={[styles.chipTarget, isWeb && isDragging && GRABBING_CURSOR]}
+            testID={`sidebar-host-strip-chip-${serverId}`}
+          >
+            <View style={chipStyle(selected, isHovered && !isDragging)}>
               <HostChipIcon
                 serverId={serverId}
                 hasActivityDot={hasActivityDot}
@@ -466,46 +673,21 @@ const HostChip = memo(function HostChip({
               >
                 {label}
               </Text>
-            </ContextMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent
-            side="bottom"
-            align="center"
-            offset={6}
-            testID={`sidebar-host-strip-tooltip-${serverId}`}
-          >
-            <Text style={styles.tooltipText}>{tooltipLabel}</Text>
-          </TooltipContent>
-        </Tooltip>
-        <ContextMenuContent
-          align="start"
-          width={240}
-          testID={`sidebar-host-strip-menu-${serverId}`}
+            </View>
+          </ContextMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          align="center"
+          offset={6}
+          testID={`sidebar-host-strip-tooltip-${serverId}`}
         >
-          <ContextMenuItem leading={selectOnlyLeading} onSelect={handleSelectOnly}>
-            {t("sidebar.display.hostFilter.selectOnly")}
-          </ContextMenuItem>
-          <ContextMenuItem
-            leading={selected ? removeFromFilterLeading : addToFilterLeading}
-            onSelect={handleToggle}
-            testID={`sidebar-host-strip-toggle-${serverId}`}
-          >
-            {selected
-              ? t("sidebar.display.hostFilter.removeFromFilter")
-              : t("sidebar.display.hostFilter.addToFilter")}
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem leading={newAgentLeading} onSelect={handleNewAgent}>
-            {t("sidebar.display.hostFilter.newAgentHere")}
-          </ContextMenuItem>
-          <ContextMenuItem leading={settingsLeading} onSelect={handleOpenSettings}>
-            {t("sidebar.display.hostFilter.settings")}
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
+          <Text style={styles.tooltipText}>{tooltipLabel}</Text>
+        </TooltipContent>
+      </Tooltip>
     </View>
   );
-});
+}
 
 function HostChipIcon({
   serverId,
@@ -572,12 +754,14 @@ function MoreHostsButton({
   value,
   onSelect,
   onOpenHostSettings,
+  onReorder,
   title,
 }: {
   hosts: { serverId: string; label: string }[];
   value: string;
   onSelect: (id: string) => void;
   onOpenHostSettings: (serverId: string) => void;
+  onReorder: (drop: HostOrderDrop) => void;
   title: string;
 }): ReactElement {
   const [open, setOpen] = useState(false);
@@ -594,8 +778,11 @@ function MoreHostsButton({
       includeAllHost
       onOpenHostSettings={onOpenHostSettings}
       searchable
+      reorderable
+      onReorder={onReorder}
       title={title}
       desktopPlacement="bottom-start"
+      desktopMinWidth={240}
       hostOptionTestID={hostOptionTestID}
     >
       <View ref={anchorRef} collapsable={false} style={styles.moreDivider}>
@@ -649,11 +836,16 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[0.5],
     alignItems: "center",
   },
+  chipTarget: {
+    minHeight: bySizing({ touch: TOUCH_TARGET, pointer: CHIP_HEIGHT }),
+    justifyContent: "center",
+    borderRadius: theme.borderRadius.full,
+  },
   chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[1],
-    minHeight: bySizing({ touch: TOUCH_TARGET, pointer: 26 }),
+    minHeight: CHIP_HEIGHT,
     paddingHorizontal: bySizing({ touch: theme.spacing[2], pointer: theme.spacing[1.5] }),
     borderRadius: theme.borderRadius.full,
   },
@@ -720,7 +912,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   moreButton: {
     width: bySizing({ touch: TOUCH_TARGET, pointer: theme.spacing[6] }),
-    height: bySizing({ touch: TOUCH_TARGET, pointer: 26 }),
+    height: bySizing({ touch: TOUCH_TARGET, pointer: CHIP_HEIGHT }),
     alignItems: "center",
     justifyContent: "center",
     borderRadius: theme.borderRadius.full,

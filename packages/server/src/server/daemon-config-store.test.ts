@@ -1110,6 +1110,67 @@ describe("DaemonConfigStore", () => {
     });
   });
 
+  test("patch persists aiArchiveProviders independently and strips removed providers from it", async () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
+    tempDirs.push(paseoHome);
+
+    const initial: PersistedConfig = {
+      version: 1,
+      agents: {
+        providers: {
+          gemini: {
+            extends: "acp",
+            label: "Gemini",
+            command: ["gemini", "--acp"],
+          },
+          claude: {
+            enabled: true,
+          },
+        },
+        metadataGeneration: {
+          providers: [{ provider: "claude", model: "haiku" }],
+          promptPredictions: false,
+        },
+      },
+    };
+    writeFileSync(path.join(paseoHome, "config.json"), `${JSON.stringify(initial, null, 2)}\n`);
+
+    const store = new DaemonConfigStore(paseoHome, reloadableConfig(initial), undefined);
+    const updated = await store.patch({
+      metadataGeneration: {
+        aiArchiveProviders: [
+          { provider: "gemini", model: "flash" },
+          { provider: "claude", model: "haiku" },
+        ],
+      },
+    });
+
+    expect(updated.metadataGeneration).toEqual({
+      providers: [{ provider: "claude", model: "haiku" }],
+      aiArchiveProviders: [
+        { provider: "gemini", model: "flash" },
+        { provider: "claude", model: "haiku" },
+      ],
+      promptPredictions: false,
+    });
+    expect(loadPersistedConfig(paseoHome).agents?.metadataGeneration).toEqual({
+      providers: [{ provider: "claude", model: "haiku" }],
+      aiArchiveProviders: [
+        { provider: "gemini", model: "flash" },
+        { provider: "claude", model: "haiku" },
+      ],
+      promptPredictions: false,
+    });
+
+    const afterRemove = await store.patch({ removeProviders: ["gemini"] });
+    expect(afterRemove.metadataGeneration.aiArchiveProviders).toEqual([
+      { provider: "claude", model: "haiku" },
+    ]);
+    expect(loadPersistedConfig(paseoHome).agents?.metadataGeneration?.aiArchiveProviders).toEqual([
+      { provider: "claude", model: "haiku" },
+    ]);
+  });
+
   test("patch persists provider removal when in-memory config is already clean", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);

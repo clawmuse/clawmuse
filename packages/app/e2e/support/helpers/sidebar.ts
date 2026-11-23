@@ -75,6 +75,7 @@ export async function focusWorkspaceRowWithKeyboard(
   workspaceId: string,
 ): Promise<void> {
   const row = page.getByTestId(`sidebar-workspace-row-${getServerId()}:${workspaceId}`);
+  await row.scrollIntoViewIfNeeded();
   await row.focus();
   await page.keyboard.press("Shift+Tab");
   await page.keyboard.press("Tab");
@@ -153,14 +154,8 @@ export async function expectWorkspaceRowHoverCleared(
   workspaceId: string,
 ): Promise<void> {
   const workspaceKey = `${getServerId()}:${workspaceId}`;
-  const trigger = page.getByTestId(`sidebar-workspace-kebab-${workspaceKey}`);
-  // The overlay keeps its geometry for the opacity transition. Playwright's
-  // visibility check ignores opacity, so verify both painting and interactivity.
-  await expect(trigger).toHaveAttribute("aria-disabled", "true");
-  await expect(trigger).toHaveCSS("pointer-events", "none");
-  await expect(
-    page.getByTestId("sidebar-workspace-trailing-actions").filter({ has: trigger }),
-  ).toHaveCSS("opacity", "0");
+  await expect(page.getByTestId(`sidebar-workspace-kebab-${workspaceKey}`)).toHaveCount(0);
+  await expect(page.getByTestId(`sidebar-workspace-archive-button-${workspaceKey}`)).toHaveCount(0);
   await expect(page.getByTestId("workspace-hover-card")).toHaveCount(0);
 }
 

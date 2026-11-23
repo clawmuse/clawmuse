@@ -5,6 +5,7 @@ const FOOTER_LINE_TEST_IDS = [
   "sidebar-add-project",
   "sidebar-usage-icon",
   "sidebar-hosts-trigger",
+  "clawmuse-open-account",
   "sidebar-help",
   "sidebar-footer-overflow",
   "sidebar-settings",

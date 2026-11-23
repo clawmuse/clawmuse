@@ -75,7 +75,11 @@ export function OverviewToolCallGroupSheet({
           onClose={onClose}
           closeTestID="tool-call-group-sheet-close"
         />
-        <BottomSheetScrollView ref={scrollRef} style={styles.content}>
+        <BottomSheetScrollView
+          ref={scrollRef}
+          style={styles.content}
+          onContentSizeChange={visible ? scrollToLatest : undefined}
+        >
           <View style={styles.contentContainer}>{children}</View>
         </BottomSheetScrollView>
       </View>

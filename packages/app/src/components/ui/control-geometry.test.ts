@@ -27,7 +27,7 @@ import {
   toolbarSlot,
   TOUCH_TARGET,
 } from "@/components/ui/control-geometry";
-import type { Theme } from "@/styles/theme";
+import { ICON_STROKE_WIDTH, type Theme } from "@/styles/theme";
 
 const theme = {
   borderRadius: {
@@ -128,11 +128,11 @@ describe("toolbar glyphs and spacing", () => {
     expect(toolbarSlot()).toEqual({ width: TOOLBAR_DISC_SIZE, height: TOOLBAR_DISC_SIZE });
   });
 
-  it("paints touch toolbar glyphs at the header icons' 20pt and 1.5px stroke and leaves pointer unchanged", () => {
-    const pointerGlyph = { size: 16, strokeWidth: 1.5, tone: "muted" };
+  it("uses the header stroke for both glyph sizes and keeps pointer controls muted", () => {
+    const pointerGlyph = { size: 16, strokeWidth: ICON_STROKE_WIDTH, tone: "muted" };
     expect(toolbarGlyphsFor("touch").icon).toEqual({
       size: 20,
-      strokeWidth: 1.5,
+      strokeWidth: ICON_STROKE_WIDTH,
       tone: "foreground",
     });
     expect(toolbarGlyphsFor("pointer")).toEqual({ icon: pointerGlyph, label: pointerGlyph });
@@ -146,7 +146,7 @@ describe("toolbar glyphs and spacing", () => {
   it("keeps a touch glyph beside a label at the label's 20pt scale", () => {
     expect(toolbarGlyphsFor("touch").label).toEqual({
       size: 20,
-      strokeWidth: 1.5,
+      strokeWidth: ICON_STROKE_WIDTH,
       tone: "muted",
     });
     expect(TOOLBAR_GLYPH_SIZES.label).toEqual({ xs: 20, md: 16 });

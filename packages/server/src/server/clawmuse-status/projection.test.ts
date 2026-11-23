@@ -198,6 +198,35 @@ describe("ClawMuseStatusProjection", () => {
     expect(expired).toEqual({ items: [], nextRefreshAtMs: null });
   });
 
+  it("skips terminal dwell when no active tasks remain and push alerts already cover the outcome", () => {
+    const finishedAt = NOW - 1_000;
+    const finishedAgent = agent({
+      attention: {
+        requiresAttention: true,
+        attentionReason: "finished",
+        attentionTimestamp: new Date(finishedAt),
+      },
+    });
+    const projected = projection();
+
+    expect(
+      projected.project([finishedAgent], NOW, {
+        skipTerminalDwellWhenIdle: () => true,
+      }),
+    ).toEqual({ items: [], nextRefreshAtMs: null });
+
+    const runningPeer = agent({
+      id: "peer-running",
+      lifecycle: "running",
+      activeTurnId: "turn-2",
+      activeTurnStartedAt: new Date(NOW - 2_000),
+    });
+    const whilePeerRuns = projected.project([finishedAgent, runningPeer], NOW, {
+      skipTerminalDwellWhenIdle: () => true,
+    });
+    expect(whilePeerRuns.items.map((item) => item.phase).sort()).toEqual(["completed", "running"]);
+  });
+
   it("dwells longer on a failure than on a completion", () => {
     const failedAt = NOW - 1_000;
     const result = projection().project(

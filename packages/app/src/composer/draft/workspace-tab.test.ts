@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 
-import { shouldAllowEmptyDraftText, validateDraftSubmission } from "./workspace-tab-core";
+import {
+  resolveDraftCarryOverInput,
+  shouldAllowEmptyDraftText,
+  validateDraftSubmission,
+} from "./workspace-tab-core";
 
 const baseComposerState = {
   providerDefinitions: [{ id: "codewhale" }],
@@ -81,5 +85,24 @@ describe("workspace draft empty text readiness", () => {
         attachments: [],
       }),
     ).toBe(false);
+  });
+});
+
+describe("workspace draft carry-over on create success", () => {
+  test("carries over attachments or text added while agent creation was in flight", () => {
+    expect(
+      resolveDraftCarryOverInput({
+        text: "",
+        attachments: [{ kind: "image", metadata: { id: "img-2" } }],
+      }),
+    ).toEqual({
+      text: "",
+      attachments: [{ kind: "image", metadata: { id: "img-2" } }],
+    });
+  });
+
+  test("returns null when no new content arrived during agent creation", () => {
+    expect(resolveDraftCarryOverInput(undefined)).toBeNull();
+    expect(resolveDraftCarryOverInput({ text: "   ", attachments: [] })).toBeNull();
   });
 });

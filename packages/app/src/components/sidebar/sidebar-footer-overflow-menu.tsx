@@ -21,11 +21,10 @@ import {
   type MenuPageDefinition,
 } from "@/components/ui/dropdown-menu";
 import { Shortcut } from "@/components/ui/shortcut";
-import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
+import { useOrderedHosts } from "@/hosts/host-order";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { useHosts } from "@/runtime/host-runtime";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
-import { orderHostsLocalFirst } from "@/types/host-connection";
 import { useOpenSidebarUsage } from "@/usage";
 import { SidebarFooterMenuTrigger } from "./sidebar-footer-menu-trigger";
 import { SidebarHelpMenuItems } from "./sidebar-help-menu";
@@ -195,11 +194,7 @@ function HostsPage({
 }): ReactElement {
   const { t } = useTranslation();
   const hosts = useHosts();
-  const localServerId = useLocalDaemonServerId();
-  const orderedHosts = useMemo(
-    () => orderHostsLocalFirst(hosts, localServerId),
-    [hosts, localServerId],
-  );
+  const orderedHosts = useOrderedHosts(hosts);
 
   return (
     <>

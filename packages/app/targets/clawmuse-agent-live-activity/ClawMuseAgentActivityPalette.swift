@@ -86,6 +86,7 @@ enum ClawMuseAgentActivityCopy {
     fallback: "Unlimited"
   )
   static let waitingForUpdate = localized("CLAWMUSE_LIVE_ACTIVITY_WAITING_FOR_UPDATE", fallback: "Awaiting update")
+  static let staleHint = localized("CLAWMUSE_LIVE_ACTIVITY_STALE_HINT", fallback: "Sync paused, tap to refresh")
   static let lastUpdated = localized("CLAWMUSE_LIVE_ACTIVITY_LAST_UPDATED", fallback: "Last synced")
   static let online = localized("CLAWMUSE_LIVE_ACTIVITY_ONLINE", fallback: "Online")
   // Why a key and not a literal: the Chinese build joins with a full-width comma
@@ -262,7 +263,14 @@ struct ClawMuseAgentActivityPresentation {
     isStale || state.isUnverifiable
   }
 
+  var collapsesStaleSummary: Bool {
+    showsUnverifiable && state.displayedCompletedUnreadCount == 0
+  }
+
   var minimalCount: Int? {
+    if showsUnverifiable {
+      return state.displayedCompletedUnreadCount > 0 ? state.displayedCompletedUnreadCount : nil
+    }
     let pendingCount = state.displayedNeedsActionCount + state.displayedCompletedUnreadCount
     if pendingCount > 0 { return pendingCount }
     return state.displayedRunningCount > 0 ? state.displayedRunningCount : nil
@@ -274,9 +282,17 @@ struct ClawMuseAgentActivityPresentation {
   }
 
   func metricText(_ count: Int, mayBeStale: Bool) -> String {
-    // An expired host lease moves active items into unverifiableCount. Zero here
-    // means unknown, not that every task stopped. Completed facts remain readable.
-    if mayBeStale && state.isUnverifiable && count == 0 { return "–" }
+    // Once ActivityKit marks the snapshot stale or the host lease expired, active
+    // counts cannot be verified; show a dash instead of claiming tasks are still
+    // running. Completed facts remain readable.
+    if mayBeStale && showsUnverifiable { return "–" }
     return "\(count)"
+  }
+
+  func metricColor(_ activeColor: Color, count: Int, mayBeStale: Bool) -> Color {
+    if (mayBeStale && showsUnverifiable) || count == 0 {
+      return ClawMuseAgentActivityPalette.mutedText
+    }
+    return activeColor
   }
 }

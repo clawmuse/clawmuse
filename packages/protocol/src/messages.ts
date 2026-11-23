@@ -258,6 +258,8 @@ const MutableStructuredGenerationProviderSchema = z
 const MutableMetadataGenerationConfigSchema = z
   .object({
     providers: z.array(MutableStructuredGenerationProviderSchema).default([]),
+    // COMPAT(aiArchiveModelConfig): added in v1.6.0, keep optional while old daemons are supported.
+    aiArchiveProviders: z.array(MutableStructuredGenerationProviderSchema).optional(),
     promptPredictions: z.boolean().optional(),
   })
   .passthrough();
@@ -347,7 +349,10 @@ export const MutableDaemonConfigPatchSchema = z
       .optional(),
     removeProviders: z.array(z.string().min(1)).optional(),
     metadataGeneration: MutableMetadataGenerationConfigSchema.partial()
-      .extend({ providers: z.array(MutableStructuredGenerationProviderSchema).optional() })
+      .extend({
+        providers: z.array(MutableStructuredGenerationProviderSchema).optional(),
+        aiArchiveProviders: z.array(MutableStructuredGenerationProviderSchema).optional(),
+      })
       .optional(),
     autoArchiveAfterMerge: z.boolean().optional(),
     enableTerminalAgentHooks: z.boolean().optional(),
@@ -1126,11 +1131,26 @@ export const ArchiveAgentRequestMessageSchema = z.object({
   requestId: z.string(),
 });
 
+export const AgentArchiveReviewDecisionSchema = z.enum([
+  "completed",
+  "needs_user",
+  "unfinished",
+  "blocked",
+]);
+export type AgentArchiveReviewDecision = z.infer<typeof AgentArchiveReviewDecisionSchema>;
+
 export const AgentArchiveReviewSchema = z.object({
   agentId: z.string(),
   eligible: z.boolean(),
   reason: z.string(),
   token: z.string().nullable(),
+  decision: AgentArchiveReviewDecisionSchema.optional(),
+  provider: z.string().optional(),
+  model: z.string().optional(),
+  durationMs: z.number().optional(),
+  latestUserMessage: z.string().optional(),
+  latestReply: z.string().optional(),
+  agentStatus: z.string().optional(),
 });
 export type AgentArchiveReview = z.infer<typeof AgentArchiveReviewSchema>;
 
@@ -4179,6 +4199,8 @@ export const ServerInfoStatusPayloadSchema = z
         internalWorkspaces: z.boolean().optional(),
         backgroundWorkspaces: z.boolean().optional(),
         aiAgentArchive: z.boolean().optional(),
+        // COMPAT(aiArchiveModelConfig): added in v1.6.0; remove gate after 2027-05-23.
+        aiArchiveModelConfig: z.boolean().optional(),
         workspaceDeletion: z.boolean().optional(),
         // COMPAT(backgroundAgents): added in v0.15.0; remove gate after 2027-05-03.
         backgroundAgents: z.boolean().optional(),
@@ -7207,6 +7229,14 @@ export const UsageDailyPointSchema = z.object({
   tokens: z.array(z.number()),
   models: z.array(z.number()).optional(),
   modelTokens: z.array(z.number()).optional(),
+  inputTokens: z.number().optional(),
+  cacheReadTokens: z.number().optional(),
+  cacheWriteTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+  modelInputTokens: z.array(z.number()).optional(),
+  modelCacheReadTokens: z.array(z.number()).optional(),
+  modelCacheWriteTokens: z.array(z.number()).optional(),
+  modelOutputTokens: z.array(z.number()).optional(),
 });
 export const UsageDailyHistorySchema = z.object({
   days: z.array(z.string()),

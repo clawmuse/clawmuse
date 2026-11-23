@@ -29,6 +29,7 @@ import {
   findForgeItemByOption,
   isAttachmentSelectedForForgeItem,
   openComposerAttachment,
+  persistPickedImages,
   pickAndPersistImages,
   queueComposerMessage,
   removeComposerAttachmentAtIndex,
@@ -447,6 +448,60 @@ describe("pickAndPersistImages", () => {
       { dataUrl, mimeType: "image/png", fileName: "clipboard.png" },
     ]);
     expect(result).toHaveLength(1);
+  });
+
+  it("retains earlier images in a batch until all images finish persisting and cleans up on failure", async () => {
+    let finishSecond!: () => void;
+    const secondBarrier = new Promise<void>((resolve) => {
+      finishSecond = resolve;
+    });
+    const retainedIds = new Set<string>();
+    const deleted: string[] = [];
+    let callCount = 0;
+
+    const persistPromise = persistPickedImages({
+      pickedImages: [
+        {
+          source: { kind: "file_uri", uri: "/tmp/1.png" },
+          mimeType: "image/png",
+          fileName: "1.png",
+        },
+        {
+          source: { kind: "file_uri", uri: "/tmp/2.png" },
+          mimeType: "image/png",
+          fileName: "2.png",
+        },
+      ],
+      persister: {
+        persistFromBlob: async () => imageMetadata,
+        persistFromDataUrl: async () => imageMetadata,
+        persistFromFileUri: async ({ fileName }) => {
+          callCount += 1;
+          if (callCount === 2) {
+            await secondBarrier;
+            throw new Error(`Failed to persist ${fileName}`);
+          }
+          return imageWithId("img-first");
+        },
+        deleteAttachments: (items) => {
+          for (const item of items) deleted.push(item.id);
+        },
+      },
+      retainAttachment: (id) => {
+        retainedIds.add(id);
+        return () => {
+          retainedIds.delete(id);
+        };
+      },
+    });
+
+    await Promise.resolve();
+    expect([...retainedIds]).toEqual(["img-first"]);
+
+    finishSecond();
+    await expect(persistPromise).rejects.toThrow("Failed to persist 2.png");
+    expect([...retainedIds]).toEqual([]);
+    expect(deleted).toEqual(["img-first"]);
   });
 });
 

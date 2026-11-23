@@ -3,7 +3,7 @@ import { View, Text } from "react-native";
 import { useIsFocused } from "expo-router/react-navigation";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ChevronLeft, Import } from "@/components/icons/app-icons";
+import { ChevronLeft, Import, RefreshCcw } from "@/components/icons/app-icons";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { MenuHeader } from "@/components/headers/menu-header";
@@ -16,7 +16,12 @@ import { ALL_HOSTS_OPTION_ID } from "@/components/hosts/host-picker";
 import { type AgentHistoryHostError, useAgentHistory } from "@/hooks/use-agent-history";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useImportSession } from "@/hooks/use-import-session";
-import { useVisibleHosts } from "@/runtime/host-runtime";
+import {
+  getHostRuntimeStore,
+  useHostRuntimeConnectionStatuses,
+  useVisibleHosts,
+} from "@/runtime/host-runtime";
+import { useNetworkStatus } from "@/runtime/network-status/model";
 import { buildOpenProjectRoute } from "@/utils/host-routes";
 
 /** Long enough that a typed word is one request, short enough to feel live. */
@@ -49,6 +54,138 @@ function SessionHostErrorsBanner({
   );
 }
 
+function SessionsOfflineBanner({
+  onRetry,
+  t,
+}: {
+  onRetry: () => void;
+  t: TFunction;
+}): ReactElement {
+  return (
+    <View style={styles.errorsBannerWrap}>
+      <View style={styles.offlineBanner} testID="sessions-offline-banner">
+        <Text style={styles.offlineBannerText}>{t("connectionResilience.list.offlineBanner")}</Text>
+        <Button variant="ghost" size="sm" leftIcon={RefreshCcw} onPress={onRetry}>
+          {t("common.actions.retry")}
+        </Button>
+      </View>
+    </View>
+  );
+}
+
+function SessionsScreenBody({
+  agents,
+  emptyText,
+  isInitialLoad,
+  isManualRefresh,
+  isOnline,
+  isSearching,
+  allTargetsOffline,
+  listFooterComponent,
+  search,
+  showLoadError,
+  spinnerColor,
+  t,
+  onBack,
+  onClearSearch,
+  onImportSession,
+  onRefresh,
+}: {
+  agents: ReturnType<typeof useAgentHistory>["agents"];
+  emptyText: string;
+  isInitialLoad: boolean;
+  isManualRefresh: boolean;
+  isOnline: boolean;
+  isSearching: boolean;
+  allTargetsOffline: boolean;
+  listFooterComponent: ReactElement | null;
+  search: string;
+  showLoadError: boolean;
+  spinnerColor: string;
+  t: TFunction;
+  onBack: () => void;
+  onClearSearch: () => void;
+  onImportSession: () => void;
+  onRefresh: () => void;
+}): ReactElement {
+  if (isInitialLoad && isOnline) {
+    return (
+      <View style={styles.loadingContainer}>
+        <LoadingSpinner size="large" color={spinnerColor} />
+      </View>
+    );
+  }
+
+  if (showLoadError) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>{t("sessions.loadError")}</Text>
+        <Button variant="ghost" onPress={onRefresh}>
+          {t("common.actions.retry")}
+        </Button>
+      </View>
+    );
+  }
+
+  if (agents.length === 0 && (!isOnline || allTargetsOffline)) {
+    return (
+      <View style={styles.emptyContainer} testID="sessions-offline-empty">
+        <Text style={styles.emptyTitle}>
+          {isOnline
+            ? t("connectionResilience.list.hostsOfflineTitle")
+            : t("connectionResilience.list.offlineTitle")}
+        </Text>
+        <Text style={styles.emptyDescription}>
+          {isOnline
+            ? t("connectionResilience.list.hostsOfflineDescription")
+            : t("connectionResilience.list.offlineDescription")}
+        </Text>
+        <Button
+          variant="secondary"
+          leftIcon={RefreshCcw}
+          onPress={onRefresh}
+          testID="sessions-offline-retry"
+        >
+          {t("common.actions.retry")}
+        </Button>
+      </View>
+    );
+  }
+
+  if (agents.length === 0) {
+    return (
+      <View style={styles.emptyContainer} testID="sessions-empty">
+        <Text style={styles.emptyText}>{emptyText}</Text>
+        {isSearching ? (
+          <Button variant="ghost" onPress={onClearSearch}>
+            {t("sessions.actions.clearSearch")}
+          </Button>
+        ) : (
+          <Button variant="ghost" leftIcon={ChevronLeft} onPress={onBack}>
+            Back
+          </Button>
+        )}
+        <Button variant="ghost" leftIcon={Import} onPress={onImportSession}>
+          {t("importSession.title")}
+        </Button>
+      </View>
+    );
+  }
+
+  return (
+    <AgentList
+      agents={agents}
+      showCheckoutInfo={false}
+      isRefreshing={isManualRefresh}
+      onRefresh={onRefresh}
+      listFooterComponent={listFooterComponent}
+      showAttentionIndicator={false}
+      showHostColumn
+      search={isSearching ? search : undefined}
+    />
+  );
+}
+
 /** An empty list means something different once a query is narrowing it. */
 function resolveEmptyText(input: {
   t: TFunction;
@@ -75,10 +212,23 @@ function SessionsScreenContent() {
   const { t } = useTranslation();
   const importSession = useImportSession();
   const hosts = useVisibleHosts();
+  const networkStatus = useNetworkStatus();
   const [selectedHost, setSelectedHost] = useState(ALL_HOSTS_OPTION_ID);
   const [searchInput, setSearchInput] = useState("");
   const search = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS).trim();
   const historyServerId = selectedHost === ALL_HOSTS_OPTION_ID ? null : selectedHost;
+  const targetServerIds = useMemo(
+    () => (historyServerId ? [historyServerId] : hosts.map((host) => host.serverId)),
+    [historyServerId, hosts],
+  );
+  const connectionStatuses = useHostRuntimeConnectionStatuses(targetServerIds);
+  const allTargetsOffline = useMemo(() => {
+    if (targetServerIds.length === 0) return false;
+    return targetServerIds.every((serverId) => {
+      const status = connectionStatuses.get(serverId);
+      return status === "offline" || status === "error";
+    });
+  }, [connectionStatuses, targetServerIds]);
   const {
     agents,
     hasMore,
@@ -109,6 +259,9 @@ function SessionsScreenContent() {
 
   const handleRefresh = useCallback(() => {
     setIsManualRefresh(true);
+    const runtime = getHostRuntimeStore();
+    runtime.ensureConnectedAll({ verify: true });
+    void runtime.runProbeCycleNow();
     void refreshAll().finally(() => setIsManualRefresh(false));
   }, [refreshAll]);
 
@@ -176,49 +329,30 @@ function SessionsScreenContent() {
           ) : null}
         </View>
       ) : null}
-      {hostErrors.length > 0 ? <SessionHostErrorsBanner errors={hostErrors} t={t} /> : null}
-      {isInitialLoad ? (
-        <View style={styles.loadingContainer}>
-          <LoadingSpinner size="large" color={theme.colors.foregroundMuted} />
-        </View>
+      {!networkStatus.online && agents.length > 0 ? (
+        <SessionsOfflineBanner onRetry={handleRefresh} t={t} />
       ) : null}
-      {!isInitialLoad && showLoadError ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>{t("sessions.loadError")}</Text>
-          <Button variant="ghost" onPress={handleRefresh}>
-            {t("common.actions.retry")}
-          </Button>
-        </View>
+      {hostErrors.length > 0 && networkStatus.online && !allTargetsOffline ? (
+        <SessionHostErrorsBanner errors={hostErrors} t={t} />
       ) : null}
-      {!isInitialLoad && !showLoadError && agents.length === 0 ? (
-        <View style={styles.emptyContainer} testID="sessions-empty">
-          <Text style={styles.emptyText}>{emptyText}</Text>
-          {isSearching ? (
-            <Button variant="ghost" onPress={handleClearSearch}>
-              {t("sessions.actions.clearSearch")}
-            </Button>
-          ) : (
-            <Button variant="ghost" leftIcon={ChevronLeft} onPress={handleBack}>
-              Back
-            </Button>
-          )}
-          <Button variant="ghost" leftIcon={Import} onPress={importSession.open}>
-            {t("importSession.title")}
-          </Button>
-        </View>
-      ) : null}
-      {!isInitialLoad && !showLoadError && agents.length > 0 ? (
-        <AgentList
-          agents={agents}
-          showCheckoutInfo={false}
-          isRefreshing={isManualRefresh}
-          onRefresh={handleRefresh}
-          listFooterComponent={listFooterComponent}
-          showAttentionIndicator={false}
-          showHostColumn
-          search={isSearching ? search : undefined}
-        />
-      ) : null}
+      <SessionsScreenBody
+        agents={agents}
+        emptyText={emptyText}
+        isInitialLoad={isInitialLoad}
+        isManualRefresh={isManualRefresh}
+        isOnline={networkStatus.online}
+        isSearching={isSearching}
+        allTargetsOffline={allTargetsOffline}
+        listFooterComponent={listFooterComponent}
+        search={search}
+        showLoadError={showLoadError}
+        spinnerColor={theme.colors.foregroundMuted}
+        t={t}
+        onBack={handleBack}
+        onClearSearch={handleClearSearch}
+        onImportSession={importSession.open}
+        onRefresh={handleRefresh}
+      />
       {importSession.sheet}
     </View>
   );
@@ -249,6 +383,36 @@ const styles = StyleSheet.create((theme) => ({
   emptyText: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.base,
+  },
+  emptyTitle: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+    textAlign: "center",
+  },
+  emptyDescription: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    textAlign: "center",
+    maxWidth: 320,
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[2],
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface2,
+    paddingLeft: theme.spacing[3],
+    paddingRight: theme.spacing[1],
+    paddingVertical: theme.spacing[1.5],
+  },
+  offlineBannerText: {
+    flex: 1,
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
   },
   loadingContainer: {
     flex: 1,

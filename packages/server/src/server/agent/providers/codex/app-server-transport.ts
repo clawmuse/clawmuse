@@ -1,4 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { stripVTControlCharacters } from "node:util";
 import type { Logger } from "pino";
 import { z } from "zod";
 
@@ -14,6 +15,76 @@ const DEFAULT_TIMEOUT_MS = 14 * 24 * 60 * 60 * 1000;
 const APP_SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 2_000;
 const APP_SERVER_FORCE_SHUTDOWN_TIMEOUT_MS = 1_000;
 const STDERR_BUFFER_LIMIT = 8192;
+
+// COMPAT(codexDesktopAlwaysAllowedAppIdsWarning): added in v1.6.0, remove after 2027-06-01 once Codex CLI recognizes Desktop's computer_use.windows.always_allowed_app_ids key.
+const IGNORED_CODEX_DESKTOP_CONFIG_KEYS = new Set(["computer_use.windows.always_allowed_app_ids"]);
+const CODEX_UNRECOGNIZED_CONFIG_HEADER_PATTERN =
+  /Codex is ignoring \d+ unrecognized configuration settings?\. Check for typos or deprecated settings\.$/;
+const CODEX_IGNORED_CONFIG_ENTRY_PATTERN = /^\s+.+:\s*`([^`]+)`\s+is ignored\.$/;
+
+function isCodexUnrecognizedConfigHeader(line: string): boolean {
+  return CODEX_UNRECOGNIZED_CONFIG_HEADER_PATTERN.test(stripVTControlCharacters(line));
+}
+
+function readIgnoredCodexConfigKey(line: string): string | null {
+  const match = CODEX_IGNORED_CONFIG_ENTRY_PATTERN.exec(stripVTControlCharacters(line));
+  return match?.[1] ?? null;
+}
+
+function formatUpdatedCodexConfigWarningHeader(headerLine: string, remainingCount: number): string {
+  const noun = remainingCount === 1 ? "setting" : "settings";
+  return headerLine.replace(
+    /Codex is ignoring \d+ unrecognized configuration settings?\./,
+    `Codex is ignoring ${remainingCount} unrecognized configuration ${noun}.`,
+  );
+}
+
+export function stripIgnoredCodexConfigWarnings(text: string): string {
+  if (!text.includes("always_allowed_app_ids")) {
+    return text;
+  }
+  const lines = text.split(/\r?\n/);
+  const keptLines: string[] = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (!isCodexUnrecognizedConfigHeader(line)) {
+      keptLines.push(line);
+      continue;
+    }
+
+    const detailLines: string[] = [];
+    while (index + 1 < lines.length) {
+      const nextLine = lines[index + 1] ?? "";
+      if (readIgnoredCodexConfigKey(nextLine) === null) {
+        break;
+      }
+      detailLines.push(nextLine);
+      index += 1;
+    }
+
+    if (detailLines.length === 0) {
+      keptLines.push(line);
+      continue;
+    }
+
+    const remainingDetails = detailLines.filter((detailLine) => {
+      const key = readIgnoredCodexConfigKey(detailLine);
+      return !key || !IGNORED_CODEX_DESKTOP_CONFIG_KEYS.has(key);
+    });
+    if (remainingDetails.length === 0) {
+      continue;
+    }
+
+    const updatedHeader =
+      remainingDetails.length === detailLines.length
+        ? line
+        : formatUpdatedCodexConfigWarningHeader(line, remainingDetails.length);
+    keptLines.push(updatedHeader, ...remainingDetails);
+  }
+
+  return keptLines.join("\n");
+}
 
 interface JsonRpcRequest {
   id: number;
@@ -272,7 +343,7 @@ export class CodexAppServerClient {
         new CodexAppServerExitError({
           exitCode: code,
           exitSignal: signal,
-          stderr: this.stderrBuffer,
+          stderr: stripIgnoredCodexConfigWarnings(this.stderrBuffer).trim(),
         }),
       );
     };

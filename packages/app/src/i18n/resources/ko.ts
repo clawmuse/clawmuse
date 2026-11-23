@@ -1381,6 +1381,7 @@ export const ko: TranslationResources = {
         newAgentHere: "이 호스트에서 새 에이전트",
         settings: "호스트 설정",
         more: "더 많은 호스트",
+        reorderHost: "{{name}} 이동",
         shownCount: "표시 중인 호스트: {{count}}",
         clear: "지우기",
         running: "실행 중: {{count}}",
@@ -2724,6 +2725,14 @@ export const ko: TranslationResources = {
         label: "터미널 스크롤백",
         description: "내장 터미널 버퍼에 보관되는 줄 수",
         accessibilityLabel: "터미널 스크롤백 줄 수",
+      },
+      showReasoning: {
+        label: "사고 과정 표시",
+        description: "채팅에 Thinking 등의 사고 기록을 표시합니다",
+      },
+      showToolCalls: {
+        label: "도구 호출 표시",
+        description: "채팅에 Shell, 검색 등의 도구 호출을 표시합니다",
       },
       autoExpandReasoning: {
         label: "추론 항상 펼치기",

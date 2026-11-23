@@ -27,6 +27,12 @@ import {
   expectNamedPluginRow,
 } from "../support/helpers/plugin-settings";
 import { expect } from "../support/fixtures";
+import {
+  expectPluginOff,
+  openPluginPage,
+  pluginRow,
+  turnPluginOff,
+} from "../support/helpers/plugin-gallery";
 import { settingsRpc } from "@getpaseo/plugin";
 import { getServerId } from "../support/helpers/server-id";
 
@@ -40,11 +46,11 @@ for (const width of [1280, 390]) {
     const pluginsUrl = `/settings/hosts/${encodeURIComponent(getServerId())}/plugins`;
     try {
       await page.goto(pluginsUrl);
-      const row = page.getByTestId(`plugin-row-${pluginId}`);
+      const row = pluginRow(page, pluginId);
       await expect(
         row.getByText("Official · included with ClawMuse", { exact: true }),
       ).toBeVisible();
-      await expect(row.getByRole("switch")).not.toBeChecked();
+      await expectPluginOff(page, "会话翻译");
       await page.screenshot({ path: info.outputPath("translation-disabled.png") });
       await row.getByRole("switch").click();
       await expect(page.getByTestId("combined-model-selector")).toBeVisible();
@@ -65,20 +71,18 @@ for (const width of [1280, 390]) {
       await expect(page.getByText(`codex · ${modelId}`, { exact: true })).toBeVisible();
       await page
         .getByRole("button", { name: width < 720 ? "Back" : "Back to plugins", exact: true })
+        .filter({ visible: true })
+        .last()
         .click();
-      await page
-        .getByTestId(`plugin-row-${pluginId}`)
-        .getByRole("button", { name: "Configure", exact: true })
-        .click();
+      await openPluginPage(page, "会话翻译", pluginId);
       await expect(page.getByTestId("combined-model-selector")).toHaveText(selection);
       await page
         .getByRole("button", { name: width < 720 ? "Back" : "Back to plugins", exact: true })
+        .filter({ visible: true })
+        .last()
         .click();
-      await page.getByTestId(`plugin-row-${pluginId}`).getByRole("switch").click();
-      await expect(
-        page.getByTestId(`plugin-row-${pluginId}`).getByRole("switch"),
-      ).not.toBeChecked();
-      await page.getByTestId(`plugin-row-${pluginId}`).getByRole("switch").click();
+      await turnPluginOff(page, "会话翻译");
+      await pluginRow(page, pluginId).getByRole("switch").click();
       await expect(page.getByTestId("combined-model-selector")).toHaveText(selection);
       await page.screenshot({ path: info.outputPath("translation-selected-model.png") });
     } finally {

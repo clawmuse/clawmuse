@@ -45,6 +45,7 @@ class FakeLifecycleAgentManager implements LifecycleAgentManager {
   inFlightAgentIds = new Set<string>();
   readonly settledDuringCancellationAgentIds = new Set<string>();
   readonly rejectedCancellationAgentIds = new Set<string>();
+  runningProviderSubagentIds = new Set<string>();
 
   constructor(private readonly storage: FakeLifecycleAgentStorage) {}
 
@@ -56,16 +57,23 @@ class FakeLifecycleAgentManager implements LifecycleAgentManager {
     return this.inFlightAgentIds.has(agentId);
   }
 
+  hasRunningProviderSubagents(agentId: string): boolean {
+    return this.runningProviderSubagentIds.has(agentId);
+  }
+
   async cancelAgentRun(agentId: string) {
     this.cancelledAgentIds.push(agentId);
     if (this.settledDuringCancellationAgentIds.delete(agentId)) {
       this.inFlightAgentIds.delete(agentId);
+      this.runningProviderSubagentIds.delete(agentId);
       return { status: "not_running" } as const;
     }
     if (this.rejectedCancellationAgentIds.has(agentId)) {
       return { status: "refused" } as const;
     }
-    return this.inFlightAgentIds.delete(agentId)
+    const stoppedInFlight = this.inFlightAgentIds.delete(agentId);
+    const stoppedSubagents = this.runningProviderSubagentIds.delete(agentId);
+    return stoppedInFlight || stoppedSubagents
       ? ({ status: "settled" } as const)
       : ({ status: "not_running" } as const);
   }
@@ -192,6 +200,27 @@ describe("agent lifecycle commands", () => {
       agent: manager.liveAgents.get("agent-1"),
       cancelled: false,
     });
+  });
+
+  test("cancels an idle agent when it has running provider subagents", async () => {
+    const storage = new FakeLifecycleAgentStorage();
+    const manager = new FakeLifecycleAgentManager(storage);
+    manager.liveAgents.set("agent-1", managedAgent("agent-1", "idle"));
+    manager.runningProviderSubagentIds.add("agent-1");
+
+    const result = await cancelAgentRunCommand({ agentManager: manager, logger }, "agent-1");
+
+    expect(result).toEqual({
+      agent: manager.liveAgents.get("agent-1"),
+      cancelled: true,
+    });
+    expect(manager.cancelledAgentIds).toEqual(["agent-1"]);
+
+    manager.runningProviderSubagentIds.add("agent-1");
+    manager.rejectedCancellationAgentIds.add("agent-1");
+    await expect(
+      cancelAgentRunCommand({ agentManager: manager, logger }, "agent-1"),
+    ).rejects.toThrow("active run cancellation was not acknowledged");
   });
 
   test("archives a live agent after canceling and clearing attention", async () => {

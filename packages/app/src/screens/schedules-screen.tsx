@@ -9,7 +9,7 @@ import {
 } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useIsFocused } from "expo-router/react-navigation";
-import { CalendarClock, Plus } from "@/components/icons/app-icons";
+import { CalendarClock, Plus, RefreshCcw } from "@/components/icons/app-icons";
 import { StyleSheet } from "react-native-unistyles";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { ExternalLink } from "@/components/ui/external-link";
@@ -28,7 +28,12 @@ import {
   type AggregatedSchedule,
   type ScheduleHostError,
 } from "@/hooks/use-schedules";
-import { getHostRuntimeStore, useVisibleHosts } from "@/runtime/host-runtime";
+import {
+  getHostRuntimeStore,
+  useHostRuntimeConnectionStatuses,
+  useVisibleHosts,
+} from "@/runtime/host-runtime";
+import { useNetworkStatus } from "@/runtime/network-status/model";
 import {
   resolveSchedule,
   type ScheduleBucket,
@@ -162,6 +167,21 @@ function SchedulesScreenContent(): ReactElement {
 
   const showLoadError = isError && loadState.status !== "loaded";
   const showHostFilter = hosts.length > 1;
+  const networkStatus = useNetworkStatus();
+  const hostIds = useMemo(() => hosts.map((host) => host.serverId), [hosts]);
+  const connectionStatuses = useHostRuntimeConnectionStatuses(hostIds);
+  const allHostsOffline = useMemo(() => {
+    if (hostIds.length === 0) return false;
+    return hostIds.every((serverId) => {
+      const status = connectionStatuses.get(serverId);
+      return status === "offline" || status === "error";
+    });
+  }, [connectionStatuses, hostIds]);
+  const handleRetry = useCallback(() => {
+    runtime.ensureConnectedAll({ verify: true });
+    void runtime.runProbeCycleNow();
+    refetch();
+  }, [refetch, runtime]);
 
   return (
     <View style={styles.container}>
@@ -171,13 +191,15 @@ function SchedulesScreenContent(): ReactElement {
         loadState={loadState}
         hostErrors={hostErrors}
         showLoadError={showLoadError}
+        isOffline={!networkStatus.online}
+        allHostsOffline={allHostsOffline}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         showHostFilter={showHostFilter}
         hosts={hosts}
         selectedHost={selectedHost}
         onSelectHost={setSelectedHost}
-        onRetry={refetch}
+        onRetry={handleRetry}
         onCreate={openCreate}
         onEdit={openEdit}
       />
@@ -197,6 +219,8 @@ function SchedulesScreenBody({
   loadState,
   hostErrors,
   showLoadError,
+  isOffline,
+  allHostsOffline,
   statusFilter,
   onStatusFilterChange,
   showHostFilter,
@@ -211,6 +235,8 @@ function SchedulesScreenBody({
   loadState: AggregateLoadState<AggregatedSchedule>;
   hostErrors: ScheduleHostError[];
   showLoadError: boolean;
+  isOffline: boolean;
+  allHostsOffline: boolean;
   statusFilter: ScheduleBucket;
   onStatusFilterChange: (value: ScheduleBucket) => void;
   showHostFilter: boolean;
@@ -234,12 +260,43 @@ function SchedulesScreenBody({
       testID: "schedules-filter-ended",
     },
   ];
-  const bodyState = resolveSchedulesScreenBodyState({ loadState, showLoadError });
+  const bodyState = resolveSchedulesScreenBodyState({
+    loadState,
+    showLoadError,
+    isOffline,
+    allHostsOffline,
+  });
 
   if (bodyState.kind === "loading") {
     return (
       <View style={styles.centered}>
         <LoadingSpinner size="large" color={styles.spinner.color} />
+      </View>
+    );
+  }
+
+  if (bodyState.kind === "offline" || bodyState.kind === "hosts-offline") {
+    const isNetworkOffline = bodyState.kind === "offline";
+    return (
+      <View style={styles.centered} testID="schedules-offline">
+        <Text style={styles.offlineTitle}>
+          {isNetworkOffline
+            ? t("connectionResilience.list.offlineTitle")
+            : t("connectionResilience.list.hostsOfflineTitle")}
+        </Text>
+        <Text style={styles.message}>
+          {isNetworkOffline
+            ? t("connectionResilience.list.offlineDescription")
+            : t("connectionResilience.list.hostsOfflineDescription")}
+        </Text>
+        <Button
+          variant="secondary"
+          leftIcon={RefreshCcw}
+          onPress={onRetry}
+          testID="schedules-retry"
+        >
+          {t("common.actions.retry")}
+        </Button>
       </View>
     );
   }
@@ -449,6 +506,12 @@ const styles = StyleSheet.create((theme) => ({
   emptyDescription: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.base,
+    textAlign: "center",
+  },
+  offlineTitle: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
     textAlign: "center",
   },
   message: {

@@ -546,8 +546,7 @@ export async function withButtonShowcase(
           await expect(
             page.getByRole("toolbar", { name: "Workspace actions", exact: true }),
           ).toHaveCount(0);
-          await expectComposerPillChevrons(page);
-          await expect(page.getByTestId("plugin-button-chevron")).toHaveCount(2);
+          await expect(page.getByTestId("plugin-button-chevron")).toHaveCount(0);
           await expect(
             page.getByRole("button", { name: "Composer checks", exact: true }),
           ).toHaveText("");

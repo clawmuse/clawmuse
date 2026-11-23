@@ -44,6 +44,7 @@ vi.mock("@gorhom/portal", () => ({
 /** Every `waitFor` Gorhom received, in render order. Gorhom rebuilds its content pan per value. */
 const sheetWaitFor = vi.hoisted(() => [] as unknown[]);
 const sheetSimultaneousHandlers = vi.hoisted(() => [] as unknown[]);
+const sheetPanOffsets = vi.hoisted(() => [] as { activeOffsetY: unknown; failOffsetX: unknown }[]);
 
 vi.mock("@gorhom/bottom-sheet", async () => {
   const { Portal } = await import("@gorhom/portal");
@@ -57,16 +58,21 @@ vi.mock("@gorhom/bottom-sheet", async () => {
           stackBehavior,
           waitFor,
           simultaneousHandlers,
+          activeOffsetY,
+          failOffsetX,
         }: {
           children?: React.ReactNode;
           stackBehavior?: string;
           waitFor?: unknown;
           simultaneousHandlers?: unknown;
+          activeOffsetY?: unknown;
+          failOffsetX?: unknown;
         },
         _ref,
       ) => {
         sheetWaitFor.push(waitFor);
         sheetSimultaneousHandlers.push(simultaneousHandlers);
+        sheetPanOffsets.push({ activeOffsetY, failOffsetX });
         return React.createElement(
           Portal,
           null,
@@ -268,6 +274,7 @@ describe("IsolatedBottomSheetModal content drag", () => {
     root = createRoot(container);
     sheetWaitFor.length = 0;
     sheetSimultaneousHandlers.length = 0;
+    sheetPanOffsets.length = 0;
   });
 
   afterEach(() => {
@@ -288,7 +295,7 @@ describe("IsolatedBottomSheetModal content drag", () => {
     content: React.ReactNode,
     handlers: Pick<
       React.ComponentProps<typeof IsolatedBottomSheetModal>,
-      "waitFor" | "simultaneousHandlers"
+      "waitFor" | "simultaneousHandlers" | "activeOffsetY" | "failOffsetX"
     > = {},
   ) {
     act(() => {
@@ -333,6 +340,25 @@ describe("IsolatedBottomSheetModal content drag", () => {
       expect(sheetSimultaneousHandlers.at(-1)).toBe(handlers.simultaneousHandlers);
     },
   );
+
+  it("provides stable vertical-activation / horizontal-fail pan offsets by default", () => {
+    renderSheet(null);
+    const first = sheetPanOffsets.at(-1);
+    expect(first).toEqual({ activeOffsetY: [-10, 10], failOffsetX: [-15, 15] });
+
+    renderSheet(<ContentDrag />);
+    const second = sheetPanOffsets.at(-1);
+    expect(second?.activeOffsetY).toBe(first?.activeOffsetY);
+    expect(second?.failOffsetX).toBe(first?.failOffsetX);
+
+    const customActiveY: [number, number] = [-20, 20];
+    const customFailX: [number, number] = [-30, 30];
+    renderSheet(null, { activeOffsetY: customActiveY, failOffsetX: customFailX });
+    expect(sheetPanOffsets.at(-1)).toEqual({
+      activeOffsetY: customActiveY,
+      failOffsetX: customFailX,
+    });
+  });
 });
 
 // Load the real vendored implementations at runtime without typechecking Gorhom's entire source

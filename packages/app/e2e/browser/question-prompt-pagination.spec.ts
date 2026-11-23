@@ -573,7 +573,9 @@ retryTest(
     const card = page.getByTestId("question-form-card");
     questionClient.releaseFirstResponse();
     await chooseQuestionOption(page, "App");
+    await card.getByRole("button", { name: "下一步", exact: true }).click();
     await chooseQuestionOption(page, "Behind feature flag");
+    await card.getByRole("button", { name: "下一步", exact: true }).click();
     await fillQuestionAnswer(page, { question: SUCCESS_QUESTION, answer: "保留我的回答" });
     await card.getByRole("button", { name: "提交", exact: true }).click();
     await expect(card.getByRole("alert")).toHaveText(

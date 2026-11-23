@@ -9,8 +9,10 @@ import { useWorkspaceStructure } from "@/stores/session-store-hooks";
 import {
   getHostRuntimeStore,
   useHostRegistryLoaded,
+  useHostRuntimeConnectionStatuses,
   useVisibleHosts,
 } from "@/runtime/host-runtime";
+import { useNetworkStatus } from "@/runtime/network-status/model";
 import { sortProjectsByLastRun } from "@/projects/workspace-structure";
 import { sidebarGroupModeIncludes, useSidebarViewStore } from "@/stores/sidebar-view-store";
 import {
@@ -139,6 +141,16 @@ export function useSidebarWorkspacesList(options?: {
   }, [allServerIds, hostRegistryLoaded, reconcileHostFilters]);
 
   const directoryServerIds = useWorkspaceDirectoryServerIds(serverIds);
+  const connectionStatuses = useHostRuntimeConnectionStatuses(serverIds);
+  const networkStatus = useNetworkStatus();
+  const hasPendingUnhydratedHosts = useMemo(() => {
+    const hydrated = new Set(directoryServerIds);
+    return serverIds.some((serverId) => {
+      if (hydrated.has(serverId)) return false;
+      const status = connectionStatuses.get(serverId);
+      return status !== "offline" && status !== "error";
+    });
+  }, [connectionStatuses, directoryServerIds, serverIds]);
 
   const workspaceSort = useSidebarViewStore((state) => state.workspaceSort);
   const groupMode = useSidebarViewStore((state) => state.groupMode);
@@ -168,7 +180,11 @@ export function useSidebarWorkspacesList(options?: {
 
   const refreshAll = useCallback(() => {
     if (!isActive) return;
+    runtime.ensureConnectedAll({ verify: true });
     for (const serverId of serverIds) {
+      if (runtime.getSnapshot(serverId)?.connectionStatus !== "online") {
+        void runtime.reconnectHost(serverId).catch(() => undefined);
+      }
       void runtime.refreshDirectories(serverId).catch((error) => {
         console.error("[WorkspaceFetch][sidebar-refresh] failed", {
           serverId,
@@ -183,6 +199,8 @@ export function useSidebarWorkspacesList(options?: {
     serverIds,
     hydratedServerIds: directoryServerIds,
     hasProjects: projects.length > 0,
+    networkOnline: networkStatus.online,
+    hasPendingUnhydratedHosts,
   });
 
   return {

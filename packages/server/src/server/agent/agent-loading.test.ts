@@ -318,7 +318,7 @@ test("timeline requests read unarchived stored history with a deleted cwd", asyn
   }
 }, 30000);
 
-test("timeline reads keep runnable unarchived agents interactive for the next prompt", async () => {
+test("timeline reads load runnable agents as history and upgrade on the next prompt", async () => {
   const clients = createTestAgentClients();
   const base = clients.codex!;
   const purposes: Array<AgentResumeSessionOptions | undefined> = [];
@@ -338,10 +338,13 @@ test("timeline reads keep runnable unarchived agents interactive for the next pr
   try {
     const agent = await ctx.client.createAgent({ provider: "codex", cwd });
     await ctx.daemon.daemon.agentManager.closeAgent(agent.id);
+    // Clients fetch the timeline of every listed agent. Starting a runtime for each read
+    // would bring back every collected agent whenever a client reconnects.
     await ctx.client.fetchAgentTimeline(agent.id);
-    expect(purposes).toEqual([{ purpose: "interactive" }]);
+    expect(purposes).toEqual([{ purpose: "history" }]);
     await ctx.client.sendMessage(agent.id, "continue after opening history");
     expect((await ctx.client.waitForFinish(agent.id, 15000)).status).toBe("idle");
+    expect(purposes).toEqual([{ purpose: "history" }, undefined]);
     const timeline = await ctx.client.fetchAgentTimeline(agent.id);
     expect(timeline.entries.length).toBeGreaterThan(0);
     await ctx.daemon.daemon.agentManager.closeAgent(agent.id);
@@ -354,10 +357,40 @@ test("timeline reads keep runnable unarchived agents interactive for the next pr
       manager.tryRunOutOfBand(agent.id, "second prompt"),
     ]);
     expect(purposes).toEqual([
-      { purpose: "interactive" },
       { purpose: "history" },
       undefined, // Reload uses the provider's interactive default.
+      { purpose: "history" },
+      undefined,
     ]);
+  } finally {
+    await ctx.cleanup();
+    await rm(cwd, { recursive: true, force: true });
+  }
+}, 30000);
+
+test("provider subagent lists load collected agents as history", async () => {
+  const clients = createTestAgentClients();
+  const base = clients.codex!;
+  const purposes: Array<AgentResumeSessionOptions | undefined> = [];
+  const client: AgentClient = {
+    provider: base.provider,
+    capabilities: base.capabilities,
+    createSession: (config, context) => base.createSession(config, context),
+    resumeSession: (handle, overrides, context, options) => {
+      purposes.push(options);
+      return base.resumeSession(handle, overrides, context, options);
+    },
+    fetchCatalog: (options) => base.fetchCatalog(options),
+    isAvailable: () => base.isAvailable(),
+  };
+  const ctx = await createDaemonTestContext({ agentClients: { codex: client } });
+  const cwd = await mkdtemp(path.join(tmpdir(), "subagents-history-"));
+  try {
+    const agent = await ctx.client.createAgent({ provider: "codex", cwd });
+    await ctx.daemon.daemon.agentManager.closeAgent(agent.id);
+    const listed = await ctx.client.listProviderSubagents(agent.id);
+    expect(listed.subagents).toEqual([]);
+    expect(purposes).toEqual([{ purpose: "history" }]);
   } finally {
     await ctx.cleanup();
     await rm(cwd, { recursive: true, force: true });

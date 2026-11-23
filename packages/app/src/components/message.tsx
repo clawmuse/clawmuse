@@ -602,6 +602,7 @@ const assistantTurnFooterStylesheet = StyleSheet.create((theme) => ({
     flexShrink: 0,
     color: theme.colors.foregroundMuted,
     fontSize: STREAM_METADATA_FONT_SIZE,
+    ...(isWeb ? { whiteSpace: "normal" as const, overflowWrap: "anywhere" as const } : {}),
   },
   overlappingLabel: {
     marginLeft: "-100%",

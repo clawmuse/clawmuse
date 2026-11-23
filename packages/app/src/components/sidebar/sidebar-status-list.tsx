@@ -17,7 +17,10 @@ import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspac
 import { type SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import type { StatusBucket } from "@/hooks/sidebar-status-view-model";
 import type { SidebarWorkspaceGroup } from "@/components/sidebar/sidebar-labels";
-import { SidebarFilterEmptyState } from "@/components/sidebar/empty-states";
+import {
+  SidebarFilterEmptyState,
+  SidebarProjectEmptyState,
+} from "@/components/sidebar/empty-states";
 import type { HostBadgeModel } from "@/hosts/appearance";
 import { isWeb as platformIsWeb, isNative as platformIsNative } from "@/constants/platform";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -74,6 +77,7 @@ import type { ToggleSidebarWorkspacePin } from "@/hooks/use-sidebar-workspace-pi
 import { DraggableList, type DraggableRenderItemInfo } from "@/components/draggable-list";
 import type { DraggableListDragHandleProps } from "@/components/draggable-list.types";
 import { useLongPressDragInteraction } from "@/components/sidebar/use-long-press-drag-interaction";
+import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-badge";
 
 // Themed icon wrappers
 const mutedGroupIconProps = densityIconProps("sm", (theme) => ({
@@ -113,6 +117,9 @@ interface StatusWorkspaceListProps {
   shortcutIndexByWorkspaceKey: Map<string, number>;
   showShortcutBadges: boolean;
   onWorkspacePress?: () => void;
+  onAddProject?: () => void;
+  onImportSession?: () => void;
+  onRefresh?: () => void;
   hostBadgeByServerId: ReadonlyMap<string, HostBadgeModel>;
   supportsPinningByServerId: ReadonlyMap<string, boolean>;
   onToggleWorkspacePin: ToggleSidebarWorkspacePin;
@@ -132,6 +139,9 @@ export function SidebarStatusWorkspaceList({
   shortcutIndexByWorkspaceKey,
   showShortcutBadges,
   onWorkspacePress,
+  onAddProject,
+  onImportSession,
+  onRefresh,
   hostBadgeByServerId,
   supportsPinningByServerId,
   onToggleWorkspacePin,
@@ -221,6 +231,33 @@ export function SidebarStatusWorkspaceList({
       }),
     [renderPinnedWorkspaceRow],
   );
+  let listBody: ReactNode;
+  if (sidebarFilterEmpty) {
+    listBody = <SidebarFilterEmptyState />;
+  } else if (groups.length === 0 && pinnedWorkspaces.length === 0) {
+    listBody = (
+      <SidebarProjectEmptyState
+        onAddProject={onAddProject}
+        onImportSession={onImportSession}
+        onRefresh={onRefresh}
+      />
+    );
+  } else {
+    listBody = (
+      <StatusGroupList
+        groups={groups}
+        collapsedWorkspaceGroupKeys={collapsedWorkspaceGroupKeys}
+        projectIconByProjectViewKey={projectIconByProjectViewKey}
+        shortcutIndex={statusShortcutIndex}
+        showShortcutBadges={showShortcutBadges}
+        onWorkspacePress={onWorkspacePress}
+        hostBadgeByServerId={hostBadgeByServerId}
+        supportsPinningByServerId={supportsPinningByServerId}
+        onToggleWorkspacePin={onToggleWorkspacePin}
+      />
+    );
+  }
+
   const content = (
     <>
       {pinnedWorkspaces.length > 0 ? (
@@ -258,29 +295,26 @@ export function SidebarStatusWorkspaceList({
         </View>
       ) : null}
       {listHeaderComponent}
-      {sidebarFilterEmpty ? (
-        <SidebarFilterEmptyState />
-      ) : (
-        <StatusGroupList
-          groups={groups}
-          collapsedWorkspaceGroupKeys={collapsedWorkspaceGroupKeys}
-          projectIconByProjectViewKey={projectIconByProjectViewKey}
-          shortcutIndex={statusShortcutIndex}
-          showShortcutBadges={showShortcutBadges}
-          onWorkspacePress={onWorkspacePress}
-          hostBadgeByServerId={hostBadgeByServerId}
-          supportsPinningByServerId={supportsPinningByServerId}
-          onToggleWorkspacePin={onToggleWorkspacePin}
-        />
-      )}
+      {listBody}
       {listFooterComponent}
     </>
+  );
+
+  const nativeScrollGestureProps = useMemo(
+    () =>
+      parentGestureRef
+        ? ({
+            simultaneousHandlers: parentGestureRef,
+          } as object)
+        : undefined,
+    [parentGestureRef],
   );
 
   return (
     <View style={styles.container}>
       {platformIsNative ? (
         <NestableScrollContainer
+          {...nativeScrollGestureProps}
           style={styles.list}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -496,7 +530,34 @@ function buildStatusRowProjectPresentation({
   };
 }
 
-function StatusGroupHeader({
+export type StatusGroupCountPresentation =
+  | { kind: "pill"; label: string; variant: StatusBadgeVariant }
+  | { kind: "plain"; label: string }
+  | null;
+
+export function resolveStatusGroupCountPresentation(input: {
+  bucket: StatusBucket;
+  count: number;
+  collapsed: boolean;
+}): StatusGroupCountPresentation {
+  const { bucket, count, collapsed } = input;
+  if (count <= 0) return null;
+  const label = String(count);
+  switch (bucket) {
+    case "needs_input":
+      return { kind: "pill", label, variant: "warning" };
+    case "failed":
+      return { kind: "pill", label, variant: "error" };
+    case "running":
+      return { kind: "pill", label, variant: "running" };
+    case "attention":
+      return { kind: "pill", label, variant: "muted" };
+    case "done":
+      return collapsed ? { kind: "plain", label } : null;
+  }
+}
+
+export function StatusGroupHeader({
   group,
   collapsed,
 }: {
@@ -518,6 +579,11 @@ function StatusGroupHeader({
     [isHovered],
   );
   const accessibilityState = useMemo(() => ({ expanded: !collapsed }), [collapsed]);
+  const countPresentation = resolveStatusGroupCountPresentation({
+    bucket: group.leading.bucket,
+    count: group.rows.length,
+    collapsed,
+  });
 
   return (
     <View onPointerEnter={handleHoverIn} onPointerLeave={handleHoverOut}>
@@ -542,6 +608,24 @@ function StatusGroupHeader({
             <Text style={styles.statusGroupTitle} numberOfLines={1}>
               {group.label}
             </Text>
+            {countPresentation ? (
+              <View
+                style={styles.statusGroupCountSlot}
+                testID={`sidebar-status-group-count-${group.key}`}
+              >
+                {countPresentation.kind === "pill" ? (
+                  <StatusBadge
+                    label={countPresentation.label}
+                    variant={countPresentation.variant}
+                    size="xs"
+                  />
+                ) : (
+                  <Text style={styles.statusGroupCollapsedDoneCount} numberOfLines={1}>
+                    {countPresentation.label}
+                  </Text>
+                )}
+              </View>
+            ) : null}
           </View>
         </View>
       </Pressable>
@@ -712,8 +796,8 @@ function StatusWorkspaceRowWithMenu({
   });
 
   const handleArchive = useCallback(() => {
-    if (isArchiving) return;
-    archiveController.archive();
+    if (isArchiving) return false;
+    return archiveController.archive();
   }, [archiveController, isArchiving]);
 
   const clipboard = useWorkspaceClipboardActions();
@@ -1192,7 +1276,7 @@ const styles = StyleSheet.create((theme) => ({
   statusGroupTitleGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[1],
+    gap: theme.spacing[1.5],
     flex: 1,
     minWidth: 0,
   },
@@ -1202,12 +1286,23 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     flexShrink: 1,
   },
+  statusGroupCountSlot: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statusGroupCollapsedDoneCount: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.normal,
+    fontVariant: ["tabular-nums"],
+    color: theme.colors.foregroundExtraMuted,
+  },
   workspaceRowContainer: {
     position: "relative",
+    marginBottom: theme.spacing[0.5],
   },
   workspaceRow: {
     minHeight: density.listRowHeight,
-    marginBottom: theme.spacing[0.5],
     paddingVertical: density.listRowPaddingVertical,
     paddingLeft: theme.spacing[2],
     paddingRight: theme.spacing[3],

@@ -304,23 +304,51 @@ describe("mobile panel ownership", () => {
       rightTranslateX: 600,
     });
   });
-});
-
-it("lands an explicit destination while the sidebar is suspended without a slide", () => {
-  const state = createMobilePanelMotionState({ target: "agent-list", revision: 1 });
-  const result = transitionMobilePanel(state, {
-    type: "command",
-    selection: { target: "agent", revision: 2 },
-    immediate: true,
+  it("lands an explicit destination while the sidebar is suspended without a slide", () => {
+    const state = createMobilePanelMotionState({ target: "agent-list", revision: 1 });
+    const result = transitionMobilePanel(state, {
+      type: "command",
+      selection: { target: "agent", revision: 2 },
+      immediate: true,
+    });
+    expect(result).toEqual({
+      immediateTarget: "agent",
+      state: {
+        target: "agent",
+        revision: 2,
+        gesture: null,
+        motionTarget: "agent",
+        settledTarget: "agent",
+      },
+    });
   });
-  expect(result).toEqual({
-    immediateTarget: "agent",
-    state: {
+
+  it("ignores non-finite positions instead of poisoning panel frames or gesture readiness", () => {
+    const state = createMobilePanelMotionState({ target: "agent-list", revision: 2 });
+    expect(canBeginMobilePanelGesture(state, "agent-list", Number.NaN)).toBe(false);
+    expect(
+      transitionMobilePanel(state, { type: "position.changed", position: Number.NaN }).state,
+    ).toBe(state);
+    expect(getMobilePanelFrame(Number.NaN, 0)).toEqual({
+      leftBackdropOpacity: 0,
+      leftTranslateX: -0,
+      rightBackdropOpacity: 0,
+      rightTranslateX: 0,
+    });
+  });
+
+  it("recovers gesture ownership cleanly when a finalized cancel follows an interrupted drag", () => {
+    const panels = new MobilePanelsScenario("agent");
+    panels.beginGesture("agent").cancelGesture();
+    expect(panels.snapshot()).toEqual({
       target: "agent",
-      revision: 2,
-      gesture: null,
       motionTarget: "agent",
       settledTarget: "agent",
-    },
+      revision: 0,
+    });
+    expect(panels.animations).toEqual(["agent"]);
+    // A subsequent gesture can start again once the cancelled drag is released.
+    panels.beginGesture("agent").finishGesture("agent-list");
+    expect(panels.commits).toEqual([{ target: "agent-list", startedRevision: 0 }]);
   });
 });

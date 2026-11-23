@@ -11,6 +11,7 @@ const directorySchema = z.object({
       serverId: z.string(),
       label: z.string(),
       hidden: z.boolean().default(false),
+      sortOrder: z.number().int().nullable().optional(),
       offer: ConnectionOfferSchema,
       accountAuthorization: z.boolean().optional(),
     }),
@@ -66,6 +67,14 @@ export interface AccountDependencies {
   clearAccountCredentials: (keep: string[]) => Promise<void>;
   localDevice: () => Promise<{ offer: ConnectionOffer; label: string } | null>;
   bindLocalAccount: (accountId: string) => Promise<string | null>;
+  readHostOrder?: () => string[];
+  syncAccountHostOrder?: (input: {
+    accountServerIds: string[];
+    orderedAccountServerIds: string[];
+  }) => void;
+  readPendingAccountOrder?: () => string[] | null;
+  writePendingAccountOrder?: (ids: string[] | null) => void;
+  removeHostsFromOrder?: (ids: string[]) => void;
 }
 
 const errors: Record<string, string> = {
@@ -222,8 +231,40 @@ export class AccountModel {
   private async clearManagedHosts(keep: string[] = []) {
     await this.deps.clearAccountCredentials(keep);
     const managed = await this.deps.readManagedHosts();
-    for (const id of managed) if (!keep.includes(id)) await this.deps.removeHost(id);
+    const removed = managed.filter((id) => !keep.includes(id));
+    for (const id of removed) await this.deps.removeHost(id);
     await this.deps.writeManagedHosts(managed.filter((id) => keep.includes(id)));
+    if (removed.length > 0) this.deps.removeHostsFromOrder?.(removed);
+    if (keep.length === 0) this.deps.writePendingAccountOrder?.(null);
+  }
+  private pendingOrderMatches(ids: readonly string[]): boolean {
+    const current = this.deps.readPendingAccountOrder?.();
+    if (!current) return true;
+    return current.length === ids.length && current.every((id, index) => id === ids[index]);
+  }
+  private async flushAccountOrder(ids: string[]): Promise<boolean> {
+    if (ids.length === 0) {
+      this.deps.writePendingAccountOrder?.(null);
+      return true;
+    }
+    const response = await this.deps.request("/clawmuse/devices/reorder", { serverIds: ids });
+    if (response.status === 401) {
+      await this.invalidateAccount();
+      throw new Error("登录已失效，请重新登录。");
+    }
+    if (response.status === 404 || response.status === 400) {
+      if (this.pendingOrderMatches(ids)) {
+        this.deps.writePendingAccountOrder?.(null);
+      }
+      return false;
+    }
+    if (response.status >= 400) {
+      throw new Error(i18n.t("clawmuseAccount.serviceError"));
+    }
+    if (this.pendingOrderMatches(ids)) {
+      this.deps.writePendingAccountOrder?.(null);
+    }
+    return true;
   }
   private async ensureController(): Promise<void> {
     if (!(await this.deps.controlledOnly?.())) return;
@@ -235,8 +276,26 @@ export class AccountModel {
     }
     throw new Error("此电脑仅允许本机使用和接受远程控制，不能登录账号获取其他设备。");
   }
+  private async flushPendingAccountOrder(): Promise<void> {
+    const pendingOrder = this.deps.readPendingAccountOrder?.();
+    if (pendingOrder && pendingOrder.length > 0) {
+      await this.flushAccountOrder(pendingOrder);
+    }
+  }
+  private applyDirectoryOrder(devices: Directory["devices"]): void {
+    if (this.deps.readPendingAccountOrder?.()) return;
+    const orderedAccountServerIds = devices
+      .filter((device) => typeof device.sortOrder === "number")
+      .sort((a, b) => a.sortOrder! - b.sortOrder!)
+      .map((device) => device.serverId);
+    this.deps.syncAccountHostOrder?.({
+      accountServerIds: devices.map((device) => device.serverId),
+      orderedAccountServerIds,
+    });
+  }
   private async discover(background = false) {
     await this.ensureController();
+    await this.flushPendingAccountOrder();
     const directory = directorySchema.parse(await this.request("/clawmuse/devices"));
     if (this.state.account && this.state.account.id !== directory.account.id) {
       await this.deps.beforeAccountChange();
@@ -247,6 +306,7 @@ export class AccountModel {
     await this.clearManagedHosts(keep);
     // Publish discovery before connecting: one unavailable host must not hide the directory.
     this.publish({ account: directory.account, devices: directory.devices });
+    this.applyDirectoryOrder(directory.devices);
     const failures: string[] = [];
     for (const device of directory.devices) {
       if (device.serverId !== device.offer.serverId) throw new Error("设备目录无效");
@@ -471,10 +531,64 @@ export class AccountModel {
         const managed = await this.deps.readManagedHosts();
         await this.deps.removeHost(serverId);
         await this.deps.writeManagedHosts(managed.filter((id) => id !== serverId));
+        this.deps.removeHostsFromOrder?.([serverId]);
         this.publish({ devices: this.state.devices.filter((d) => d.serverId !== serverId) });
       },
       { action: `removeDevice:${serverId}` },
     );
+  reorderHosts = (orderedServerIds: readonly string[]) => {
+    if (!this.state.account) return Promise.resolve();
+    const knownAccountIds = new Set(
+      this.state.devices.map((device) => device.serverId).filter((id) => id !== this.cloudHostId),
+    );
+    if (knownAccountIds.size === 0) return Promise.resolve();
+
+    const combined = [
+      ...orderedServerIds,
+      ...(this.deps.readHostOrder?.() ?? []),
+      ...this.state.devices.map((device) => device.serverId),
+    ];
+    const seen = new Set<string>();
+    const accountOrder: string[] = [];
+    for (const id of combined) {
+      if (!knownAccountIds.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      accountOrder.push(id);
+    }
+    if (accountOrder.length === 0) return Promise.resolve();
+
+    this.deps.writePendingAccountOrder?.(accountOrder);
+    const rank = new Map(accountOrder.map((id, index) => [id, index]));
+    const nextDevices: Directory["devices"] = [];
+    for (const device of this.state.devices) {
+      const order = rank.get(device.serverId);
+      nextDevices.push(order === undefined ? device : { ...device, sortOrder: order });
+    }
+    nextDevices.sort((a, b) => {
+      const rankA = rank.get(a.serverId);
+      const rankB = rank.get(b.serverId);
+      if (rankA !== undefined && rankB !== undefined) return rankA - rankB;
+      if (rankA !== undefined) return -1;
+      if (rankB !== undefined) return 1;
+      return 0;
+    });
+    this.publish({ devices: nextDevices });
+
+    return this.enqueue(
+      async () => {
+        if (!this.state.account) return;
+        const latest = this.deps.readPendingAccountOrder?.();
+        if (latest === null) return;
+        const target = latest ?? accountOrder;
+        if (target.length === 0) {
+          this.deps.writePendingAccountOrder?.(null);
+          return;
+        }
+        await this.flushAccountOrder(target);
+      },
+      { background: true },
+    );
+  };
   deleteAccount = (password: string) =>
     this.enqueue(
       async () => {

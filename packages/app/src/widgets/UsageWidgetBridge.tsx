@@ -7,10 +7,8 @@ import {
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { AppState, Platform } from "react-native";
-import { useHostUsagePlans } from "@/clawmuse-status/host-usage-plans";
 import type { ClawMuseStatusUsage } from "@/clawmuse-status/summary";
 import { useClawMuseStatusSummary } from "@/clawmuse-status/use-summary";
-import type { ClawMuseUsageHostPlans } from "@/clawmuse-status/usage-rows";
 import { useHosts } from "@/runtime/host-runtime";
 import { useSessionStore, type SessionState } from "@/stores/session-store";
 import { useUsageHostId } from "@/usage/hosts";
@@ -86,7 +84,6 @@ function syncHostsIntoStore(input: {
   preferredDeviceId: string | null;
   views: readonly { host: UsageHost; view: UsageView; dailyUsage?: UsageDailyHistory }[];
   sessions: Readonly<Record<string, SessionState>>;
-  hostPlans: readonly ClawMuseUsageHostPlans[];
   serviceUsages: readonly ClawMuseStatusUsage[];
   locale: string;
   nowMs: number;
@@ -104,31 +101,24 @@ function syncHostsIntoStore(input: {
     // Keep an offline host's original observation time; never substitute another
     // host's aggregated cloud quota for this computer's account readings.
     if (!host.isConnected) continue;
-    const agents = collectHostAgentSamples(input.sessions[host.serverId]);
-    const reports = view.kind === "ready" ? view.reports : [];
-    const fallbackForHost =
-      input.hostPlans.find((entry) => entry.serverId === host.serverId)?.plans ?? [];
-    if (view.kind === "loading" || view.kind === "error") continue;
+    // Streamed reports are partial until the host finishes listing its accounts.
+    if (
+      view.kind === "loading" ||
+      view.kind === "error" ||
+      (view.kind === "ready" && view.isRefreshing)
+    ) {
+      continue;
+    }
 
     const previousState = nextStore.states[host.serverId];
     const { snapshot } = buildHostUsageWidgetSnapshot({
-      reports,
-      fallbackPlans: fallbackForHost,
-      agents,
+      reports: view.kind === "ready" ? view.reports : [],
+      previousSnapshot: previousState?.kind === "snapshot" ? previousState.snapshot : undefined,
+      agents: collectHostAgentSamples(input.sessions[host.serverId]),
       dailyUsage,
       locale: input.locale,
       nowMs: input.nowMs,
     });
-    if (
-      dailyUsage === undefined &&
-      view.kind === "ready" &&
-      view.isRefreshing &&
-      previousState?.kind === "snapshot" &&
-      previousState.snapshot.usage.days.length > 0
-    ) {
-      snapshot.usage = previousState.snapshot.usage;
-    }
-
     nextStore = mergeUsageWidgetState(nextStore, {
       deviceId: host.serverId,
       deviceName: host.label,
@@ -146,8 +136,7 @@ function syncHostsIntoStore(input: {
   if (input.views.length === 0 && input.serviceUsages.length > 0) {
     const syntheticId = "clawmuse-cloud";
     const { snapshot } = buildHostUsageWidgetSnapshot({
-      reports: [],
-      fallbackServiceUsages: input.serviceUsages,
+      serviceUsages: input.serviceUsages,
       agents: [],
       locale: input.locale,
       nowMs: input.nowMs,
@@ -182,11 +171,10 @@ export function UsageWidgetBridge() {
 
 function IosUsageWidgetBridge() {
   const { i18n } = useTranslation();
-  const hosts = useHosts();
+  const hasPairedHosts = useHosts().length > 0;
   const usageHosts = useUsageHosts();
   const usageHostId = useUsageHostId();
   const { views, refreshHost } = useHostsUsage(usageHosts);
-  const hostPlans = useHostUsagePlans();
   const statusSummary = useClawMuseStatusSummary();
   const sessions = useSessionStore((state) => state.sessions);
 
@@ -228,15 +216,15 @@ function IosUsageWidgetBridge() {
   }, [refreshHost, usageHosts]);
 
   const computers = useMemo(
-    () => hosts.map((host) => ({ id: host.serverId, name: host.label })),
-    [hosts],
+    () => usageHosts.map((host) => ({ id: host.serverId, name: host.label })),
+    [usageHosts],
   );
 
   const preferredDeviceId = useMemo(() => {
     if (usageHostId) return usageHostId;
     const firstOnline = usageHosts.find((host) => host.isConnected);
-    return firstOnline?.serverId ?? hosts[0]?.serverId ?? null;
-  }, [hosts, usageHostId, usageHosts]);
+    return firstOnline?.serverId ?? usageHosts[0]?.serverId ?? null;
+  }, [usageHostId, usageHosts]);
 
   useEffect(() => {
     const nextStore = syncHostsIntoStore({
@@ -245,8 +233,7 @@ function IosUsageWidgetBridge() {
       preferredDeviceId,
       views,
       sessions,
-      hostPlans,
-      serviceUsages: statusSummary?.usages ?? [],
+      serviceUsages: hasPairedHosts ? [] : (statusSummary?.usages ?? []),
       locale: i18n.language || "en",
       nowMs: Date.now(),
     });
@@ -258,7 +245,7 @@ function IosUsageWidgetBridge() {
         lastWrittenJsonRef.current = canonical;
       }
     }
-  }, [computers, hostPlans, i18n.language, preferredDeviceId, sessions, statusSummary, views]);
+  }, [computers, hasPairedHosts, i18n.language, preferredDeviceId, sessions, statusSummary, views]);
 
   return null;
 }

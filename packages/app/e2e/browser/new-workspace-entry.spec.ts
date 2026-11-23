@@ -45,25 +45,27 @@ function projectRow(page: import("@playwright/test").Page, projectKey: string) {
 
 async function expectSidebarIconCentered(page: Page, workspaceId: string, textHeight: number) {
   const key = `${getServerId()}:${workspaceId}`;
-  const icon = page
-    .getByTestId(`sidebar-row-project-icon-${key}`)
-    .filter({ visible: true })
-    .first();
-  const title = page
-    .getByTestId(`sidebar-workspace-title-${key}`)
-    .filter({ visible: true })
-    .first();
-  const text = page.getByTestId(`sidebar-workspace-text-${key}`).filter({ visible: true }).first();
-  await expect(icon).toBeVisible();
-  const iconBox = await icon.boundingBox();
-  const titleBox = await title.boundingBox();
-  const textBox = await text.boundingBox();
-  expect(iconBox!.height).toBe(27);
-  expect(textBox!.height).toBe(textHeight);
-  expect(iconBox!.width).toBe(20);
-  expect(
-    Math.abs(iconBox!.y + iconBox!.height / 2 - titleBox!.y - titleBox!.height / 2),
-  ).toBeLessThan(1);
+  const row = page.getByTestId(`sidebar-workspace-row-${key}`).filter({ visible: true }).first();
+  // Pinning can move the row between lists. Measure its parts in the same browser evaluation.
+  await expect
+    .poll(() =>
+      row.evaluateAll(([element], workspaceKey) => {
+        if (!element) return null;
+        const bounds = (name: string) =>
+          element.querySelector(`[data-testid="${name}-${workspaceKey}"]`)?.getBoundingClientRect();
+        const icon = bounds("sidebar-row-project-icon");
+        const title = bounds("sidebar-workspace-title");
+        const text = bounds("sidebar-workspace-text");
+        if (!icon || !title || !text) return null;
+        return {
+          iconHeight: +icon.height.toFixed(3),
+          iconWidth: +icon.width.toFixed(3),
+          textHeight: +text.height.toFixed(3),
+          centered: Math.abs(icon.y + icon.height / 2 - title.y - title.height / 2) < 1,
+        };
+      }, key),
+    )
+    .toEqual({ iconHeight: 27, iconWidth: 20, textHeight, centered: true });
 }
 
 async function expectComposerControlsInOneRow(page: Page) {
@@ -304,6 +306,7 @@ test.describe("New workspace entry points", () => {
       await expectNewWorkspaceProjectSelected(page, seeded.projectDisplayName);
 
       await page.goto(route);
+      await expect(composer).toBeVisible({ timeout: 30_000 });
       await page.getByTestId("menu-button").filter({ visible: true }).first().click();
       const listAction = page.getByTestId("sidebar-new-agent").filter({ visible: true });
       await expect(listAction).toBeVisible();

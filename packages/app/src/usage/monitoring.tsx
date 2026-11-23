@@ -47,7 +47,13 @@ function HostMonitoringSettings({ serverId }: { serverId: string }) {
       if (!config) throw new Error(t("workspace.terminal.hostDisconnected"));
     },
     onSuccess: async () => {
-      queryClient.setQueriesData({ queryKey: ["usage", serverId] }, []);
+      queryClient.setQueriesData(
+        {
+          queryKey: ["usage", serverId],
+          predicate: (entry) => entry.queryKey[2] !== "dailyHistory",
+        },
+        [],
+      );
       await queryClient.invalidateQueries({ queryKey });
       // Saving a monitor must not wait for unrelated providers' quota APIs.
       void queryClient.invalidateQueries({ queryKey: ["usage", serverId] });

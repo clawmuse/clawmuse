@@ -631,11 +631,17 @@ export function deriveSidebarLoadingState(input: {
   serverIds: string[];
   hydratedServerIds: string[];
   hasProjects: boolean;
+  /** False when the device reports no network connectivity. Defaults to true. */
+  networkOnline?: boolean;
+  /** False when every unhydrated host is already settled offline/error. Defaults to true. */
+  hasPendingUnhydratedHosts?: boolean;
 }): SidebarLoadingState {
   const hasRegisteredHosts = input.serverIds.length > 0;
   const allHydrated =
     input.serverIds.length > 0 && input.serverIds.length === input.hydratedServerIds.length;
-  const isLoading = input.isActive && hasRegisteredHosts && !allHydrated;
+  const canWaitForHosts =
+    input.networkOnline !== false && input.hasPendingUnhydratedHosts !== false;
+  const isLoading = input.isActive && hasRegisteredHosts && !allHydrated && canWaitForHosts;
   const isInitialLoad = isLoading && !input.hasProjects;
   return { isLoading, isInitialLoad, isRevalidating: false };
 }

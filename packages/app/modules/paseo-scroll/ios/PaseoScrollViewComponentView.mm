@@ -132,7 +132,7 @@ using namespace facebook::react;
   if (!props.maintainVisibleContentPosition || scrollView.contentSize.width > self.frame.size.width) {
     return nil;
   }
-  NSArray<UIView *> *children = [self contentView].subviews;
+  NSArray<UIView *> *children = [self scrollContentView].subviews;
   NSUInteger first = props.maintainVisibleContentPosition.value().minIndexForVisible;
   for (NSUInteger index = first; index < children.count; ++index) {
     UIView *child = children[index];
@@ -149,7 +149,10 @@ using namespace facebook::react;
       [((RCTViewComponentView *)view).nativeId isEqualToString:@"paseo-end-pin"];
 }
 
-- (UIView *)contentView
+// Keep distinct from -[RCTViewComponentView contentView]: RNGestureHandlerManager unwraps non-nil
+// contentView when attaching NativeViewGestureHandler, which would bind the recognizer inside the
+// UIScrollView instead of onto this RCTScrollViewComponentView.
+- (UIView *)scrollContentView
 {
   for (UIView *child in self.containerView.subviews) {
     if (![child conformsToProtocol:@protocol(RCTCustomPullToRefreshViewProtocol)]) {

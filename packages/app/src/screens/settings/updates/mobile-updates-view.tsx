@@ -6,7 +6,7 @@ import { SettingsSection } from "@/components/settings/headings/settings-section
 import { Button } from "@/components/ui/button";
 import { settingsStyles } from "@/styles/settings";
 
-interface MobileUpdatesViewProps {
+export interface MobileUpdatesViewProps {
   buildNumber: string;
   enabled: boolean;
   embedded?: boolean;
@@ -15,6 +15,7 @@ interface MobileUpdatesViewProps {
   channel?: string;
   pendingId?: string;
   pending?: boolean;
+  available?: boolean;
   checking?: boolean;
   downloading?: boolean;
   progress?: number;
@@ -27,13 +28,15 @@ interface MobileUpdatesViewProps {
   onApply?: () => void;
 }
 
-function updateStatus(props: MobileUpdatesViewProps, t: TFunction): string {
+export function updateStatus(props: MobileUpdatesViewProps, t: TFunction): string {
   if (!props.enabled) return t("mobileUpdates.disabled");
   if (props.restarting) return t("mobileUpdates.restarting");
   if (props.downloading)
     return t("mobileUpdates.downloading", { percent: Math.round((props.progress ?? 0) * 100) });
   if (props.checking) return t("mobileUpdates.checking");
   if (props.pending) return t("mobileUpdates.ready");
+  if (props.error) return t("mobileUpdates.errorStatus");
+  if (props.available) return t("mobileUpdates.available");
   if (props.checked) return t("mobileUpdates.current");
   return t("mobileUpdates.idle");
 }

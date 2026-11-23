@@ -10,11 +10,20 @@ import {
 } from "./local-daily-usage.js";
 
 describe("local-daily-usage", () => {
-  it("formats Claude and GPT model wire ids into compact widget labels", () => {
+  it("formats Claude, GPT, and Antigravity model wire ids into compact widget labels", () => {
     expect(formatUsageModelShort("claude-opus-4-8[1m]")).toBe("Opus 4.8");
     expect(formatUsageModelShort("claude-haiku-4-5-20251001")).toBe("Haiku 4.5");
+    expect(formatUsageModelShort("claude-fable-5-1")).toBe("Fable 5.1");
+    expect(formatUsageModelShort("claude-opus-5-5-high")).toBe("Claude Opus 5.5 (High)");
     expect(formatUsageModelShort("openai-codex/gpt-6-astra")).toBe("GPT-6-ASTRA");
     expect(formatUsageModelShort("codex/gpt-5.4")).toBe("GPT-5.4");
+    expect(formatUsageModelShort("gemini-4-neon-xhigh")).toBe("Gemini 4 Neon (XHigh)");
+    expect(formatUsageModelShort("gemini-4-carbon-medium")).toBe("Gemini 4 Carbon (Medium)");
+    expect(formatUsageModelShort("gemini-3.8-flash-high")).toBe("Gemini 3.8 Flash (High)");
+    expect(formatUsageModelShort("gemini-pro-orchestrator")).toBe("Orchestrator (Carbon)");
+    expect(formatUsageModelShort("gemini-pro-orchestrator-neon")).toBe("Orchestrator (Neon)");
+    expect(formatUsageModelShort("gemini-flash-worker-agy")).toBe("Gemini Flash Worker");
+    expect(formatUsageModelShort("gpt-oss-120b-medium")).toBe("GPT-OSS 120B (Medium)");
   });
 
   it("aggregates 30-day Claude and Codex JSONL session logs with deduplication and incremental deltas", async () => {
@@ -469,6 +478,337 @@ it("reports unreadable history instead of returning a successful all-zero readin
     await writeFile(path.join(home, ".codex", "sessions"), "not a directory");
     const collector = new LocalDailyUsageCollector({ homeDir: home });
     await expect(collector.collect(true)).rejects.toMatchObject({ code: "ENOTDIR" });
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+it("prefers Antigravity PLANNER_RESPONSE.model over USER_INPUT notices, deduplicates steps, and counts steps without input_tokens", async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), "clawmuse-agy-model-field-"));
+  try {
+    const nowMs = Date.parse("2026-11-21T12:00:00Z");
+    const todayIso = new Date(nowMs - 600_000).toISOString();
+    const todayKey = formatLocalDayKey(nowMs - 600_000);
+    const logsDir = path.join(
+      home,
+      ".gemini",
+      "antigravity-cli",
+      "brain",
+      "conv-orchestrator",
+      ".system_generated",
+      "logs",
+    );
+    await mkdir(logsDir, { recursive: true });
+    await writeFile(
+      path.join(logsDir, "transcript.jsonl"),
+      [
+        JSON.stringify({
+          step_index: 0,
+          type: "USER_INPUT",
+          created_at: todayIso,
+          content:
+            "<USER_REQUEST>plan</USER_REQUEST><USER_SETTINGS_CHANGE>The user changed setting `Model Selection` from None to Orchestrator (Carbon).</USER_SETTINGS_CHANGE>",
+        }),
+        JSON.stringify({
+          step_index: 1,
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: todayIso,
+          model: "gemini-pro-orchestrator",
+          input_tokens: 1000,
+          cache_read_tokens: 500,
+          output_tokens: 200,
+        }),
+        // Duplicate step_index with higher final output should replace, not double-count.
+        JSON.stringify({
+          step_index: 1,
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: todayIso,
+          model: "gemini-pro-orchestrator",
+          input_tokens: 1000,
+          cache_read_tokens: 500,
+          output_tokens: 300,
+        }),
+        // Delegated worker step logs its own model field inside the orchestrator conversation.
+        JSON.stringify({
+          step_index: 2,
+          type: "PLANNER_RESPONSE",
+          status: "DONE",
+          created_at: todayIso,
+          model: "gemini-flash-worker-agy",
+          cache_read_tokens: 4000,
+          output_tokens: 400,
+        }),
+      ].join("\n"),
+      "utf8",
+    );
+
+    const history = await new LocalDailyUsageCollector({
+      homeDir: home,
+      now: () => nowMs,
+    }).collect(true);
+    const todayIdx = history.days.indexOf(todayKey);
+    expect(history.models).toEqual([
+      { name: "Gemini Flash Worker", harness: "antigravity" },
+      { name: "Orchestrator (Carbon)", harness: "antigravity" },
+    ]);
+    expect(history.daily[todayIdx]?.modelTokens).toEqual([4400, 1800, 0]);
+    expect(history.daily[todayIdx]?.inputTokens).toBe(1000);
+    expect(history.daily[todayIdx]?.cacheReadTokens).toBe(4500);
+    expect(history.daily[todayIdx]?.cacheWriteTokens).toBe(0);
+    expect(history.daily[todayIdx]?.outputTokens).toBe(700);
+    expect(history.daily[todayIdx]?.modelOutputTokens).toEqual([400, 300, 0]);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+it("deduplicates Claude messages across files, skips synthetic/non-assistant entries, and handles Codex counter resets, forks, and duplicates", async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), "clawmuse-dedup-reset-"));
+  try {
+    const nowMs = Date.parse("2026-11-21T12:00:00Z");
+    const t0 = new Date(nowMs - 7200_000).toISOString();
+    const t1 = new Date(nowMs - 3600_000).toISOString();
+    const t2 = new Date(nowMs - 1800_000).toISOString();
+    const todayKey = formatLocalDayKey(nowMs - 1800_000);
+
+    // Claude: two files share msg_dup (e.g. forked session), plus a <synthetic> and user record.
+    const claudeProj = path.join(home, ".claude", "projects", "proj-a");
+    await mkdir(claudeProj, { recursive: true });
+    const dupLine = JSON.stringify({
+      type: "assistant",
+      timestamp: t1,
+      message: {
+        id: "msg_dup",
+        model: "claude-fable-5-1",
+        usage: {
+          input_tokens: 100,
+          cache_creation_input_tokens: 200,
+          cache_read_input_tokens: 300,
+          output_tokens: 50,
+        },
+      },
+    });
+    const syntheticLine = JSON.stringify({
+      type: "assistant",
+      timestamp: t1,
+      message: {
+        id: "msg_synth",
+        model: "<synthetic>",
+        usage: { input_tokens: 9999, output_tokens: 9999 },
+      },
+    });
+    const userLine = JSON.stringify({
+      type: "user",
+      timestamp: t1,
+      message: {
+        id: "msg_user",
+        model: "claude-fable-5-1",
+        usage: { input_tokens: 8888, output_tokens: 1111 },
+      },
+    });
+    await writeFile(
+      path.join(claudeProj, "parent.jsonl"),
+      [dupLine, syntheticLine, userLine].join("\n"),
+      "utf8",
+    );
+    await writeFile(path.join(claudeProj, "fork.jsonl"), dupLine, "utf8");
+
+    // Codex: parent session + forked session replaying pre-fork event + counter reset + archived copy.
+    const codexSessions = path.join(home, ".codex", "sessions", "2026", "11", "21");
+    const codexArchived = path.join(home, ".codex", "archived_sessions");
+    await mkdir(codexSessions, { recursive: true });
+    await mkdir(codexArchived, { recursive: true });
+
+    const parentContent = [
+      JSON.stringify({
+        timestamp: t0,
+        type: "session_meta",
+        payload: { id: "sess-parent", timestamp: t0 },
+      }),
+      JSON.stringify({
+        timestamp: t0,
+        type: "turn_context",
+        payload: { model: "gpt-6.2-astra" },
+      }),
+      JSON.stringify({
+        timestamp: t0,
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: {
+            total_token_usage: {
+              input_tokens: 1000,
+              cached_input_tokens: 800,
+              cache_write_input_tokens: 0,
+              output_tokens: 100,
+              total_tokens: 1100,
+            },
+            last_token_usage: {
+              input_tokens: 1000,
+              cached_input_tokens: 800,
+              output_tokens: 100,
+              total_tokens: 1100,
+            },
+          },
+        },
+      }),
+      // Counter reset to smaller total_token_usage after restart/compaction
+      JSON.stringify({
+        timestamp: t2,
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: {
+            total_token_usage: {
+              input_tokens: 400,
+              cached_input_tokens: 300,
+              cache_write_input_tokens: 0,
+              output_tokens: 50,
+              total_tokens: 450,
+            },
+            last_token_usage: {
+              input_tokens: 400,
+              cached_input_tokens: 300,
+              output_tokens: 50,
+              total_tokens: 450,
+            },
+          },
+        },
+      }),
+    ].join("\n");
+
+    await writeFile(path.join(codexSessions, "parent.jsonl"), parentContent, "utf8");
+    // Same session_meta.id also copied into archived_sessions must not double-count.
+    await writeFile(path.join(codexArchived, "parent.jsonl"), parentContent, "utf8");
+
+    // Forked session created at t1 replays pre-fork t0 event (1100) then adds post-fork delta (500).
+    await writeFile(
+      path.join(codexSessions, "fork.jsonl"),
+      [
+        JSON.stringify({
+          timestamp: t1,
+          type: "session_meta",
+          payload: { id: "sess-fork", timestamp: t1, forked_from_id: "sess-parent" },
+        }),
+        JSON.stringify({
+          timestamp: t1,
+          type: "turn_context",
+          payload: { model: "gpt-6.2-astra" },
+        }),
+        JSON.stringify({
+          timestamp: t0,
+          type: "event_msg",
+          payload: {
+            type: "token_count",
+            info: {
+              total_token_usage: {
+                input_tokens: 1000,
+                cached_input_tokens: 800,
+                output_tokens: 100,
+                total_tokens: 1100,
+              },
+            },
+          },
+        }),
+        JSON.stringify({
+          timestamp: t2,
+          type: "event_msg",
+          payload: {
+            type: "token_count",
+            info: {
+              total_token_usage: {
+                input_tokens: 1450,
+                cached_input_tokens: 1200,
+                output_tokens: 150,
+                total_tokens: 1600,
+              },
+              last_token_usage: {
+                input_tokens: 450,
+                cached_input_tokens: 400,
+                output_tokens: 50,
+                total_tokens: 500,
+              },
+            },
+          },
+        }),
+      ].join("\n"),
+      "utf8",
+    );
+
+    const history = await new LocalDailyUsageCollector({
+      homeDir: home,
+      now: () => nowMs,
+    }).collect(true);
+    const todayIdx = history.days.indexOf(todayKey);
+    // Claude: 650 (100 in + 200 cache write + 300 cache read + 50 out)
+    // Codex: parent (1100 + 450) + fork post-fork delta (500) = 2050
+    // Codex breakdown: input (200+100+50)=350, cacheRead (800+300+400)=1500, output (100+50+50)=200
+    expect(history.daily[todayIdx]?.tokens).toEqual([650, 2050, 0, 0]);
+    expect(history.models).toEqual([
+      { name: "GPT-6.2-ASTRA", harness: "codex" },
+      { name: "Fable 5.1", harness: "claude-code" },
+    ]);
+    expect(history.daily[todayIdx]?.inputTokens).toBe(450);
+    expect(history.daily[todayIdx]?.cacheReadTokens).toBe(1800);
+    expect(history.daily[todayIdx]?.cacheWriteTokens).toBe(200);
+    expect(history.daily[todayIdx]?.outputTokens).toBe(250);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+it("scans custom provider env directories and invalidates cache across midnight", async () => {
+  const home = await mkdtemp(path.join(os.tmpdir(), "clawmuse-custom-env-"));
+  const customClaudeDir = path.join(home, "custom-claude");
+  const customCodexDir = path.join(home, "custom-codex");
+  try {
+    let clockMs = new Date(2026, 10, 20, 23, 59, 45).getTime();
+    const day1Iso = new Date(clockMs).toISOString();
+    const claudeProj = path.join(customClaudeDir, "projects", "p1");
+    await mkdir(claudeProj, { recursive: true });
+    await writeFile(
+      path.join(claudeProj, "s.jsonl"),
+      JSON.stringify({
+        type: "assistant",
+        timestamp: day1Iso,
+        message: {
+          id: "m1",
+          model: "claude-opus-5-5",
+          usage: { input_tokens: 500, output_tokens: 50 },
+        },
+      }),
+      "utf8",
+    );
+    const codexSess = path.join(customCodexDir, "sessions");
+    await mkdir(codexSess, { recursive: true });
+    await writeFile(
+      path.join(codexSess, "r.jsonl"),
+      JSON.stringify({
+        timestamp: day1Iso,
+        type: "event_msg",
+        payload: { type: "token_count", info: { total_token_usage: { total_tokens: 700 } } },
+      }),
+      "utf8",
+    );
+
+    const collector = new LocalDailyUsageCollector({
+      homeDir: home,
+      now: () => clockMs,
+      cacheTtlMs: 60_000,
+    });
+    const extraEnvs = [{ CLAUDE_CONFIG_DIR: customClaudeDir, CODEX_HOME: customCodexDir }];
+    const beforeMidnight = await collector.collect(false, extraEnvs);
+    expect(beforeMidnight.days[29]).toBe("2026-11-20");
+    expect(beforeMidnight.daily[29]?.tokens).toEqual([550, 700, 0, 0]);
+
+    // Advance 30s across midnight (still within 60s TTL): cache must roll over to the new day.
+    clockMs = new Date(2026, 10, 21, 0, 0, 15).getTime();
+    const afterMidnight = await collector.collect(false, extraEnvs);
+    expect(afterMidnight.days[29]).toBe("2026-11-21");
+    expect(afterMidnight.daily[28]?.tokens).toEqual([550, 700, 0, 0]);
+    expect(afterMidnight.daily[29]?.tokens).toEqual([0, 0, 0, 0]);
   } finally {
     await rm(home, { recursive: true, force: true });
   }

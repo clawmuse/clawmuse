@@ -3,6 +3,8 @@ import type React from "react";
 
 const RouterPassthrough = ({ children }: { children?: React.ReactNode }) => children;
 
+const navigation = { addListener: vi.fn(() => () => {}) };
+
 const runtime = {
   Redirect: () => null,
   Stack: Object.assign(RouterPassthrough, {
@@ -19,6 +21,7 @@ const runtime = {
   },
   useGlobalSearchParams: vi.fn(() => ({})),
   useLocalSearchParams: vi.fn(() => ({})),
+  useNavigation: vi.fn(() => navigation),
   usePathname: vi.fn(() => "/"),
   useRootNavigationState: vi.fn(() => ({ key: "root" })),
   useRouter: vi.fn(() => ({
@@ -37,6 +40,7 @@ export const {
   router,
   useGlobalSearchParams,
   useLocalSearchParams,
+  useNavigation,
   usePathname,
   useRootNavigationState,
   useRouter,

@@ -20,6 +20,7 @@ import {
   useHostRuntimeIsConnected,
 } from "@/runtime/host-runtime";
 import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
+import { useHostOrderHydrated, useHostOrderStore } from "@/hosts/host-order";
 import {
   getDesktopDaemonStatus,
   readDesktopControlledOnlyPolicy,
@@ -34,6 +35,7 @@ const Context = createContext<AccountModel | null>(null);
 
 export function ClawMuseAccountProvider({ children }: { children: ReactNode }) {
   const loaded = useHostRegistryLoaded();
+  const orderHydrated = useHostOrderHydrated();
   const localId = useLocalDaemonServerId();
   const connected = useHostRuntimeIsConnected(localId ?? "");
   const localIdRef = useRef<string | null>(localId);
@@ -137,11 +139,16 @@ export function ClawMuseAccountProvider({ children }: { children: ReactNode }) {
               .find((host) => host.serverId === localServerId)?.label ?? "我的电脑",
         };
       },
+      readHostOrder: () => useHostOrderStore.getState().hostOrder,
+      syncAccountHostOrder: (input) => useHostOrderStore.getState().syncAccountOrder(input),
+      readPendingAccountOrder: () => useHostOrderStore.getState().pendingAccountOrder,
+      writePendingAccountOrder: (ids) => useHostOrderStore.getState().setPendingAccountOrder(ids),
+      removeHostsFromOrder: (ids) => useHostOrderStore.getState().removeHostsFromOrder(ids),
     });
   });
   const state = useSyncExternalStore(model.subscribe, model.getState, model.getState);
   useEffect(() => {
-    if (!loaded || !accountSupported) return;
+    if (!loaded || !orderHydrated || !accountSupported) return;
     void model.refreshInBackground();
     const timer = setInterval(() => {
       if (AppState.currentState === "active") void model.refreshInBackground();
@@ -153,11 +160,15 @@ export function ClawMuseAccountProvider({ children }: { children: ReactNode }) {
       clearInterval(timer);
       subscription.remove();
     };
-  }, [loaded, model]);
+  }, [loaded, model, orderHydrated]);
   useEffect(() => {
     if (state.account?.id && localId && connected) void model.connectLocalInBackground();
   }, [state.account?.id, localId, connected, model]);
   return <Context.Provider value={model}>{children}</Context.Provider>;
+}
+
+export function useOptionalClawMuseAccountModel(): AccountModel | null {
+  return useContext(Context);
 }
 
 export function useClawMuseAccount() {

@@ -3,7 +3,9 @@ import {
   addAgentLiveActivityPushTokenListener,
   getAgentLiveActivityPushTokenSnapshot,
   getAgentLiveActivityRemoteStatusCapability,
+  reconcileAgentLiveActivityBackground,
   resetAgentLiveActivityRemoteStatusSession,
+  setAgentLiveActivityPushCredentials,
   setAgentWidgetCredentials,
   type AgentLiveActivityPushToken,
 } from "@clawmuse/expo-agent-live-activity";
@@ -11,7 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 import { i18n } from "@/i18n/i18next";
 import { goalStatusLabelKey } from "./goals/presentation";
@@ -36,14 +38,24 @@ import { normalizeFcmToken, readAndroidGoalPushToken } from "./android-push";
 import { ClawMuseStatusApiClient } from "./api";
 import { getClawMuseStatusApiClient, publishClawMuseStatusApiClient } from "./api-access";
 import { normalizeClawMuseStatusBaseUrl } from "./base-url";
-import { secureStoreSupported, statusSessionIsEphemeral } from "./secure-store";
+import {
+  deleteSecureItem,
+  getSecureItem,
+  secureStoreSupported,
+  setSecureItem,
+  statusSessionIsEphemeral,
+} from "./secure-store";
 import {
   publishClawMuseStatusBindings,
   resetClawMuseStatusBindings,
   type ClawMuseStatusHostBinding,
 } from "./binding-state";
 import { getClawMuseStatusControls, registerClawMuseStatusControls } from "./controls";
-import { isClawMuseStatusHomeDeepLink, isClawMuseStatusHomeNotification } from "./deep-link";
+import {
+  isClawMuseStatusHomeDeepLink,
+  isClawMuseStatusHomeNotification,
+  parseClawMuseStatusLiveActivityReconcile,
+} from "./deep-link";
 import { readClawMuseStatusRelayHostId, requestClawMuseStatusEnrollment } from "./enrollment";
 import { processClawMuseStatusHostUnbinds } from "./host-unbind";
 import {
@@ -64,7 +76,10 @@ import {
   synchronizeClawMuseStatus,
 } from "./synchronization";
 import type { ClawMuseStatusPushEndpoint } from "./types";
-import { ensureClawMuseStatusWidgetCredentials } from "./widget-credentials";
+import {
+  ensureClawMuseStatusLiveActivityPushCredentials,
+  ensureClawMuseStatusWidgetCredentials,
+} from "./widget-credentials";
 
 const RETRY_BASE_MS = 1_000;
 const RETRY_MAX_MS = 60_000;
@@ -186,6 +201,12 @@ function resolveHostBinding(input: ResolveHostBindingInput): ClawMuseStatusHostB
  * phone here learns it from the first host's enrollment response, so the API
  * client is created after the first successful probe rather than up front.
  */
+const secureCredentialStorage = {
+  getItem: getSecureItem,
+  setItem: setSecureItem,
+  removeItem: deleteSecureItem,
+};
+
 export function ClawMuseStatusRoot() {
   const { state: account } = useClawMuseAccount();
   const [changingAccount, setChangingAccount] = useState(false);
@@ -210,6 +231,13 @@ export function ClawMuseStatusRoot() {
             storage: AsyncStorage,
             publish: setAgentWidgetCredentials,
           });
+          await ensureClawMuseStatusLiveActivityPushCredentials({
+            baseUrl: previous?.baseUrl ?? "",
+            installationId: null,
+            issueToken: async () => null,
+            storage: secureCredentialStorage,
+            publish: setAgentLiveActivityPushCredentials,
+          });
         }
       }),
     [],
@@ -217,17 +245,28 @@ export function ClawMuseStatusRoot() {
   useEffect(() => {
     if (!account.busy) setChangingAccount(false);
   }, [account.busy]);
-  if (changingAccount || !account.initialized) return null;
-  const accountId = account.account?.id ?? (account.error ? undefined : null);
+  // Do not gate on `account.initialized`: iOS wakes the app while locked to
+  // deliver a remote-started Live Activity's `activity_update` token, and Hub
+  // account discovery reads `WHEN_UNLOCKED` Keychain + network before
+  // initializing. Existing Status sessions carry their own `accountId` in
+  // `AFTER_FIRST_UNLOCK` Keychain; only fresh host enrollments wait for
+  // `enrollmentReady`.
+  if (changingAccount) return null;
+  const enrollmentReady = account.initialized;
+  const accountId = enrollmentReady
+    ? (account.account?.id ?? (account.error ? undefined : null))
+    : undefined;
   const accountHostIds = account.devices.map((device) => device.serverId);
   if (account.cloud?.offer) accountHostIds.push(account.cloud.offer.serverId);
-  const hostScope = account.account ? JSON.stringify(accountHostIds.sort()) : null;
+  const hostScope =
+    enrollmentReady && account.account ? JSON.stringify(accountHostIds.sort()) : null;
   const capability = getAgentLiveActivityRemoteStatusCapability();
   if (Platform.OS === "ios" && supportsClawMuseLiveActivity(capability)) {
     return (
       <>
         <ClawMuseStatusSynchronizer
           devicePush
+          enrollmentReady={enrollmentReady}
           accountId={accountId}
           hostScope={hostScope}
           usesLocalActivity={!supportsRemoteStatusLiveActivity(capability)}
@@ -245,6 +284,7 @@ export function ClawMuseStatusRoot() {
       <ClawMuseStatusSynchronizer
         devicePush={false}
         usesLocalActivity={false}
+        enrollmentReady={enrollmentReady}
         accountId={accountId}
         hostScope={hostScope}
       />
@@ -254,6 +294,7 @@ export function ClawMuseStatusRoot() {
 }
 
 interface ClawMuseStatusSynchronizerProps {
+  enrollmentReady: boolean;
   accountId: string | null | undefined;
   hostScope: string | null;
   /** APNs alert, Live Activity, and widget endpoints. iOS only. */
@@ -264,12 +305,21 @@ interface ClawMuseStatusSynchronizerProps {
 function ClawMuseStatusSynchronizer({
   devicePush,
   usesLocalActivity,
+  enrollmentReady,
   accountId,
   hostScope,
 }: ClawMuseStatusSynchronizerProps) {
+  const accountStateRef = useRef({ enrollmentReady, accountId, hostScope });
+  accountStateRef.current = { enrollmentReady, accountId, hostScope };
+  const triggerRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
-    const allowedHosts = hostScope === null ? undefined : new Set<string>(JSON.parse(hostScope));
+    triggerRef.current?.();
+  }, [enrollmentReady, accountId, hostScope]);
+
+  useEffect(() => {
     let api: ClawMuseStatusApiClient | null = null;
+    let apiBoundAccountId: string | null | undefined;
     let storedSessionRead = false;
     let disposed = false;
     let failureCount = 0;
@@ -287,16 +337,36 @@ function ClawMuseStatusSynchronizer({
     const enrollmentErrors = new Map<string, string>();
 
     async function ensureApiFromStoredSession(): Promise<void> {
+      const currentAccountId = accountStateRef.current.accountId;
+      if (
+        api &&
+        currentAccountId !== undefined &&
+        apiBoundAccountId !== undefined &&
+        apiBoundAccountId !== currentAccountId
+      ) {
+        api = null;
+        apiBoundAccountId = undefined;
+        storedSessionRead = false;
+        publishClawMuseStatusApiClient(null);
+      }
       if (api || storedSessionRead) {
         return;
       }
       storedSessionRead = true;
       const stored = await loadClawMuseStatusSession();
       if (disposed) return;
-      if (accountId !== undefined && (stored?.accountId ?? null) !== accountId) return;
-      const baseUrl = normalizeClawMuseStatusBaseUrl(stored?.baseUrl, __DEV__);
+      if (!stored) {
+        storedSessionRead = false;
+        return;
+      }
+      const resolvedAccountId = accountStateRef.current.accountId;
+      if (resolvedAccountId !== undefined && (stored.accountId ?? null) !== resolvedAccountId) {
+        return;
+      }
+      const baseUrl = normalizeClawMuseStatusBaseUrl(stored.baseUrl, __DEV__);
       if (baseUrl) {
-        api = new ClawMuseStatusApiClient(baseUrl, undefined, undefined, accountId);
+        apiBoundAccountId = stored.accountId ?? null;
+        api = new ClawMuseStatusApiClient(baseUrl, undefined, undefined, apiBoundAccountId);
         publishClawMuseStatusApiClient(api);
       }
     }
@@ -362,9 +432,13 @@ function ClawMuseStatusSynchronizer({
         return false;
       }
       mismatchedBaseUrls.delete(candidate.serverId);
+      const nextAccountId = accountStateRef.current.accountId;
       const client =
         api ??
-        new ClawMuseStatusApiClient(enrollment.statusBaseUrl, undefined, undefined, accountId);
+        new ClawMuseStatusApiClient(enrollment.statusBaseUrl, undefined, undefined, nextAccountId);
+      if (!api) {
+        apiBoundAccountId = nextAccountId;
+      }
       api = client;
       const relayHostId = await readClawMuseStatusRelayHostId(candidate.client);
       if (!relayHostId) {
@@ -391,6 +465,12 @@ function ClawMuseStatusSynchronizer({
     }
 
     async function enrollConnectedHosts() {
+      if (!accountStateRef.current.enrollmentReady) {
+        return { enrolled: false };
+      }
+      const currentScope = accountStateRef.current.hostScope;
+      const allowedHosts =
+        currentScope === null ? undefined : new Set<string>(JSON.parse(currentScope));
       const installationId = api ? await api.getInstallationId() : null;
       const boundHosts = api ? await api.getBoundHosts() : {};
       const candidates = listFeatureHosts(allowedHosts).filter((candidate) => {
@@ -473,6 +553,32 @@ function ClawMuseStatusSynchronizer({
       }
     }
 
+    function allowsStatusAlertEndpoint(
+      preferences: ReturnType<typeof notificationPreferencesStore.getSnapshot>["preferences"],
+    ): boolean {
+      return (
+        preferences.pushEnabled &&
+        (preferences.goalsReview ||
+          !preferences.singleTaskChannelPriority ||
+          (devicePush && preferences.liveActivityEnabled))
+      );
+    }
+
+    async function syncPushPreferencesIfNeeded(
+      client: ClawMuseStatusApiClient,
+      installationId: string,
+      preferences: ReturnType<typeof notificationPreferencesStore.getSnapshot>["preferences"],
+    ): Promise<boolean | undefined> {
+      const statusPrefs = toStatusPushPreferences(preferences);
+      const serializedPrefs = JSON.stringify(statusPrefs);
+      let preferencesSupported = pushSyncState.preferencesSupported(installationId);
+      if (pushSyncState.shouldSyncPreferences(installationId, serializedPrefs)) {
+        preferencesSupported = await client.updatePushPreferences(statusPrefs);
+        pushSyncState.markPreferencesSynced(installationId, serializedPrefs, preferencesSupported);
+      }
+      return preferencesSupported;
+    }
+
     async function registerEndpoints(): Promise<void> {
       if (!devicePush && !androidPush) {
         return;
@@ -483,9 +589,7 @@ function ClawMuseStatusSynchronizer({
         return;
       }
       const { preferences } = notificationPreferencesStore.getSnapshot();
-      const allowStatusAlerts =
-        preferences.pushEnabled &&
-        (preferences.goalsReview || !preferences.singleTaskChannelPriority);
+      const allowStatusAlerts = allowsStatusAlertEndpoint(preferences);
       if (androidPush) {
         tokens.alert = allowStatusAlerts
           ? ((await readAndroidGoalPushToken()) ?? undefined)
@@ -494,19 +598,45 @@ function ClawMuseStatusSynchronizer({
         tokens.alert = undefined;
       }
       const alertKind = androidPush ? "fcm_alert" : "alert";
-      await syncDisabledPushEndpoints(client, installationId, alertKind, preferences);
-      const statusPrefs = toStatusPushPreferences(preferences);
-      const serializedPrefs = JSON.stringify(statusPrefs);
-      if (pushSyncState.shouldSyncPreferences(installationId, serializedPrefs)) {
-        await client.updatePushPreferences(statusPrefs);
-        pushSyncState.markPreferencesSynced(installationId, serializedPrefs);
+      const preferencesSupported = await syncPushPreferencesIfNeeded(
+        client,
+        installationId,
+        preferences,
+      );
+      if (preferencesSupported === false && !androidPush && preferences.singleTaskChannelPriority) {
+        tokens.alert = undefined;
       }
+      await syncDisabledPushEndpoints(client, installationId, alertKind, preferences);
       for (const endpoint of collectDesiredPushEndpoints(alertKind, preferences)) {
         const key = endpointKey(installationId, endpoint);
         if (pushSyncState.shouldRegister(key)) {
           await client.registerPushEndpoint(endpoint);
           pushSyncState.markRegistered(installationId, endpoint.kind, key);
         }
+      }
+      await syncLiveActivityPushCredentials(
+        preferences.liveActivityEnabled ? installationId : null,
+      );
+    }
+
+    async function syncLiveActivityPushCredentials(installationId: string | null): Promise<void> {
+      if (!devicePush) {
+        return;
+      }
+      const client = api;
+      if (!client && installationId !== null) {
+        return;
+      }
+      try {
+        await ensureClawMuseStatusLiveActivityPushCredentials({
+          baseUrl: client?.baseUrl ?? "",
+          installationId,
+          issueToken: () => (client ? client.issueLiveActivityPushToken() : Promise.resolve(null)),
+          storage: secureCredentialStorage,
+          publish: setAgentLiveActivityPushCredentials,
+        });
+      } catch {
+        // Retried on the next synchronization pass.
       }
     }
 
@@ -515,6 +645,9 @@ function ClawMuseStatusSynchronizer({
     async function syncWidgetCredentials(installationId: string | null): Promise<void> {
       if (!devicePush) {
         return;
+      }
+      if (installationId === null) {
+        await syncLiveActivityPushCredentials(null);
       }
       const client = api;
       if (!client) {
@@ -705,11 +838,8 @@ function ClawMuseStatusSynchronizer({
       await applyPendingActivityReset(installationBefore);
       await replaceActivitySnapshot();
       const { preferences } = notificationPreferencesStore.getSnapshot();
-      const allowStatusAlerts =
-        preferences.pushEnabled &&
-        (preferences.goalsReview || !preferences.singleTaskChannelPriority);
       tokens.alert =
-        devicePush && allowStatusAlerts
+        devicePush && allowsStatusAlertEndpoint(preferences)
           ? ((await readAlertToken(tokens.alert)) ?? undefined)
           : undefined;
       let synchronizationError: unknown;
@@ -922,7 +1052,21 @@ function ClawMuseStatusSynchronizer({
           }
         });
       const observedSubscription = Notifications.addNotificationReceivedListener((notification) => {
-        const target = parseNotificationOpenTarget(notification.request.content.data);
+        const data = notification.request.content.data;
+        const reconcile = parseClawMuseStatusLiveActivityReconcile(data);
+        if (devicePush && reconcile) {
+          void (async () => {
+            const result = await reconcileAgentLiveActivityBackground({
+              staleGeneration: reconcile.staleGeneration,
+              endAllIfIdle: reconcile.endIdleActivities,
+            });
+            if (!disposed && result.remainingCount === 0) {
+              activityAbsenceReportedFor = null;
+            }
+            trigger();
+          })().catch(() => {});
+        }
+        const target = parseNotificationOpenTarget(data);
         if (target?.kind !== "goal" || !target.eventVersion || !api) return;
         const client = api;
         void (async () => {
@@ -947,11 +1091,13 @@ function ClawMuseStatusSynchronizer({
       (devicePush || androidPush) && typeof Notifications.addPushTokenListener === "function"
         ? subscribeDevicePushTokens()
         : [];
+    triggerRef.current = trigger;
     publishClawMuseStatusSummary(null);
     trigger();
 
     return () => {
       disposed = true;
+      triggerRef.current = null;
       if (retryTimer) {
         clearTimeout(retryTimer);
       }
@@ -971,7 +1117,7 @@ function ClawMuseStatusSynchronizer({
       publishClawMuseStatusSummary(null);
       resetClawMuseStatusBindings();
     };
-  }, [devicePush, usesLocalActivity, accountId, hostScope]);
+  }, [devicePush, usesLocalActivity]);
 
   return null;
 }

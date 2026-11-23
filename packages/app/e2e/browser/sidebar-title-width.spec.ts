@@ -29,6 +29,7 @@ test("scales navigation icons and workspace rows together as the sidebar narrows
     const navBefore = await nav.boundingBox();
     const glyphBefore = await glyph.boundingBox();
     const menuBefore = await menu.boundingBox();
+    const footerBefore = await page.getByTestId("sidebar-footer").boundingBox();
     const handle = page.getByTestId("left-sidebar-resize-handle");
     const dragBy = async (delta: number) => {
       const grip = await handle.boundingBox();
@@ -64,7 +65,17 @@ test("scales navigation icons and workspace rows together as the sidebar narrows
       .poll(async () => (await page.getByTestId("sidebar-footer").boundingBox())!.width)
       .toBeGreaterThan(215);
     expect((await nav.boundingBox())!.width / navBefore!.width).toBeCloseTo(0.85, 1);
-    await dragBy(120);
+    const footerNow = await page.getByTestId("sidebar-footer").boundingBox();
+    const restoreDelta = footerBefore!.width - footerNow!.width;
+    const grip = await handle.boundingBox();
+    const gx = grip!.x + grip!.width / 2;
+    const gy = grip!.y + grip!.height / 2;
+    await page.mouse.move(gx, gy);
+    await page.mouse.down();
+    // Cross SIDEBAR_RESIZE_ACTIVATION_OFFSET (6px) first so the remaining move matches restoreDelta.
+    await page.mouse.move(gx + 7, gy, { steps: 7 });
+    await page.mouse.move(gx + 7 + restoreDelta, gy, { steps: 30 });
+    await page.mouse.up();
     await expect
       .poll(async () => (await nav.boundingBox())!.width)
       .toBeCloseTo(navBefore!.width, 0);
@@ -136,18 +147,12 @@ async function toggleTrailing(page: Page, label: "Diff stats" | "Last activity",
 
 async function expectTouchTitleWidth(page: Page) {
   const row = workspaceRow(page);
-  const archive = row.getByRole("button", { name: "Archive", exact: true });
   const menu = row.getByLabel("Workspace actions", { exact: true });
-  await expect(archive).toBeVisible();
-  await expect(archive).toHaveCSS("opacity", "1");
-  await expect(archive).toBeEnabled();
-  const archiveBox = await archive.boundingBox();
+  await expect(row.getByTestId(/^sidebar-workspace-archive-button-/)).toHaveCount(0);
+  await expect(menu).toBeVisible();
   const menuBox = await menu.boundingBox();
-  expect(archiveBox!.width).toBe(32);
   expect(menuBox!.width).toBe(32);
-  expect(archiveBox!.height).toBe(32);
   expect(menuBox!.height).toBe(32);
-  expect(archiveBox!.x + archiveBox!.width).toBeLessThanOrEqual(menuBox!.x);
   const withDiff = await titleWidth(row);
   await toggleTrailing(page, "Diff stats", true);
   const withoutStats = await titleWidth(row);
@@ -200,7 +205,7 @@ async function openDesktopWorkspaceList(page: Page) {
   await expect(row).toBeVisible();
   await toggleTrailing(page, "Diff stats");
   await page.mouse.move(0, 0);
-  await expect(row.getByTestId("sidebar-workspace-trailing-actions")).toHaveCSS("opacity", "0");
+  await expect(row.getByTestId("sidebar-workspace-trailing-actions")).toHaveCount(0);
   await expect(row.getByText("+12.3k", { exact: true })).toBeVisible();
   return titleWidth(row);
 }
@@ -208,14 +213,14 @@ async function openDesktopWorkspaceList(page: Page) {
 async function expectHoverSharesTrailingSpace(page: Page, testInfo: TestInfo) {
   const row = workspaceRow(page);
   const rowBefore = await row.boundingBox();
+  const titleBefore = await titleWidth(row);
   await row.hover();
   await expect(row.getByLabel("Workspace actions", { exact: true })).toBeVisible();
-  await expect(row.getByTestId("sidebar-workspace-trailing-actions")).toHaveCSS("opacity", "1");
-  await expect(row.getByTestId("sidebar-workspace-trailing-metadata")).toHaveCSS("opacity", "0");
+  await expect(row.getByTestId("sidebar-workspace-trailing-actions")).toBeVisible();
+  await expect(row.getByTestId("sidebar-workspace-trailing-scrim")).toBeVisible();
+  await expect(row.getByTestId(/^sidebar-workspace-archive-button-/)).toBeVisible();
   expect(await row.boundingBox()).toEqual(rowBefore);
-  const title = await row.getByText(TITLE, { exact: true }).boundingBox();
-  const archive = await row.getByRole("button", { name: "Archive", exact: true }).boundingBox();
-  expect(title!.x + title!.width).toBeLessThanOrEqual(archive!.x);
+  expect(await titleWidth(row)).toBeCloseTo(titleBefore, 1);
   await page.screenshot({ path: testInfo.outputPath("desktop-hover.png") });
 }
 
@@ -276,17 +281,16 @@ test.describe("with diff stats", () => {
 async function expectArchiveUncovered(page: Page, screenshotPath: string) {
   const row = workspaceRow(page);
   const rowBefore = await row.boundingBox();
-  const hiddenArchive = row.getByTestId(/^sidebar-workspace-archive-/);
+  const archive = row.getByTestId(/^sidebar-workspace-archive-button-/);
   await page.mouse.move(0, 0);
   const actions = row.getByTestId("sidebar-workspace-trailing-actions");
-  await expect(actions).toHaveCSS("opacity", "0");
-  await expect(hiddenArchive).toBeDisabled();
+  await expect(actions).toHaveCount(0);
+  await expect(archive).toHaveCount(0);
   await row.hover();
-  const archive = row.getByRole("button", { name: "Archive", exact: true });
   const menu = row.getByLabel("Workspace actions", { exact: true });
   await expect(menu).toBeVisible();
-  await expect(archive).toHaveCSS("opacity", "1");
-  await expect(archive).toBeEnabled();
+  await expect(archive).toBeVisible();
+  await expect(row.getByTestId("sidebar-workspace-trailing-scrim")).toBeVisible();
   await archive.hover();
   await expect(menu).toBeVisible();
   const archiveBox = await archive.boundingBox();
@@ -294,14 +298,13 @@ async function expectArchiveUncovered(page: Page, screenshotPath: string) {
   await row.screenshot({ path: screenshotPath });
   expect(archiveBox!.x + archiveBox!.width).toBeLessThanOrEqual(menuBox!.x);
   expect(await row.boundingBox()).toEqual(rowBefore);
-  await expect(actions).toHaveCSS("transition-duration", "0.12s");
   await menu.click();
   await page.mouse.move(0, 0);
   await expect(page.getByRole("menuitem", { name: "Archive", exact: true })).toBeVisible();
-  await expect(actions).toHaveCSS("opacity", "1");
+  await expect(actions).toBeVisible();
   await page.keyboard.press("Escape");
   await page.mouse.move(0, 0);
-  await expect(actions).toHaveCSS("opacity", "0");
+  await expect(actions).toHaveCount(0);
 }
 
 test("time defaults on, can be disabled, and crossfades with actions in every grouping", async ({
@@ -327,7 +330,7 @@ test("time defaults on, can be disabled, and crossfades with actions in every gr
       await expectArchiveUncovered(page, testInfo.outputPath(`${grouping}-activity.png`));
       await toggleTrailing(page, "Last activity");
       await expect(time).toHaveCount(0);
-      await expect(row.getByTestId("sidebar-workspace-trailing-actions")).toHaveCSS("opacity", "0");
+      await expect(row.getByTestId("sidebar-workspace-trailing-actions")).toHaveCount(0);
       await expect.poll(() => titleWidth(row)).toBeGreaterThan(titleBefore);
       const fullTitle = await row.getByText(TITLE, { exact: true }).boundingBox();
       const column = await row.getByTestId(/^sidebar-workspace-text-/).boundingBox();
@@ -341,8 +344,7 @@ test("time defaults on, can be disabled, and crossfades with actions in every gr
     // Reanimated reads the initial system preference when the component mounts.
     await page.reload();
     await expect(workspaceRow(page)).toBeVisible();
-    await workspaceRow(page).hover();
-    await expect(workspaceRow(page).getByTestId("sidebar-workspace-trailing-actions")).toHaveCSS(
+    await expect(workspaceRow(page).getByTestId("sidebar-workspace-trailing-metadata")).toHaveCSS(
       "transition-duration",
       "0s",
     );

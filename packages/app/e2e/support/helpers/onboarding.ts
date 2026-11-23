@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, type Locator, type Page } from "@playwright/test";
+import brand from "../../../../../branding/brand.json";
 import type { DaemonClient as InternalDaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { addProjectFlow, addProjectFlowInput, chooseAddProjectMethod } from "./add-project-flow";
 import { connectDaemonClient } from "./daemon-client-loader";
@@ -127,7 +128,7 @@ export async function goToSetupStep(page: Page, label: string): Promise<void> {
 }
 
 export function paseoToolsSwitch(scope: Page | Locator): Locator {
-  return scope.getByRole("switch", { name: "Inject Paseo tools", exact: true });
+  return scope.getByRole("switch", { name: `Inject ${brand.name} tools`, exact: true });
 }
 
 /** Whether the host gives its agents Paseo tools, read from the host itself. */
@@ -164,8 +165,8 @@ export async function closeRelayPairing(pairing: Locator): Promise<void> {
 export async function openTailscaleDocsFromSetup(page: Page): Promise<string> {
   await page
     .context()
-    .route("https://paseo.sh/**", (route) =>
-      route.fulfill({ contentType: "text/html", body: "<title>Paseo docs</title>" }),
+    .route(`${brand.websiteUrl}/**`, (route) =>
+      route.fulfill({ contentType: "text/html", body: `<title>${brand.name} docs</title>` }),
     );
   const popup = page.waitForEvent("popup");
   await setupModal(page).getByRole("link", { name: "Tailscale, Docs", exact: true }).click();
@@ -201,7 +202,12 @@ export async function startSetupHost(
   const home = await mkdtemp(path.join(tmpdir(), "paseo-onboarding-home-"));
   const daemon = await startIsolatedHostDaemon(serverId, {
     config: claudeOnlyConfig({ withBrokenProvider: options.withBrokenProvider ?? false }),
-    environment: { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: claudeConfigDir },
+    environment: {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      CLAUDE_CONFIG_DIR: claudeConfigDir,
+    },
     mutableRelay: options.mutableRelay,
   });
   return {

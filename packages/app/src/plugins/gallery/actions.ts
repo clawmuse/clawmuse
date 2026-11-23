@@ -16,12 +16,16 @@ export type PluginAction = "enable" | "disable" | "reload" | "remove";
  * plugin list, so every row and page showing the plugin agrees. Toggling says nothing; the switch
  * already shows the result.
  */
-export function usePluginActions(serverId: string) {
+export function usePluginActions(
+  serverId: string,
+  options?: { onEnabled?: (plugin: PluginListItem) => void },
+) {
   const { t } = useTranslation();
   const toast = useToast();
   const queryClient = useQueryClient();
   const client = useHostRuntimeClient(serverId);
   const [pending, setPending] = useState<{ pluginId: string; action: PluginAction } | null>(null);
+  const onEnabled = options?.onEnabled;
 
   const replace = useCallback(
     (plugin: PluginListItem) =>
@@ -59,7 +63,9 @@ export function usePluginActions(serverId: string) {
           );
           toast.show(t("settings.plugins.feedback.remove", { name }), { variant: "success" });
         } else {
-          replace(await client[`${action}Plugin`](plugin.id));
+          const updated = await client[`${action}Plugin`](plugin.id);
+          replace(updated);
+          if (action === "enable") onEnabled?.(updated);
           if (action === "reload")
             toast.show(t("settings.plugins.feedback.reload", { name }), { variant: "success" });
         }
@@ -71,7 +77,7 @@ export function usePluginActions(serverId: string) {
         setPending(null);
       }
     },
-    [client, queryClient, replace, serverId, t, toast],
+    [client, onEnabled, queryClient, replace, serverId, t, toast],
   );
 
   return useMemo(() => ({ run, pending }), [pending, run]);

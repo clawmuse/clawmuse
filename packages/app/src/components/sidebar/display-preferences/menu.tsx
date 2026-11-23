@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/menu";
 import { HostMenuItem } from "@/components/hosts/host-menu-item";
 import { isWeb } from "@/constants/platform";
-import { useVisibleHosts } from "@/runtime/host-runtime";
+import { useOrderedVisibleHosts } from "@/hosts/host-order";
 import { useSidebarModel } from "@/components/sidebar/sidebar-model";
 import { ProjectIconView } from "@/components/project-icon-view";
 import { useProjectIcons } from "@/projects/icons";
@@ -177,7 +177,7 @@ const TRAILING_LABEL_KEYS: Record<SidebarTrailingChoice, string> = {
 export function SidebarDisplayPreferencesMenu(): ReactElement {
   const { t } = useTranslation();
   const preferences = useSidebarDisplayPreferences();
-  const hosts = useVisibleHosts();
+  const hosts = useOrderedVisibleHosts();
   // `allProjects`, never `projects`: the model's `projects` is already filtered, so a picker fed
   // from it would lose the row that undoes the filter as soon as the filter narrowed to one.
   const { allProjects, resolvedProjectFilters, workspaceSortSupported } = useSidebarModel();
@@ -832,7 +832,7 @@ function HostFilterPage({
   hosts,
 }: {
   preferences: Preferences;
-  hosts: ReturnType<typeof useVisibleHosts>;
+  hosts: ReturnType<typeof useOrderedVisibleHosts>;
 }): ReactElement {
   const { t } = useTranslation();
   return (

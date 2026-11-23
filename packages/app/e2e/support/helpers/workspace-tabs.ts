@@ -2,7 +2,7 @@ import { swipeOpenMobileExplorer } from "./sidebar";
 import { expect, type Locator, type Page } from "@playwright/test";
 
 export async function getWorkspaceTabTestIds(page: Page): Promise<string[]> {
-  const tabs = page.locator('[data-testid^="workspace-tab-"]');
+  const tabs = page.locator('[data-testid^="workspace-tab-"]:visible');
   const count = await tabs.count();
   const ids: string[] = [];
   for (let index = 0; index < count; index += 1) {

@@ -50,7 +50,7 @@ function dwellMs(phase: ClawMuseStatusPhase): number {
   return phase === "failed" ? CLAWMUSE_STATUS_FAILED_DWELL_MS : CLAWMUSE_STATUS_COMPLETED_DWELL_MS;
 }
 
-function isTerminalPhase(phase: ClawMuseStatusPhase): boolean {
+function isTerminalPhase(phase: ClawMuseStatusPhase): phase is "completed" | "failed" {
   return phase === "completed" || phase === "failed";
 }
 
@@ -116,21 +116,37 @@ export class ClawMuseStatusProjection {
   project(
     agents: readonly ClawMuseStatusAgentSnapshot[],
     nowMs: number,
+    options?: {
+      /**
+       * True when an external push channel already delivers a persistent alert
+       * for this terminal outcome; once no active tasks remain, the capsule can
+       * close immediately instead of dwelling alongside that alert.
+       */
+      skipTerminalDwellWhenIdle?: (phase: "completed" | "failed") => boolean;
+    },
   ): ClawMuseStatusProjectionResult {
     const items: ClawMuseStatusSnapshotItem[] = [];
     const nextPublished = new Map<string, PublishedAgentStatus>();
     const liveAgentIds = new Set<string>();
     let nextRefreshAtMs: number | null = null;
-
-    for (const agent of agents) {
+    const described = agents.map((agent) => {
       liveAgentIds.add(agent.id);
       this.trackUserMessage(agent);
-      const status = describeAgent(agent);
+      return { agent, status: describeAgent(agent) };
+    });
+    const hasActiveWork = described.some(
+      ({ status }) => status !== null && !isTerminalPhase(status.phase),
+    );
+
+    for (const { agent, status } of described) {
       if (!status) {
         continue;
       }
       if (isTerminalPhase(status.phase)) {
         if ((this.seenAtMs.get(agent.id) ?? 0) >= status.stateChangedAtMs) {
+          continue;
+        }
+        if (!hasActiveWork && options?.skipTerminalDwellWhenIdle?.(status.phase) === true) {
           continue;
         }
         const expiresAtMs = status.stateChangedAtMs + dwellMs(status.phase);

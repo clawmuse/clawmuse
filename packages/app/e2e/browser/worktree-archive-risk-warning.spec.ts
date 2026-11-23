@@ -432,7 +432,7 @@ test.describe("Workspace archive risk warning for worktree backing", () => {
     await expectAppRoute(page, openedRoute);
   });
 
-  test("archiving the open worktree from its git actions leaves it for a new workspace", async ({
+  test("archiving the open worktree from its git actions leaves it for the next remaining workspace", async ({
     page,
   }) => {
     const worktree = await createWorktree("archive-risk-git-redirect");
@@ -442,7 +442,10 @@ test.describe("Workspace archive risk warning for worktree backing", () => {
 
     await gitActionsArchiveButton(page).click();
 
-    await expect.poll(() => new URL(page.url()).pathname).toBe("/new");
+    await expectAppRoute(
+      page,
+      buildHostWorkspaceRoute(getServerId(), worktree.project.workspaceId),
+    );
     await expectWorkspaceAbsentFromSidebar(page, worktree.workspaceId);
   });
 });

@@ -34,6 +34,8 @@ import { SubagentManager } from "./subagents.js";
 import {
   extractBackgroundTaskKill,
   extractBackgroundTaskLaunch,
+  extractBackgroundTaskListSnapshot,
+  extractBackgroundTaskTerminalStatus,
   extractSubagentControlAction,
   extractSubagentLaunchInfo,
   extractSubagentListSnapshot,
@@ -114,6 +116,7 @@ interface AutonomousTurn {
   id: string;
   receivedAcpUpdates: boolean;
   awaitingPlannerResponse: boolean;
+  sawTerminalPlannerResponse: boolean;
   lastPlannerStepIndex: number;
   transcriptReportedWaiting: boolean;
   waitingSince: number | null;
@@ -157,6 +160,7 @@ interface ActiveBackgroundTaskEntry {
   isSchedule?: boolean;
   prompt?: string;
   scheduleSignature?: string;
+  timerCondition?: string;
   turnScope?: string;
   acpToolId?: string;
   transcriptToolId?: string;
@@ -204,6 +208,7 @@ export class Session {
   private shouldReplayOnLoad: boolean;
   private replayWindow: "replay" | "skip" | null = null;
   private driverHasStartedPrompt = false;
+  private suppressPostCancelWakeups = false;
   private sessionUpdateSeq = 0;
   private opened = false;
   private hasUnstreamedPostTurnSteps = false;
@@ -460,6 +465,7 @@ export class Session {
     };
     this.turn = turn;
     this.driverHasStartedPrompt = true;
+    this.suppressPostCancelWakeups = false;
     this.resetTurnState();
     this.armPostTurnCatchupFence(
       prompt.input.type === "command" || isSlashCommandPromptText(encoded.nativeText),
@@ -596,6 +602,9 @@ export class Session {
       if (this.turn) this.turn.interrupted = true;
       this.driver?.notify("session/cancel", { sessionId: this.conversationId });
       if (!this.turn && this.autonomousTurn) {
+        this.subagents.settleAllRunning("canceled");
+        this.activeBackgroundTasks.clear();
+        this.suppressPostCancelWakeups = true;
         this.settleAutonomousTurn("canceled");
       }
     }
@@ -623,12 +632,20 @@ export class Session {
     const activeTurn = this.turn;
     const driver = this.driver;
     if (!activeTurn && !this.autonomousTurn) {
-      if (!this.subagents.hasRunning() && this.pendingPermissions.size === 0) return;
+      if (
+        !this.subagents.hasRunning() &&
+        this.pendingPermissions.size === 0 &&
+        this.activeBackgroundTasks.size === 0
+      ) {
+        return;
+      }
       this.cancelAllPermissions();
       if (driver && this.conversationId) {
         driver.notify("session/cancel", { sessionId: this.conversationId });
       }
       this.subagents.settleAllRunning("canceled");
+      this.activeBackgroundTasks.clear();
+      this.suppressPostCancelWakeups = true;
       return;
     }
 
@@ -639,6 +656,8 @@ export class Session {
         driver.notify("session/cancel", { sessionId: this.conversationId });
       }
       this.subagents.settleAllRunning("canceled");
+      this.activeBackgroundTasks.clear();
+      this.suppressPostCancelWakeups = true;
       this.settleAutonomousTurn("canceled");
       return;
     }
@@ -728,6 +747,7 @@ export class Session {
       const finalState =
         turn.interrupted || response.stopReason === "cancelled" ? "canceled" : "completed";
       if (finalState === "canceled") {
+        this.suppressPostCancelWakeups = true;
         this.cancelAllPermissions();
       }
 
@@ -827,6 +847,7 @@ export class Session {
     this.cancelAllPermissions();
     this.settleTurnTools("failed");
     if (turn.interrupted) {
+      this.suppressPostCancelWakeups = true;
       this.options.emit({
         type: "session.turn",
         sessionId: this.id,
@@ -961,6 +982,7 @@ export class Session {
 
   private spawnDriver(): DriverProcess {
     this.driverHasStartedPrompt = false;
+    this.suppressPostCancelWakeups = false;
     const launch: ProviderLaunch = {
       ...this.options.launch,
       env: { ...this.options.launch.env, ...this.options.config.env },
@@ -1290,11 +1312,15 @@ export class Session {
     wakeup: SystemWakeupInfo | null,
   ): Promise<void> {
     if (wakeup) {
-      // Split assistant message bubbles across in-turn background/subagent wakeups.
-      this.chunkIds.clear();
-      this.chunkEpoch += 1;
+      if (!wakeup.allTasksAndSubagentsStopped && !wakeup.lowPriority) {
+        // Split assistant message bubbles across in-turn background/subagent wakeups.
+        this.chunkIds.clear();
+        this.chunkEpoch += 1;
+      }
       this.acknowledgeWakeupTask(wakeup);
-      await this.subagents.handleParentWakeupSender(wakeup.sender);
+      if (!wakeup.allTasksAndSubagentsStopped) {
+        await this.subagents.handleParentWakeupSender(wakeup.sender);
+      }
       return;
     }
 
@@ -1344,6 +1370,21 @@ export class Session {
     step: TranscriptStep,
     wakeup: SystemWakeupInfo | null,
   ): Promise<void> {
+    if (wakeup?.allTasksAndSubagentsStopped || wakeup?.lowPriority) {
+      this.acknowledgeWakeupTask(wakeup);
+      if (wakeup.sender && !wakeup.allTasksAndSubagentsStopped) {
+        await this.subagents.handleParentWakeupSender(wakeup.sender);
+      }
+      return;
+    }
+
+    if (this.suppressPostCancelWakeups) {
+      if (wakeup) {
+        this.acknowledgeWakeupTask(wakeup);
+      }
+      return;
+    }
+
     if (!this.autonomousTurn?.receivedAcpUpdates && step.type !== "USER_INPUT") {
       this.hasUnstreamedPostTurnSteps = true;
     }
@@ -1353,6 +1394,7 @@ export class Session {
       await this.subagents.handleParentWakeupSender(wakeup.sender);
       const auto = this.ensureAutonomousTurn("transcript");
       auto.awaitingPlannerResponse = true;
+      auto.sawTerminalPlannerResponse = false;
       auto.lastPlannerStepIndex = Math.max(auto.lastPlannerStepIndex, step.stepIndex);
       return;
     }
@@ -1399,6 +1441,7 @@ export class Session {
       return;
     }
 
+    auto.sawTerminalPlannerResponse = true;
     this.scheduleAutonomousSettleCheck(AUTONOMOUS_TRANSCRIPT_SETTLE_MS);
   }
 
@@ -1491,6 +1534,7 @@ export class Session {
 
   private enqueueAutonomousToolCalls(auto: AutonomousTurn, step: TranscriptStep): void {
     auto.awaitingPlannerResponse = true;
+    auto.sawTerminalPlannerResponse = false;
     auto.lastPlannerStepIndex = Math.max(auto.lastPlannerStepIndex, step.stepIndex);
     auto.transcriptReportedWaiting = false;
     auto.waitingSince = null;
@@ -1561,6 +1605,12 @@ export class Session {
   }
 
   private acknowledgeWakeupTask(wakeup: SystemWakeupInfo): void {
+    if (wakeup.allTasksAndSubagentsStopped) {
+      this.activeBackgroundTasks.clear();
+      this.subagents.settleAllRunning("canceled");
+      return;
+    }
+    this.clearConditionalTimers(wakeup);
     const candidates = [wakeup.finishedTaskId, wakeup.failedTaskId, wakeup.sender].filter(
       (id): id is string => Boolean(id),
     );
@@ -1580,6 +1630,19 @@ export class Session {
       (candidates.length === 0 && this.activeBackgroundTasks.size > 0)
     ) {
       this.clearScheduleWakeupTask(wakeup.message);
+    }
+  }
+
+  private clearConditionalTimers(wakeup: SystemWakeupInfo): void {
+    const matchedSenders = [wakeup.sender, wakeup.finishedTaskId, wakeup.failedTaskId].filter(
+      (id): id is string => Boolean(id),
+    );
+    if (matchedSenders.length === 0) return;
+    for (const [taskId, entry] of this.activeBackgroundTasks) {
+      if (entry.persistent || !entry.timerCondition) continue;
+      if (entry.timerCondition === "any" || matchedSenders.includes(entry.timerCondition)) {
+        this.activeBackgroundTasks.delete(taskId);
+      }
     }
   }
 
@@ -1609,6 +1672,7 @@ export class Session {
       id: turnId,
       receivedAcpUpdates: source === "acp",
       awaitingPlannerResponse: true,
+      sawTerminalPlannerResponse: false,
       lastPlannerStepIndex: this.lastRootStepIndex,
       transcriptReportedWaiting: false,
       waitingSince: null,
@@ -1746,9 +1810,11 @@ export class Session {
     if (this.pendingPermissions.size > 0) return;
     if (auto.awaitingPlannerResponse) return;
     if (auto.pendingTranscriptTools.length > 0) return;
-    for (const tool of this.turnTools.values()) {
-      if (tool.status !== "completed" && tool.status !== "failed") {
-        return;
+    if (!auto.sawTerminalPlannerResponse) {
+      for (const tool of this.turnTools.values()) {
+        if (tool.status !== "completed" && tool.status !== "failed") {
+          return;
+        }
       }
     }
 
@@ -1816,6 +1882,10 @@ export class Session {
     if (this.replayWindow !== null) return;
     if (tool.status === "failed") {
       this.removeFailedScheduleLaunch(tool.toolCallId, source);
+      const killedTask = extractBackgroundTaskKill(tool);
+      if (killedTask) {
+        this.activeBackgroundTasks.delete(killedTask);
+      }
       return;
     }
     const bgLaunch = extractBackgroundTaskLaunch(tool);
@@ -1825,6 +1895,23 @@ export class Session {
     const killedTask = extractBackgroundTaskKill(tool);
     if (killedTask) {
       this.activeBackgroundTasks.delete(killedTask);
+    }
+    const terminalStatusTask = extractBackgroundTaskTerminalStatus(tool);
+    if (terminalStatusTask) {
+      this.activeBackgroundTasks.delete(terminalStatusTask);
+    }
+    const taskListSnapshot = extractBackgroundTaskListSnapshot(tool);
+    if (taskListSnapshot) {
+      this.reconcileActiveBackgroundTasks(taskListSnapshot);
+    }
+  }
+
+  private reconcileActiveBackgroundTasks(runningTaskIds: readonly string[]): void {
+    const runningSet = new Set(runningTaskIds);
+    for (const taskId of this.activeBackgroundTasks.keys()) {
+      if (runningSet.has(taskId)) continue;
+      if (taskId.startsWith("schedule:") && runningSet.size > 0) continue;
+      this.activeBackgroundTasks.delete(taskId);
     }
   }
 
@@ -1855,12 +1942,14 @@ export class Session {
     }
     const targetKey =
       matchedKey && bgLaunch.taskId.startsWith("schedule:") ? matchedKey : bgLaunch.taskId;
+    const timerCondition = bgLaunch.timerCondition ?? existing?.timerCondition;
     this.activeBackgroundTasks.set(targetKey, {
       ...existing,
       persistent: bgLaunch.persistent,
       isSchedule: true,
       ...(bgLaunch.prompt ? { prompt: bgLaunch.prompt } : {}),
       ...(bgLaunch.scheduleSignature ? { scheduleSignature: bgLaunch.scheduleSignature } : {}),
+      ...(timerCondition ? { timerCondition } : {}),
       turnScope: existing?.turnScope ?? this.lastActiveTurnScope,
       ...(source === "acp" ? { acpToolId: toolCallId } : { transcriptToolId: toolCallId }),
     });
@@ -1890,12 +1979,20 @@ export class Session {
   }
 
   private isPostTurnLive(): boolean {
-    return this.turn === null && this.replayWindow === null && this.driverHasStartedPrompt;
+    return (
+      this.turn === null &&
+      this.replayWindow === null &&
+      this.driverHasStartedPrompt &&
+      !this.suppressPostCancelWakeups
+    );
   }
 
   private shouldDropSessionUpdate(): boolean {
     if (this.replayWindow === "skip") return true;
-    return this.replayWindow === null && this.turn === null && !this.driverHasStartedPrompt;
+    if (this.replayWindow === null && this.turn === null) {
+      if (!this.driverHasStartedPrompt || this.suppressPostCancelWakeups) return true;
+    }
+    return false;
   }
 
   private markAutonomousAcpActivity(auto: AutonomousTurn): void {
@@ -1919,16 +2016,7 @@ export class Session {
 
   private applySessionUpdate(update: AcpSessionUpdate): void {
     if (update.sessionUpdate === "available_commands_update") {
-      this.availableCommands = update.availableCommands.map((cmd) => ({
-        name: cmd.name,
-        description: cmd.description,
-        ...(cmd.input?.hint ? { argumentHint: cmd.input.hint } : {}),
-      }));
-      this.options.emit({
-        type: "session.commands",
-        sessionId: this.id,
-        commands: this.availableCommands,
-      });
+      this.applyAvailableCommandsUpdate(update);
       return;
     }
 
@@ -1952,30 +2040,92 @@ export class Session {
       update.sessionUpdate === "agent_thought_chunk" ||
       update.sessionUpdate === "user_message_chunk"
     ) {
-      if (isPostTurnLive && update.sessionUpdate !== "user_message_chunk") {
-        this.markAutonomousAcpActivity(this.ensureAutonomousTurn("acp"));
-      }
-      this.applyChunkUpdate(update);
+      this.applyChunkSessionUpdate(update, isPostTurnLive);
       return;
     }
 
     if (update.sessionUpdate === "tool_call" || update.sessionUpdate === "tool_call_update") {
-      if (isPostTurnLive) {
-        this.markAutonomousAcpActivity(this.ensureAutonomousTurn("acp"));
+      this.applyToolSessionUpdate(update, isPostTurnLive);
+    }
+  }
+
+  private applyAvailableCommandsUpdate(
+    update: Extract<AcpSessionUpdate, { sessionUpdate: "available_commands_update" }>,
+  ): void {
+    this.availableCommands = update.availableCommands.map((cmd) => ({
+      name: cmd.name,
+      description: cmd.description,
+      ...(cmd.input?.hint ? { argumentHint: cmd.input.hint } : {}),
+    }));
+    this.options.emit({
+      type: "session.commands",
+      sessionId: this.id,
+      commands: this.availableCommands,
+    });
+  }
+
+  private applyChunkSessionUpdate(
+    update: Extract<
+      AcpSessionUpdate,
+      {
+        sessionUpdate: "agent_message_chunk" | "agent_thought_chunk" | "user_message_chunk";
       }
-      this.chunkIds.clear();
-      this.chunkEpoch += 1;
-      const merged = mergeAcpToolCall(this.turnTools.get(update.toolCallId), update);
-      this.turnTools.set(update.toolCallId, merged);
-      if (merged.status !== "completed" && merged.status !== "failed") {
-        (this.turn ?? this.autonomousTurn)?.tokenSpeed.pause();
+    >,
+    isPostTurnLive: boolean,
+  ): void {
+    if (
+      isPostTurnLive &&
+      update.sessionUpdate !== "user_message_chunk" &&
+      update.content.type === "text" &&
+      Boolean(update.content.text)
+    ) {
+      this.markAutonomousAcpActivity(this.ensureAutonomousTurn("acp"));
+    }
+    this.applyChunkUpdate(update);
+  }
+
+  private applyToolSessionUpdate(
+    update: Extract<AcpSessionUpdate, { sessionUpdate: "tool_call" | "tool_call_update" }>,
+    isPostTurnLive: boolean,
+  ): void {
+    if (isPostTurnLive) {
+      this.markPostTurnToolActivity(update);
+    }
+    this.chunkIds.clear();
+    this.chunkEpoch += 1;
+    const merged = mergeAcpToolCall(this.turnTools.get(update.toolCallId), update);
+    this.turnTools.set(update.toolCallId, merged);
+    if (merged.status !== "completed" && merged.status !== "failed") {
+      (this.turn ?? this.autonomousTurn)?.tokenSpeed.pause();
+    }
+    this.inspectToolSideEffects(merged, "acp");
+    this.options.emit({
+      type: "timeline.item",
+      sessionId: this.id,
+      item: mapAcpToolCall(merged),
+    });
+  }
+
+  private markPostTurnToolActivity(
+    update: Extract<AcpSessionUpdate, { sessionUpdate: "tool_call" | "tool_call_update" }>,
+  ): void {
+    if (this.autonomousTurn) {
+      if (
+        update.sessionUpdate === "tool_call" &&
+        !this.turnTools.has(update.toolCallId) &&
+        update.status !== "completed" &&
+        update.status !== "failed"
+      ) {
+        this.autonomousTurn.sawTerminalPlannerResponse = false;
       }
-      this.inspectToolSideEffects(merged, "acp");
-      this.options.emit({
-        type: "timeline.item",
-        sessionId: this.id,
-        item: mapAcpToolCall(merged),
-      });
+      this.markAutonomousAcpActivity(this.autonomousTurn);
+      return;
+    }
+    const isTerminalToolUpdate =
+      update.sessionUpdate === "tool_call_update" &&
+      (update.status === "completed" || update.status === "failed");
+    if (!isTerminalToolUpdate) {
+      this.markAutonomousAcpActivity(this.ensureAutonomousTurn("acp"));
     }
   }
 
@@ -2545,6 +2695,7 @@ export class Session {
     if (this.driverRetirement) await this.driverRetirement;
     this.stopRootMonitor();
     this.driverHasStartedPrompt = false;
+    this.suppressPostCancelWakeups = false;
     this.clearPostTurnCatchupState();
     this.driverInitPromise = null;
     this.activeBackgroundTasks.clear();

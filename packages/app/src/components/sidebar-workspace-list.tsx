@@ -1277,9 +1277,9 @@ function WorkspaceRowWithMenu({
 
   const handleArchive = useCallback(() => {
     if (isArchiving) {
-      return;
+      return false;
     }
-    archiveController.archive();
+    return archiveController.archive();
   }, [archiveController, isArchiving]);
 
   const clipboard = useWorkspaceClipboardActions();
@@ -1957,7 +1957,7 @@ export function SidebarWorkspaceList({
   shortcutIndexByWorkspaceKey,
   groupMode,
   isRefreshing: _isRefreshing = false,
-  onRefresh: _onRefresh,
+  onRefresh,
   onWorkspacePress,
   onAddProject,
   onImportSession,
@@ -2029,6 +2029,9 @@ export function SidebarWorkspaceList({
         projectIconByProjectViewKey={projectIconByProjectViewKey}
         shortcutIndexByWorkspaceKey={shortcutIndexByWorkspaceKey}
         onWorkspacePress={onWorkspacePress}
+        onAddProject={onAddProject}
+        onImportSession={onImportSession}
+        onRefresh={onRefresh}
         hostBadgeByServerId={hostBadgeByServerId}
         supportsPinningByServerId={supportsPinningByServerId}
         onToggleWorkspacePin={onToggleWorkspacePin}
@@ -2052,6 +2055,7 @@ export function SidebarWorkspaceList({
         onWorkspacePress={onWorkspacePress}
         onAddProject={onAddProject}
         onImportSession={onImportSession}
+        onRefresh={onRefresh}
         listFooterComponent={listFooterComponent}
         listHeaderComponent={listHeaderComponent}
         sidebarFilterEmpty={sidebarFilterEmpty}
@@ -2083,6 +2087,9 @@ function SidebarGroupedModeList({
   projectIconByProjectViewKey,
   shortcutIndexByWorkspaceKey: _projectShortcutIndex,
   onWorkspacePress,
+  onAddProject,
+  onImportSession,
+  onRefresh,
   hostBadgeByServerId,
   supportsPinningByServerId,
   onToggleWorkspacePin,
@@ -2099,6 +2106,9 @@ function SidebarGroupedModeList({
   projectIconByProjectViewKey: ReadonlyMap<string, string | null>;
   shortcutIndexByWorkspaceKey: Map<string, number>;
   onWorkspacePress?: () => void;
+  onAddProject?: () => void;
+  onImportSession?: () => void;
+  onRefresh?: () => void;
   hostBadgeByServerId: ReadonlyMap<string, HostBadgeModel>;
   supportsPinningByServerId: ReadonlyMap<string, boolean>;
   onToggleWorkspacePin: ToggleSidebarWorkspacePin;
@@ -2127,6 +2137,9 @@ function SidebarGroupedModeList({
       shortcutIndexByWorkspaceKey={_projectShortcutIndex}
       showShortcutBadges={showShortcutBadges}
       onWorkspacePress={onWorkspacePress}
+      onAddProject={onAddProject}
+      onImportSession={onImportSession}
+      onRefresh={onRefresh}
       hostBadgeByServerId={hostBadgeByServerId}
       supportsPinningByServerId={supportsPinningByServerId}
       onToggleWorkspacePin={onToggleWorkspacePin}
@@ -2154,6 +2167,7 @@ function ProjectModeList({
   onWorkspacePress,
   onAddProject,
   onImportSession,
+  onRefresh,
   listFooterComponent,
   listHeaderComponent,
   sidebarFilterEmpty,
@@ -2173,7 +2187,6 @@ function ProjectModeList({
   | "groupMode"
   | "hasProjectsBeforeFilter"
   | "isRefreshing"
-  | "onRefresh"
 > & {
   /** Drawn above the projects when status grouping is on as well. Empty otherwise. */
   statusGroups: SidebarWorkspaceGroup[];
@@ -2468,7 +2481,11 @@ function ProjectModeList({
   );
   const projectBody =
     projects.length === 0 ? (
-      <SidebarProjectEmptyState onAddProject={onAddProject} onImportSession={onImportSession} />
+      <SidebarProjectEmptyState
+        onAddProject={onAddProject}
+        onImportSession={onImportSession}
+        onRefresh={onRefresh}
+      />
     ) : (
       <View testID="sidebar-project-list" style={styles.projectListContainer}>
         {unpinnedProjects.map(renderProjectBlock)}
@@ -2769,7 +2786,6 @@ const styles = StyleSheet.create((theme) => ({
   },
   workspaceRow: {
     minHeight: density.listRowHeight,
-    marginBottom: theme.spacing[0.5],
     paddingVertical: density.listRowPaddingVertical,
     paddingLeft: theme.spacing[2],
     paddingRight: theme.spacing[3],
@@ -2819,6 +2835,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   workspaceRowContainer: {
     position: "relative",
+    marginBottom: theme.spacing[0.5],
   },
   workspaceStatusDot: {
     position: "relative",

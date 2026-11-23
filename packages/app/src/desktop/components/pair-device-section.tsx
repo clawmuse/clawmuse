@@ -37,6 +37,7 @@ const accentBrightColorMapping = (theme: Theme) => ({ color: theme.colors.accent
 export interface PairDeviceSectionProps {
   serverId: string;
   onClose: () => void;
+  onPendingAppear?: () => void;
 }
 
 export function PairDeviceSection(props: PairDeviceSectionProps) {
@@ -47,7 +48,13 @@ export function PairDeviceSection(props: PairDeviceSectionProps) {
     [serverId, onClose],
   );
   if (client?.getLastServerInfoMessage()?.features?.remoteAccess === true)
-    return <RemoteAccessSection serverId={props.serverId} legacy={legacy} />;
+    return (
+      <RemoteAccessSection
+        serverId={props.serverId}
+        legacy={legacy}
+        onPendingAppear={props.onPendingAppear}
+      />
+    );
   return <LegacyPairDeviceSection {...props} />;
 }
 

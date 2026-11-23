@@ -1,14 +1,25 @@
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
-import type { AgentArchiveReview } from "@getpaseo/protocol/messages";
+import type { AgentArchiveReview, AgentArchiveReviewDecision } from "@getpaseo/protocol/messages";
 import type { AssistantTaskDetail, VoiceAssistantHost } from "./voice/voice-assistant.js";
 import { TaskDecisionSchema } from "./voice/task-review.js";
 
+export type AgentArchiveEvaluation = z.infer<typeof TaskDecisionSchema> & {
+  evaluatedBy?: { provider: string; model: string };
+};
+
 interface Options {
   host: Pick<VoiceAssistantHost, "getTask" | "listTasks" | "archiveTask">;
-  evaluate(task: AssistantTaskDetail): Promise<z.infer<typeof TaskDecisionSchema>>;
+  evaluate(task: AssistantTaskDetail): Promise<AgentArchiveEvaluation>;
   canStopRuntime?(agentId: string): Promise<boolean>;
   now?: () => number;
+}
+
+function excerpt(text: string | null | undefined, maxLength: number): string | undefined {
+  if (!text) return undefined;
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (!collapsed) return undefined;
+  return collapsed.length <= maxLength ? collapsed : `${collapsed.slice(0, maxLength - 1)}…`;
 }
 
 function retentionReason(task: AssistantTaskDetail): string | null {
@@ -35,13 +46,33 @@ export function createAgentArchiveReview(options: Options) {
   const now = options.now ?? Date.now;
 
   async function review(agentId: string): Promise<AgentArchiveReview> {
-    const keep = (reason: string): AgentArchiveReview => ({
+    const startedAt = now();
+    const task = await options.host.getTask(agentId);
+    const latestUserMessage = excerpt(task.lastUserMessage, 240);
+    const latestReply = excerpt(task.lastMessage, 360);
+    const meta = (
+      decision: AgentArchiveReviewDecision,
+      evaluatedBy?: { provider: string; model: string },
+    ): Partial<AgentArchiveReview> => ({
+      decision,
+      durationMs: Math.max(0, now() - startedAt),
+      agentStatus: task.status,
+      ...(evaluatedBy ? { provider: evaluatedBy.provider, model: evaluatedBy.model } : {}),
+      ...(latestUserMessage ? { latestUserMessage } : {}),
+      ...(latestReply ? { latestReply } : {}),
+    });
+    const keep = (
+      reason: string,
+      decision: AgentArchiveReviewDecision = "blocked",
+      evaluatedBy?: { provider: string; model: string },
+    ): AgentArchiveReview => ({
       agentId,
       eligible: false,
       reason,
       token: null,
+      ...meta(decision, evaluatedBy),
     });
-    const task = await options.host.getTask(agentId);
+
     const retained = retentionReason(task);
     if (retained) return keep(retained);
     const tasks = await options.host.listTasks();
@@ -49,12 +80,19 @@ export function createAgentArchiveReview(options: Options) {
     if (options.canStopRuntime && !(await options.canStopRuntime(agentId)))
       return keep("background_work");
 
-    const decision = TaskDecisionSchema.parse(await options.evaluate(task));
-    if (decision.decision !== "completed") return keep(decision.nextStep || decision.decision);
+    const { evaluatedBy, ...rawDecision } = await options.evaluate(task);
+    const decision = TaskDecisionSchema.parse(rawDecision);
+    if (decision.decision !== "completed") {
+      return keep(decision.nextStep || decision.decision, decision.decision, evaluatedBy);
+    }
     const evidence = decision.completionEvidence.trim();
-    if (!task.lastMessage?.includes(evidence)) return keep("missing_evidence");
+    if (!task.lastMessage?.includes(evidence)) {
+      return keep("missing_evidence", "blocked", evaluatedBy);
+    }
     const current = await options.host.getTask(agentId);
-    if (current.revision !== task.revision) return keep("changed");
+    if (current.revision !== task.revision) {
+      return keep("changed", "blocked", evaluatedBy);
+    }
 
     for (const [token, approval] of approvals) {
       if (approval.expiresAt <= now() || approval.agentId === agentId) approvals.delete(token);
@@ -67,7 +105,13 @@ export function createAgentArchiveReview(options: Options) {
       evidence,
       expiresAt: now() + 600_000,
     });
-    return { agentId, eligible: true, reason: evidence, token };
+    return {
+      agentId,
+      eligible: true,
+      reason: evidence,
+      token,
+      ...meta("completed", evaluatedBy),
+    };
   }
 
   async function archive(agentId: string, token: string) {

@@ -1,126 +1,124 @@
 {
-  "version": "1.5.5+1108",
-  "checksumsUrl": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/SHA256SUMS.txt",
-  "publishedAt": "2026-11-08T14:45:03.560Z",
+  "version": "1.6.0",
+  "checksumsUrl": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/SHA256SUMS.txt",
+  "publishedAt": "2026-11-23T18:43:35.885Z",
   "files": [
     {
       "platform": "linux",
       "arch": "arm64",
       "format": "RPM",
-      "filename": "ClawMuse-1.5.5+1108-aarch64.rpm",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-1.5.5%2B1108-aarch64.rpm",
-      "size": 121333669,
-      "sha256": "a966b885b2a72cd704b80c75f959b0d8fbb856b4d8e9ffdf096c773b1026ba9b"
+      "filename": "ClawMuse-1.6.0-aarch64.rpm",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-1.6.0-aarch64.rpm",
+      "size": 113311181,
+      "sha256": "1f918405447196d157fd4fd8d6ba8fb3b1e1fbd89d41f8fc310ad29cbd16fc95"
     },
     {
       "platform": "linux",
       "arch": "x64",
       "format": "DEB",
-      "filename": "ClawMuse-1.5.5+1108-amd64.deb",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-1.5.5%2B1108-amd64.deb",
-      "size": 148733520,
-      "sha256": "e4d2dcdd84a229bfe20f5d6e210ff9e9c3e9ea72c594d20d27335d5256f1ff5d"
+      "filename": "ClawMuse-1.6.0-amd64.deb",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-1.6.0-amd64.deb",
+      "size": 137346568,
+      "sha256": "6bf4292b78642ef7eb3bf40578a0ca537be3cbd4c296cce0c61e9fc18cb3d9a3"
     },
     {
       "platform": "android",
       "arch": "universal",
       "format": "APK",
-      "filename": "ClawMuse-1.5.5+1108-android.apk",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-1.5.5%2B1108-android.apk",
-      "size": 311857527,
-      "sha256": "896eec8e462277ce15bd969f4dd2eb8c6e793e588f416e45dc8cd2a95e495458"
+      "filename": "ClawMuse-1.6.0-android.apk",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-1.6.0-android.apk",
+      "size": 313431327,
+      "sha256": "0d514d381478ce1f17aa3fcd78d95cc383f3b87f39bdd6469a6f08f568ceaf24"
     },
     {
       "platform": "linux",
       "arch": "arm64",
       "format": "DEB",
-      "filename": "ClawMuse-1.5.5+1108-arm64.deb",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-1.5.5%2B1108-arm64.deb",
-      "size": 143891936,
-      "sha256": "c6671cc55ebbecb2ca86485e14f413aec7d41864702aa288757c38c273f6eca5"
+      "filename": "ClawMuse-1.6.0-arm64.deb",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-1.6.0-arm64.deb",
+      "size": 132929084,
+      "sha256": "6955e5fdad1abd901844b0ec031c7539593ba09c2a52ca6312232999aaadd7ff"
     },
     {
       "platform": "macos",
       "arch": "arm64",
       "format": "DMG",
-      "version": "1.5.8",
-      "filename": "ClawMuse-1.5.8-arm64.dmg",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.8/ClawMuse-1.5.8-arm64.dmg",
-      "size": 185897651,
-      "sha256": "9e87bd42305e65e1bff5b4df0b12fe26c28c316e955ba8478c115f471b959409"
-    },
-    {
-      "platform": "macos",
-      "arch": "x64",
-      "format": "DMG",
-      "version": "1.5.10",
-      "filename": "ClawMuse-1.5.10-x64.dmg",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.10/ClawMuse-1.5.10-x64.dmg",
-      "size": 197511697,
-      "sha256": "2bcf35791e5d5a92cf2231b5137809c2cc3e2ec2566d5b180ad8fad60b01e987"
+      "filename": "ClawMuse-1.6.0-arm64.dmg",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-1.6.0-arm64.dmg",
+      "size": 189280672,
+      "sha256": "204e8050222225d17e568e1d676c42aa0a4fca5729e16416f9c5f41fd67aea27"
     },
     {
       "platform": "linux",
       "arch": "arm64",
       "format": "TAR.GZ",
-      "filename": "ClawMuse-1.5.5+1108-arm64.tar.gz",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-1.5.5%2B1108-arm64.tar.gz",
-      "size": 182104816,
-      "sha256": "566be16fec03fcc1c8ca460cbd429fb89fc2f2a6805e116688935dc4abefdfd3"
+      "filename": "ClawMuse-1.6.0-arm64.tar.gz",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-1.6.0-arm64.tar.gz",
+      "size": 169255115,
+      "sha256": "27014618afdf8ae1bb1ee9260e3cd9827f7cec86ebe14955a851a2b6350ba385"
+    },
+    {
+      "platform": "macos",
+      "arch": "x64",
+      "format": "DMG",
+      "filename": "ClawMuse-1.6.0-x64.dmg",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-1.6.0-x64.dmg",
+      "size": 200812931,
+      "sha256": "a7af3d5cd2b9f1b0a0186517d571e638a28b365d917c0775ac303ddc17571c20"
     },
     {
       "platform": "linux",
       "arch": "x64",
       "format": "TAR.GZ",
-      "filename": "ClawMuse-1.5.5+1108-x64.tar.gz",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-1.5.5%2B1108-x64.tar.gz",
-      "size": 181175875,
-      "sha256": "8bc05317438bf4bf73cae9ba28ed40f1047e72ae5f4435eeb9a8fdd183222fe2"
+      "filename": "ClawMuse-1.6.0-x64.tar.gz",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-1.6.0-x64.tar.gz",
+      "size": 166714297,
+      "sha256": "f1b09600e07cf5071966086eeff81fb7483a21abc139a37e7bf564abdc9e7b5b"
     },
     {
       "platform": "linux",
       "arch": "x64",
       "format": "RPM",
-      "filename": "ClawMuse-1.5.5+1108-x86_64.rpm",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-1.5.5%2B1108-x86_64.rpm",
-      "size": 125551357,
-      "sha256": "56ffc9bb278299d42616259bf92c6115e650eb51fd98bc8dc1ff36c63967ab00"
+      "filename": "ClawMuse-1.6.0-x86_64.rpm",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-1.6.0-x86_64.rpm",
+      "size": 116517109,
+      "sha256": "6eb21eb656621e4d569343fb3978e6562fe622993dabb37369d2afce0f520a1e"
     },
     {
       "platform": "windows",
       "arch": "arm64",
       "format": "EXE",
-      "filename": "ClawMuse-Setup-1.5.5+1108-arm64.exe",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-Setup-1.5.5%2B1108-arm64.exe",
-      "size": 161630251,
-      "sha256": "e109db494ab7e7f3784e8d2e9794ed79de8925abce1ae3831bfa6aeace87fa4c"
+      "filename": "ClawMuse-Setup-1.6.0-arm64.exe",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-Setup-1.6.0-arm64.exe",
+      "size": 144781119,
+      "sha256": "8b5bb189c132954a34cb0fd97aa4a5976e8ff052e60d0ad18728bda64c9a9f39"
     },
     {
       "platform": "windows",
       "arch": "x64",
       "format": "EXE",
-      "filename": "ClawMuse-Setup-1.5.5+1108-x64.exe",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-Setup-1.5.5%2B1108-x64.exe",
-      "size": 161783208,
-      "sha256": "06528bd52f8cfe7ff7b0c74cf9332a514b7b1b63aa56a740cbf52cd3799e877d"
+      "filename": "ClawMuse-Setup-1.6.0-x64.exe",
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-Setup-1.6.0-x64.exe",
+      "size": 155751659,
+      "sha256": "1f161246e0d3c4f659ad26e0b3c0ba53f20f04c29a2eb6a2d04c4caf0089b61f"
     },
     {
       "platform": "linux",
       "arch": "arm64",
       "format": "AppImage",
       "filename": "ClawMuse-arm64.AppImage",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-arm64.AppImage",
-      "size": 188229195,
-      "sha256": "8746731c32631b02f143113924228f1fae369e8eb2562a716faca5af9aa847e4"
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-arm64.AppImage",
+      "size": 175164823,
+      "sha256": "1376244dfc31a37b595cb3423799f167c599796d90d0c1348578e1c748aeb325"
     },
     {
       "platform": "linux",
       "arch": "x64",
       "format": "AppImage",
       "filename": "ClawMuse-x86_64.AppImage",
-      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.5.5+1108/ClawMuse-x86_64.AppImage",
-      "size": 186907189,
-      "sha256": "4240b2d87809b9a83daad7469929b00b64842fcb97ad9a35c99b3fd281bbc9f1"
+      "url": "https://github.com/endvin/clawmuse-releases/releases/download/v1.6.0/ClawMuse-x86_64.AppImage",
+      "size": 171670728,
+      "sha256": "d16b0fede6887c623044a58d20bd6068b4aca4a8ab3bb9d882def8136f9ddd0e"
     }
   ],
   "ios": {

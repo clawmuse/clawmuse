@@ -31,6 +31,7 @@ test("project and workspace kebabs open action sheets on compact layouts", async
       /^Title/,
       "Show",
       "Project",
+      "Project icon",
       "Show background",
     ]);
     await closeMenuSheet(page);
@@ -58,8 +59,7 @@ test("project and workspace kebabs open action sheets on compact layouts", async
       timeout: 10_000,
     });
     await expect(page.getByText("Workspace actions", { exact: true })).toBeVisible();
-    await closeMenuSheet(page);
-    await workspaceRow.getByRole("button", { name: "Archive", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
     await expect(workspaceRow).toHaveCount(0);
     expect(existsSync(seeded.repoPath)).toBe(true);
   } finally {

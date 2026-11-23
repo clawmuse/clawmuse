@@ -63,6 +63,7 @@ const buildProfile = isFdroidBuild
           {
             icon: "./assets/images/notification-icon.png",
             color: "#20744A",
+            enableBackgroundRemoteNotifications: true,
           },
         ],
       ],
@@ -155,8 +156,9 @@ export default {
         NSMicrophoneUsageDescription: "This app needs access to the microphone for voice commands.",
         NSLocalNetworkUsageDescription: "Connect to coding agent hosts on your local network.",
         NSSupportsLiveActivities: true,
-        // The two-way engine owns the live session; iOS must keep it running offscreen.
-        UIBackgroundModes: ["audio"],
+        // The two-way engine owns the live session; remote-notification lets Status
+        // clean up stranded Live Activities when a background wakeup arrives.
+        UIBackgroundModes: ["audio", "remote-notification"],
       },
       entitlements: {
         // Shared with ClawMuseAgentLiveActivityExtension; the home-screen widget

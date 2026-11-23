@@ -5,12 +5,25 @@ struct ClawMuseAgentExpandedIslandView: View {
   let state: ClawMuseAgentActivityAttributes.ContentState
   let isStale: Bool
 
+  private var presentation: ClawMuseAgentActivityPresentation {
+    ClawMuseAgentActivityPresentation(state: state, isStale: isStale)
+  }
+
   var body: some View {
-    ClawMuseAgentActivitySummaryView(state: state, isStale: isStale)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.horizontal, 10)
-      .padding(.top, 4)
-      .padding(.bottom, 6)
+    Group {
+      if presentation.collapsesStaleSummary {
+        Text(ClawMuseAgentActivityCopy.staleHint)
+          .font(.caption)
+          .foregroundStyle(ClawMuseAgentActivityPalette.secondaryText)
+          .lineLimit(1)
+      } else {
+        ClawMuseAgentActivitySummaryView(state: state, isStale: isStale)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.horizontal, 10)
+    .padding(.top, 4)
+    .padding(.bottom, 6)
   }
 }
 

@@ -1,4 +1,9 @@
-import { applyMobileUpdate, checkAndDownloadMobileUpdate } from "./updates/mobile-update-actions";
+import {
+  applyMobileUpdate,
+  checkAndDownloadMobileUpdate,
+  formatMobileUpdateError,
+} from "./updates/mobile-update-actions";
+import { updateStatus } from "./updates/mobile-updates-view";
 import { expect, test } from "vitest";
 import { restartDaemonFromSettings, updateDaemonFromSettings } from "./daemon-lifecycle";
 
@@ -227,4 +232,85 @@ test("applying a mobile update restarts only after confirmation", async () => {
   expect(restarted).toBe(0);
   await applyMobileUpdate({ confirm: async () => true, reload });
   expect(restarted).toBe(1);
+});
+
+test("checkAndDownloadMobileUpdate retries fetchUpdateAsync once on transient failure", async () => {
+  let fetchAttempts = 0;
+  const result = await checkAndDownloadMobileUpdate(
+    {
+      checkForUpdateAsync: async () => ({ isAvailable: true, isRollBackToEmbedded: false }),
+      fetchUpdateAsync: async () => {
+        fetchAttempts++;
+        if (fetchAttempts === 1) {
+          throw new Error(
+            "ERR_UPDATES_FETCH: Failed to load all assets (at ExpoModulesCore/Promise.swift:65)",
+          );
+        }
+        return { isNew: true, isRollBackToEmbedded: false };
+      },
+    },
+    "Download failed",
+  );
+  expect(result).toBe("downloaded");
+  expect(fetchAttempts).toBe(2);
+});
+
+test("checkAndDownloadMobileUpdate rejects if retry fetch also fails", async () => {
+  let fetchAttempts = 0;
+  await expect(
+    checkAndDownloadMobileUpdate(
+      {
+        checkForUpdateAsync: async () => ({ isAvailable: true, isRollBackToEmbedded: false }),
+        fetchUpdateAsync: async () => {
+          fetchAttempts++;
+          throw new Error("ERR_UPDATES_FETCH: Failed to load all assets");
+        },
+      },
+      "Download failed",
+    ),
+  ).rejects.toThrow("ERR_UPDATES_FETCH: Failed to load all assets");
+  expect(fetchAttempts).toBe(2);
+});
+
+test("formatMobileUpdateError strips raw Expo error code and Swift source location", () => {
+  expect(formatMobileUpdateError(undefined)).toBeUndefined();
+  expect(formatMobileUpdateError("   ")).toBeUndefined();
+  expect(
+    formatMobileUpdateError(
+      "ERR_UPDATES_FETCH: Failed to load all assets (at ExpoModulesCore/Promise.swift:65)",
+    ),
+  ).toBe("Failed to load all assets");
+  expect(formatMobileUpdateError("Plain error message")).toBe("Plain error message");
+});
+
+test("updateStatus prefers error, available, and checked over idle", () => {
+  const t = ((key: string) => key) as Parameters<typeof updateStatus>[1];
+  expect(
+    updateStatus(
+      {
+        buildNumber: "1006000001",
+        enabled: true,
+        error: "Failed to load all assets",
+        lastChecked: new Date(),
+      },
+      t,
+    ),
+  ).toBe("mobileUpdates.errorStatus");
+  expect(updateStatus({ buildNumber: "1006000001", enabled: true, available: true }, t)).toBe(
+    "mobileUpdates.available",
+  );
+  expect(updateStatus({ buildNumber: "1006000001", enabled: true, checked: true }, t)).toBe(
+    "mobileUpdates.current",
+  );
+  expect(
+    updateStatus(
+      {
+        buildNumber: "1006000001",
+        enabled: true,
+        pending: true,
+        error: "Failed earlier",
+      },
+      t,
+    ),
+  ).toBe("mobileUpdates.ready");
 });

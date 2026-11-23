@@ -857,11 +857,11 @@ for (const compact of [false, true]) {
       await refreshLoginUsage(page);
       await expectRetainedLoginUsage(page, "Claude: Rate limited");
       await expectLoginUsageFreshness(page, "Last updated 1h ago", compact);
+      await qaScreenshot(page, `usage-error-detail-${compact ? "compact" : "desktop"}`);
+      await closeUsage(page);
       await expectPinnedUsage(page, ["42% Weekly"]);
       await expect(usageItem(page).getByTestId("sidebar-usage-error")).toBeVisible();
       await expect(usageItem(page)).toHaveAccessibleName(/Unable to refresh usage/);
-      await qaScreenshot(page, `usage-error-detail-${compact ? "compact" : "desktop"}`);
-      await closeUsage(page);
       await qaScreenshot(page, `usage-error-summary-${compact ? "compact" : "desktop"}`, "summary");
       await openUsageFromItem(page);
       await expectRetainedLoginUsage(page, "Claude: Rate limited");

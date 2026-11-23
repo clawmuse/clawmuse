@@ -15,6 +15,7 @@ import { useToast } from "@/contexts/toast-api-context";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { usePluginEvaluationError } from "@/plugins/registry";
 import { pluginDisplayName } from "@/plugins/plugin-list";
+import { buildPluginSettingsRoute } from "@/plugins/settings/routes";
 import { settingsStyles } from "@/styles/settings";
 import { usePluginActions } from "./actions";
 import { listingAuthor, listingAuthorAvatar, installedListingId } from "./listing";
@@ -35,8 +36,13 @@ function matchesQuery(plugin: PluginListItem, query: string): boolean {
     .includes(query);
 }
 
-/** "author · version" for a listed plugin; where it was installed from otherwise. */
-function installedMeta(plugin: PluginListItem, listing: PluginListing | undefined) {
+/** "author · version" for a listed plugin; bundled label or install source otherwise. */
+function installedMeta(
+  plugin: PluginListItem,
+  listing: PluginListing | undefined,
+  bundledLabel: string,
+) {
+  if (plugin.bundled) return bundledLabel;
   if (!plugin.installation) return plugin.path;
   if (!listing) return formatPluginInstallation(plugin.installation);
   const version = shortRevision(plugin.installation.currentRevision);
@@ -152,7 +158,7 @@ function InstalledRow({
       icon={listing?.icon}
       badge={badge}
       description={plugin.description ?? listing?.description}
-      meta={installedMeta(plugin, listing)}
+      meta={installedMeta(plugin, listing, t("settings.plugins.bundled"))}
       authorAvatar={listing && listingAuthorAvatar(listing)}
       error={error}
       onPress={open}
@@ -186,7 +192,15 @@ export function InstalledTab({
   onBrowse(): void;
 }) {
   const { t } = useTranslation();
-  const actions = usePluginActions(serverId);
+  const handleEnabled = useCallback(
+    (updated: PluginListItem) => {
+      if (updated.status === "running" && updated.setupScreen) {
+        router.push(buildPluginSettingsRoute(serverId, updated.id, updated.setupScreen));
+      }
+    },
+    [serverId],
+  );
+  const actions = usePluginActions(serverId, { onEnabled: handleEnabled });
   const updates = usePluginUpdates(serverId);
   const update = useUpdate(serverId);
   const normalizedQuery = query.trim().toLowerCase();

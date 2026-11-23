@@ -33,6 +33,14 @@ export function ChatSection() {
     (autoExpandReasoning: boolean) => void updateSettings({ autoExpandReasoning }),
     [updateSettings],
   );
+  const changeShowReasoning = useCallback(
+    (showReasoning: boolean) => void updateSettings({ showReasoning }),
+    [updateSettings],
+  );
+  const changeShowToolCalls = useCallback(
+    (showToolCalls: boolean) => void updateSettings({ showToolCalls }),
+    [updateSettings],
+  );
   const changeChatOutline = useCallback(
     (chatOutlineEnabled: boolean) => void updateSettings({ chatOutlineEnabled }),
     [updateSettings],
@@ -43,10 +51,23 @@ export function ChatSection() {
       <SettingsSection title={t("settings.appearance.detailLevel.title")}>
         <SettingsCard>
           <SettingsSwitch
+            label={t("settings.general.showReasoning.label")}
+            hint={t("settings.general.showReasoning.description")}
+            value={settings.showReasoning}
+            onValueChange={changeShowReasoning}
+          />
+          <SettingsSwitch
             label={t("settings.general.autoExpandReasoning.label")}
             hint={t("settings.general.autoExpandReasoning.description")}
             value={settings.autoExpandReasoning}
             onValueChange={changeAutoExpandReasoning}
+            disabled={!settings.showReasoning}
+          />
+          <SettingsSwitch
+            label={t("settings.general.showToolCalls.label")}
+            hint={t("settings.general.showToolCalls.description")}
+            value={settings.showToolCalls}
+            onValueChange={changeShowToolCalls}
           />
           <SettingsSelect
             label={t("settings.general.chatDisplay.label")}

@@ -1,14 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { SharedValue } from "react-native-reanimated";
-import type { ImageAttachment } from "@/composer/types";
 import { getDesktopHost } from "@/desktop/host";
-import { persistAttachmentFromBlob, persistAttachmentFromFileUri } from "@/attachments/service";
-import {
-  isRasterImageFile,
-  isRasterImagePath,
-  resolveRasterImageMimeType,
-} from "@/attachments/file-types";
 import { isWeb } from "@/constants/platform";
 import type { DroppedItem, DroppedPathItem, FileDropSink } from "./types";
 import {
@@ -24,26 +17,6 @@ type DesktopDragDropPayload =
 
 interface DesktopDragDropEvent {
   payload: DesktopDragDropPayload;
-}
-
-async function filePathToImageAttachment(path: string): Promise<ImageAttachment> {
-  const mimeType = resolveRasterImageMimeType({ path });
-  if (!mimeType) {
-    throw new Error(`Unsupported image type for '${path}'.`);
-  }
-  return await persistAttachmentFromFileUri({ uri: path, mimeType });
-}
-
-async function fileToImageAttachment(file: File): Promise<ImageAttachment> {
-  const mimeType = resolveRasterImageMimeType({ mimeType: file.type, path: file.name });
-  if (!mimeType) {
-    throw new Error(`Unsupported image type for '${file.name}'.`);
-  }
-  return await persistAttachmentFromBlob({
-    blob: file,
-    mimeType,
-    fileName: file.name,
-  });
 }
 
 interface UseDropListenersOptions {
@@ -147,28 +120,6 @@ export function useDropListeners({
           if (sink.onGenericFiles && items.length > 0) {
             sink.onGenericFiles(items);
           }
-
-          const onFiles = sink.onFiles;
-          const imagePaths = onFiles ? payload.paths.filter(isRasterImagePath) : [];
-          if (!onFiles || imagePaths.length === 0) {
-            return;
-          }
-
-          void Promise.all(imagePaths.map(filePathToImageAttachment))
-            .then((attachments) => {
-              if (attachments.length === 0) {
-                return;
-              }
-              // Use the sink captured at drop time, not a fresh getSink() — routing belongs to the
-              // composer the user dropped on (matches the web path below). No post-persist busy
-              // re-check: a mixed drop's own generic upload flips the busy flag, and re-checking
-              // would discard the image from the same drop.
-              onFiles(attachments);
-              return;
-            })
-            .catch((error) => {
-              console.error("[useDropListeners] Failed to persist dropped files:", error);
-            });
         });
 
         if (disposed) {
@@ -261,21 +212,6 @@ export function useDropListeners({
 
         if (sink.onGenericFiles && genericItems.length > 0) {
           sink.onGenericFiles(genericItems);
-        }
-
-        const onFiles = sink.onFiles;
-        const imageFiles = onFiles ? files.filter(isRasterImageFile) : [];
-
-        if (!onFiles || imageFiles.length === 0) return;
-
-        try {
-          const attachments = await Promise.all(imageFiles.map(fileToImageAttachment));
-          // No post-persist busy re-check: a mixed drop's own generic upload flips the busy flag,
-          // and re-checking would discard the image from the same drop. The guard at drop start
-          // already rejects drops that begin while busy.
-          onFiles(attachments);
-        } catch (error) {
-          console.error("[useDropListeners] Failed to process dropped files:", error);
         }
       }
 

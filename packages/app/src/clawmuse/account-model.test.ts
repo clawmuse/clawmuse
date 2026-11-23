@@ -1102,3 +1102,91 @@ it("resolves local desktop daemon serverId once across repeated multi-device bac
   expect(await resolveWithKnown()).toBe("srv_known");
   expect(postKnownCalls).toBe(0);
 });
+
+it("syncs host order with the account directory and flushes offline reorders before discovery", async () => {
+  const offerFor = (serverId: string) => ({
+    v: 2 as const,
+    serverId,
+    daemonPublicKeyB64: `${serverId}-key`,
+    relay: { endpoint: "agent-relay.ppb.cn:443", useTls: true },
+  });
+  let serverOrder: string[] | null = ["srv_b", "srv_a"];
+  let offline = false;
+  let reorderCalls: string[][] = [];
+  let hostOrder = ["manual", "srv_a", "srv_b"];
+  let pendingOrder: string[] | null = null;
+  const sample = fixture(async (path, body) => {
+    if (offline) throw new Error("network offline");
+    if (path === "/get-session") return { status: 200, data: { user: { id: "alice" } } };
+    if (path === "/clawmuse/devices/reorder") {
+      const serverIds = (body as { serverIds: string[] }).serverIds;
+      reorderCalls.push(serverIds);
+      serverOrder = serverIds;
+      return { status: 200, data: { ok: true } };
+    }
+    const orderedIds = serverOrder ?? ["srv_a", "srv_b"];
+    return {
+      status: 200,
+      data: {
+        account: { id: "alice", name: "Alice", email: "alice@example.test" },
+        devices: orderedIds.map((serverId, index) => ({
+          serverId,
+          label: serverId,
+          hidden: false,
+          sortOrder: serverOrder ? index : null,
+          offer: offerFor(serverId),
+        })),
+      },
+    };
+  });
+  sample.deps.readHostOrder = () => hostOrder;
+  sample.deps.readPendingAccountOrder = () => pendingOrder;
+  sample.deps.writePendingAccountOrder = (ids) => {
+    pendingOrder = ids;
+  };
+  sample.deps.syncAccountHostOrder = ({ orderedAccountServerIds }) => {
+    if (orderedAccountServerIds.length > 0) {
+      hostOrder = ["manual", ...orderedAccountServerIds];
+    }
+  };
+
+  await sample.model.refresh();
+  expect(hostOrder).toEqual(["manual", "srv_b", "srv_a"]);
+
+  offline = true;
+  hostOrder = ["srv_a", "manual", "srv_b"];
+  await sample.model.reorderHosts(hostOrder);
+  expect(pendingOrder).toEqual(["srv_a", "srv_b"]);
+  expect(sample.model.getState().devices.map((d) => d.serverId)).toEqual(["srv_a", "srv_b"]);
+  expect(reorderCalls).toEqual([]);
+
+  offline = false;
+  await sample.model.refreshInBackground();
+  expect(reorderCalls).toEqual([["srv_a", "srv_b"]]);
+  expect(pendingOrder).toBeNull();
+  expect(hostOrder).toEqual(["manual", "srv_a", "srv_b"]);
+
+  // Older Hub returning 404 drops pending reorder cleanly without breaking discovery.
+  const olderSample = fixture(async (path) => {
+    if (path === "/get-session") return { status: 200, data: { user: { id: "alice" } } };
+    if (path === "/clawmuse/devices/reorder") return { status: 404, data: {} };
+    return {
+      status: 200,
+      data: {
+        account: { id: "alice", name: "Alice", email: "alice@example.test" },
+        devices: [
+          { serverId: "srv_a", label: "A", offer: offerFor("srv_a") },
+          { serverId: "srv_b", label: "B", offer: offerFor("srv_b") },
+        ],
+      },
+    };
+  });
+  let olderPending: string[] | null = ["srv_b", "srv_a"];
+  olderSample.deps.readPendingAccountOrder = () => olderPending;
+  olderSample.deps.writePendingAccountOrder = (ids) => {
+    olderPending = ids;
+  };
+  await olderSample.model.refresh();
+  expect(olderSample.model.getState().error).toBeNull();
+  expect(olderPending).toBeNull();
+});

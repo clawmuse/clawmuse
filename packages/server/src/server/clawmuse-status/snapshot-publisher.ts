@@ -15,6 +15,8 @@ import { ClawMuseStatusProjection, type ClawMuseStatusAgentSnapshot } from "./pr
 import { reportPendingRelaySelection } from "./relay-selection-report.js";
 import { projectClawMuseStatusUsages } from "./usage-projection.js";
 
+export const CLAWMUSE_STATUS_COLD_START_RUNNING_DEBOUNCE_MS = 2_000;
+
 export interface ClawMuseStatusPublisherOptions {
   client: ClawMuseStatusClient;
   /** Where a first-run relay selection waits to be reported. */
@@ -27,6 +29,13 @@ export interface ClawMuseStatusPublisherOptions {
   logger: pino.Logger;
   /** True while a user is actively interacting with a client on this host. */
   hasActiveClient?: () => boolean;
+  /** True when host push notifications already deliver alerts for this terminal outcome. */
+  hasTerminalPushSubscriber?: (phase: "completed" | "failed") => boolean;
+  /**
+   * Coalesces idle -> running-only transitions so sub-2s turns finish with a single
+   * completion notification instead of flashing a short-lived Lock Screen capsule.
+   */
+  coldStartRunningDebounceMs?: number;
   /** Bound to the session once the server advertises goals; absent on hosts without a runner. */
   goals?: ClawMuseGoalRunner;
   projection?: ClawMuseStatusProjection;
@@ -68,12 +77,14 @@ export class ClawMuseStatusPublisher {
   private readonly lease: ClawMuseStatusHostSessionLease;
   private readonly projection: ClawMuseStatusProjection;
   private readonly now: () => number;
+  private readonly coldStartRunningDebounceMs: number;
   private readonly logger: pino.Logger;
   private readonly activeOperations = new Set<Promise<unknown>>();
   private items: readonly ClawMuseStatusSnapshotItem[] = [];
   private usages: readonly ClawMuseStatusUsage[] = [];
   private desiredSignature = "";
   private acceptedSignature: string | null = null;
+  private acceptedActiveCount = 0;
   private pending: PendingSnapshot | null = null;
   private drainPromise: Promise<void> | null = null;
   private nextRevision = 1;
@@ -85,6 +96,8 @@ export class ClawMuseStatusPublisher {
 
   constructor(private readonly options: ClawMuseStatusPublisherOptions) {
     this.now = options.now ?? Date.now;
+    this.coldStartRunningDebounceMs =
+      options.coldStartRunningDebounceMs ?? CLAWMUSE_STATUS_COLD_START_RUNNING_DEBOUNCE_MS;
     this.logger = options.logger.child({ module: "clawmuse-status-publisher" });
     this.projection = options.projection ?? new ClawMuseStatusProjection();
     this.schedule = new ClawMuseStatusDeliverySchedule({
@@ -92,6 +105,7 @@ export class ClawMuseStatusPublisher {
       onHeartbeat: () => void this.sendHeartbeat(),
       onRetry: () => this.requestDrain(),
       onProjectionRefresh: () => this.refresh(),
+      onColdStart: () => this.requestDrain(),
     });
     this.lease = new ClawMuseStatusHostSessionLease({
       client: options.client,
@@ -165,7 +179,13 @@ export class ClawMuseStatusPublisher {
       return;
     }
     const nowMs = this.now();
-    const projected = this.projection.project(this.options.listAgents(), nowMs);
+    const projected = this.projection.project(
+      this.options.listAgents(),
+      nowMs,
+      this.options.hasTerminalPushSubscriber
+        ? { skipTerminalDwellWhenIdle: this.options.hasTerminalPushSubscriber }
+        : undefined,
+    );
     this.items = projected.items;
     this.schedule.armProjectionRefresh(projected.nextRefreshAtMs, nowMs);
     this.updateDesiredSignature();
@@ -191,6 +211,8 @@ export class ClawMuseStatusPublisher {
     this.nextRevision = 1;
     this.pending = null;
     this.acceptedSignature = null;
+    this.acceptedActiveCount = 0;
+    this.schedule.clearColdStart();
     this.lastError = null;
     this.schedule.scheduleHeartbeat(session.heartbeatInterval * 1_000);
     this.refresh();
@@ -220,8 +242,10 @@ export class ClawMuseStatusPublisher {
   private onSessionInvalidated(): void {
     this.pending = null;
     this.acceptedSignature = null;
+    this.acceptedActiveCount = 0;
     this.nextRevision = 1;
     this.schedule.clearHeartbeat();
+    this.schedule.clearColdStart();
     this.options.goals?.unbind();
   }
 
@@ -251,6 +275,18 @@ export class ClawMuseStatusPublisher {
 
   private updateDesiredSignature(): void {
     this.desiredSignature = JSON.stringify({ items: this.items, usages: this.usages });
+    const isColdRunningOnlyStart =
+      this.coldStartRunningDebounceMs > 0 &&
+      this.acceptedSignature !== null &&
+      this.acceptedActiveCount === 0 &&
+      this.pending === null &&
+      this.items.length > 0 &&
+      this.items.every((item) => item.phase === "running");
+    if (isColdRunningOnlyStart) {
+      this.schedule.armColdStart(this.coldStartRunningDebounceMs);
+      return;
+    }
+    this.schedule.clearColdStart();
     this.requestDrain();
   }
 
@@ -327,6 +363,9 @@ export class ClawMuseStatusPublisher {
       return;
     }
     this.acceptedSignature = pending.signature;
+    this.acceptedActiveCount = pending.items.filter(
+      (item) => item.phase === "running" || item.phase === "needs_action",
+    ).length;
     this.nextRevision = pending.revision + 1;
     this.pending = null;
     this.lastPublishedAt = new Date(this.now()).toISOString();
@@ -357,7 +396,9 @@ export class ClawMuseStatusPublisher {
         ),
       );
       this.schedule.resetRetry();
-      this.requestDrain();
+      if (!this.schedule.coldStartScheduled) {
+        this.requestDrain();
+      }
       if (goals) {
         // The inventory is cheap to compare, so it rides the heartbeat instead of
         // subscribing to project mutations from inside the publisher.

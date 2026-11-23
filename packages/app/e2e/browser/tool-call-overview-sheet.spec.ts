@@ -143,16 +143,17 @@ async function holdStreamAfterFirstCompletedToolCall(page: Page, agentId: string
     });
   });
 
-  function appendCompletedCalls(count: number) {
+  function appendCompletedCalls(count: number, options: { includeReasoning?: boolean } = {}) {
     if (count === 0) return;
     if (!firstCallId || !firstCompletedMessage) {
       throw new Error("Expected the first completed tool call before appending activity");
     }
     for (let index = 0; index < count; index += 1) {
-      sendToPage?.(
-        cloneCommand(firstCompletedMessage, `${firstCallId}:${index}`, ++sequenceOffset),
-      );
-      sendToPage?.(cloneReasoning(firstCompletedMessage, ++sequenceOffset));
+      const callSeq = ++sequenceOffset;
+      sendToPage?.(cloneCommand(firstCompletedMessage, `${firstCallId}:${callSeq}`, callSeq));
+      if (options.includeReasoning) {
+        sendToPage?.(cloneReasoning(firstCompletedMessage, ++sequenceOffset));
+      }
     }
   }
 
@@ -160,7 +161,6 @@ async function holdStreamAfterFirstCompletedToolCall(page: Page, agentId: string
     waitForFirstCompleted: () => firstCompleted,
     appendCompletedCalls,
     release(extraCompletedCalls = 0) {
-      appendCompletedCalls(extraCompletedCalls);
       isHolding = false;
       appendCompletedCalls(extraCompletedCalls);
       for (const message of heldMessages.splice(0)) {
@@ -253,6 +253,10 @@ async function openOverviewAgent(
 
 function hasScrolledToLatest(root: HTMLElement): boolean {
   for (const node of root.querySelectorAll<HTMLElement>("*")) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if (overflowY !== "auto" && overflowY !== "scroll") {
+      continue;
+    }
     if (node.scrollHeight <= node.clientHeight) {
       continue;
     }
@@ -352,7 +356,7 @@ test.describe("compact overview tool calls", () => {
       await expect(sheet).toBeVisible();
       const initialSummary = await summary.innerText();
 
-      gate.appendCompletedCalls(10);
+      gate.appendCompletedCalls(10, { includeReasoning: true });
       const badges = sheet.getByTestId("tool-call-badge");
       await expect.poll(() => badges.count(), { timeout: 30_000 }).toBeGreaterThanOrEqual(21);
       await expect

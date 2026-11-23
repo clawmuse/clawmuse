@@ -264,7 +264,8 @@ test("initializes controlled-only relay pairing, shows save errors, and approves
     await expect(initialize).toBeEnabled();
     await writeFile(configPath, originalConfig);
     await initialize.click();
-    await expect(section.getByRole("img", { name: "Remote access pairing QR code" })).toBeVisible();
+    const qr = section.getByRole("img", { name: "Remote access pairing QR code" });
+    await expect(qr).toBeVisible();
     await expect(section.getByRole("alert")).toHaveCount(0);
     await expect(
       section.getByText(
@@ -280,6 +281,9 @@ test("initializes controlled-only relay pairing, shows save errors, and approves
     expect(new URL(link!).pathname).toBe("/");
     expect(offer?.requiresAuthorization).toBe(true);
     expect(offer?.pairing).toHaveProperty("token");
+    await qr.scrollIntoViewIfNeeded();
+    await expect(qr).toBeInViewport({ ratio: 0.999 });
+    await page.screenshot({ path: testInfo.outputPath("controlled-only-pairing.png") });
     let pendingId = "";
     const Client = await loadDaemonClientConstructor<DaemonClientConfig, DaemonClient>();
     const manager = new Client({
@@ -300,6 +304,7 @@ test("initializes controlled-only relay pairing, shows save errors, and approves
     const connect = manager.connect();
     await expect.poll(() => pendingId).not.toBe("");
     await expect(section.getByText("Test phone · Manager", { exact: true })).toBeVisible();
+    await expect(qr).toHaveCount(0);
     await section.getByRole("button", { name: "Allow persistent access", exact: true }).click();
     await connect;
     expect((await manager.getRemoteAccessState()).state.canManage).toBe(true);
@@ -310,11 +315,6 @@ test("initializes controlled-only relay pairing, shows save errors, and approves
         exact: true,
       }),
     ).toHaveCount(0);
-    const qr = section.getByRole("img", { name: "Remote access pairing QR code" });
-    await qr.scrollIntoViewIfNeeded();
-    await expect(qr).toBeInViewport({ ratio: 0.999 });
-    await page.screenshot({ path: testInfo.outputPath("controlled-only-pairing.png") });
-
     // A fresh browser reaches host confirmation from the published fragment format without login.
     const context = await browser.newContext();
     try {

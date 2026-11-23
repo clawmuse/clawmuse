@@ -930,6 +930,34 @@ async function trackScrollOffset(track: Locator): Promise<number> {
   return track.evaluate((node) => node.scrollLeft);
 }
 
+async function swipeComposerTracksToStart(page: Page, client: CDPSession, track: Locator) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if ((await trackScrollOffset(track)) <= 1) return;
+    await swipeComposerTracks(page, client, "right");
+  }
+}
+
+async function swipeComposerTracksToPill(
+  page: Page,
+  client: CDPSession,
+  track: Locator,
+  pillTestId: string,
+) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const inside = await track.evaluate((scroller, testId) => {
+      const pill = scroller.querySelector(`[data-testid="${testId}"]`);
+      if (!pill) return false;
+      const item = pill.getBoundingClientRect();
+      const bounds = scroller.getBoundingClientRect();
+      return item.left >= bounds.left - 1 && item.right <= bounds.right + 1;
+    }, pillTestId);
+    if (inside) return;
+    const before = await trackScrollOffset(track);
+    await swipeComposerTracks(page, client, "left");
+    if ((await trackScrollOffset(track)) <= before) break;
+  }
+}
+
 test.describe("touch composer tracks", () => {
   test.use({ hasTouch: true, isMobile: true });
   test("compact composer scrolls its task, subagent and changes tracks without squeezing them", async ({
@@ -971,11 +999,12 @@ test.describe("touch composer tracks", () => {
       );
       await swipeComposerTracks(page, touch, "left");
       await expect.poll(() => trackScrollOffset(track)).toBeGreaterThan(0);
-      await swipeComposerTracks(page, touch, "right");
-      await swipeComposerTracks(page, touch, "right");
+      await swipeComposerTracksToStart(page, touch, track);
       await expect.poll(() => trackScrollOffset(track)).toBeLessThanOrEqual(1);
       await swipeComposerTracks(page, touch, "left");
       await expect.poll(() => trackScrollOffset(track)).toBeGreaterThan(0);
+      await swipeComposerTracksToPill(page, touch, track, "composer-diff-stat-pill");
+      await expect(changes).toBeInViewport();
       await expect(page.getByTestId("sidebar-sessions")).not.toBeInViewport();
       await expect(page.getByTestId("workspace-explorer-sidebar")).not.toBeInViewport();
       await page.getByRole("button", { name: "Open menu" }).click();

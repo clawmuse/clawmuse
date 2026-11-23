@@ -440,7 +440,7 @@ export class DirectorySync {
 
   private loadCachedDirectory(): Promise<void> {
     const checkpoints = this.checkpoints;
-    if (!checkpoints) return Promise.resolve();
+    if (!checkpoints || this.cacheAccepted) return Promise.resolve();
     this.cacheLoad ??= (async () => {
       const revision = this.revision;
       const cached = await checkpoints.readDirectory(this.serverId);
@@ -450,7 +450,11 @@ export class DirectorySync {
       this.workspaces.commitCached(cached);
       if (this.revision === revision) this.cursors = cached.checkpoint ?? {};
       this.cacheAccepted = true;
-    })();
+    })().finally(() => {
+      if (!this.cacheAccepted) {
+        this.cacheLoad = null;
+      }
+    });
     return this.cacheLoad;
   }
 

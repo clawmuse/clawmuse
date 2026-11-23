@@ -77,8 +77,18 @@ function WebHoverCard({
   const contentRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusScrollGraceFrameRef = useRef<number | null>(null);
   // Read when focus arrives: by focusout the element losing focus no longer matches :focus-visible.
   const keyboardFocusedRef = useRef(false);
+
+  const cancelFocusScrollGrace = useCallback(() => {
+    if (focusScrollGraceFrameRef.current !== null) {
+      cancelAnimationFrame(focusScrollGraceFrameRef.current);
+      focusScrollGraceFrameRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => cancelFocusScrollGrace, [cancelFocusScrollGrace]);
 
   const clearGraceTimer = useCallback(() => {
     if (graceTimerRef.current) {
@@ -184,6 +194,7 @@ function WebHoverCard({
     const trigger = triggerRef.current as unknown as HTMLElement | null;
     if (!trigger) return;
     const close = () => {
+      cancelFocusScrollGrace();
       clearGraceTimer();
       setOpen(false);
     };
@@ -191,6 +202,14 @@ function WebHoverCard({
       const target = event.target as Element;
       keyboardFocusedRef.current = target.matches(":focus-visible");
       if (trigger.contains(target) && keyboardFocusedRef.current) {
+        cancelFocusScrollGrace();
+        // Focusing an off-screen trigger causes the browser to auto-scroll its ancestor
+        // asynchronously on the next frame; ignore that focus-driven scroll so the card stays open.
+        focusScrollGraceFrameRef.current = requestAnimationFrame(() => {
+          focusScrollGraceFrameRef.current = requestAnimationFrame(() => {
+            focusScrollGraceFrameRef.current = null;
+          });
+        });
         openNow();
       } else if ((contentRef.current as unknown as HTMLElement | null)?.contains(target)) {
         clearGraceTimer();
@@ -219,6 +238,7 @@ function WebHoverCard({
     };
     // Only a scroll that moves the trigger detaches the card. A streaming chat beside it does not.
     const scrolled = (event: Event) => {
+      if (focusScrollGraceFrameRef.current !== null) return;
       if ((event.target as Node).contains(trigger)) close();
     };
     document.addEventListener("focusin", focusEntered);
@@ -233,7 +253,7 @@ function WebHoverCard({
       document.removeEventListener("scroll", scrolled, true);
       window.removeEventListener("resize", close);
     };
-  }, [clearGraceTimer, keyPressed, open, openNow, scheduleClose]);
+  }, [cancelFocusScrollGrace, clearGraceTimer, keyPressed, open, openNow, scheduleClose]);
 
   // While open, the safe zone covers trigger + content + the bridge between
   // them. Close only fires when the pointer leaves the safe zone; re-entering

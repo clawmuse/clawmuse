@@ -2782,3 +2782,74 @@ test("plugin provider catalogCacheKey returns undefined instead of throwing when
     await registry.shutdown();
   }
 });
+
+test.each([
+  { cancelsChild: true, expectedStatus: "settled", expectedChildStatus: "canceled" },
+  { cancelsChild: false, expectedStatus: "not_running", expectedChildStatus: "running" },
+] as const)(
+  "cancelAgentRun on an idle agent with a running provider subagent (cancelsChild=$cancelsChild)",
+  async ({ cancelsChild, expectedStatus, expectedChildStatus }) => {
+    const home = await mkdtemp(join(tmpdir(), "plugin-cancel-subagent-"));
+    const logger = createTestLogger();
+    const storage = new AgentStorage(join(home, "agents"), logger);
+    const harness = createProviderHarness({
+      handleInput: async (input, emit) => {
+        if (input.type === "session.interrupt" && cancelsChild) {
+          emit({
+            type: "session.turn",
+            sessionId: "running-child-1",
+            turnId: "child-turn-1",
+            state: "canceled",
+          });
+          emit({ type: "request.completed", requestId: input.requestId });
+          return true;
+        }
+        return false;
+      },
+    });
+    const registry = new PluginAgentClientRegistry(logger);
+    registry.replace([harness.registration]);
+    const manager = new AgentManager({ clients: registry.clients(), registry: storage, logger });
+    const agent = await manager.createAgent(
+      { provider: harness.registration.id, cwd: home },
+      undefined,
+      { workspaceId: undefined },
+    );
+    try {
+      const open = harness.inputs.find((input) => input.type === "session.open")!;
+      harness.emit({
+        type: "session.opened",
+        sessionId: "running-child-1",
+        parentSessionId: open.sessionId,
+        capabilities: [],
+        restoration: "parent",
+        title: "Running child",
+        cwd: home,
+      });
+      harness.emit({
+        type: "session.turn",
+        sessionId: "running-child-1",
+        turnId: "child-turn-1",
+        state: "started",
+      });
+      harness.emit({ type: "session.ready", sessionId: "running-child-1" });
+      await nextTurn();
+
+      expect(agent.lifecycle).toBe("idle");
+      expect(manager.hasInFlightRun(agent.id)).toBe(false);
+      expect(manager.hasRunningProviderSubagents(agent.id)).toBe(true);
+
+      await expect(manager.cancelAgentRun(agent.id)).resolves.toEqual({ status: expectedStatus });
+      expect(harness.inputs.some((input) => input.type === "session.interrupt")).toBe(true);
+      expect(manager.getProviderSubagent(agent.id, "running-child-1")?.status).toBe(
+        expectedChildStatus,
+      );
+      expect(manager.hasRunningProviderSubagents(agent.id)).toBe(!cancelsChild);
+    } finally {
+      await Promise.all(manager.listAgents().map((item) => manager.closeAgent(item.id)));
+      await registry.shutdown();
+      await storage.flush();
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+);

@@ -10,6 +10,17 @@ import { RemoteAccessSection } from "./remote-access-section";
 const fixture = vi.hoisted(() => ({
   getRemoteAccessState: vi.fn<() => Promise<{ state: RemoteAccessState }>>(),
   revokeRemoteController: vi.fn<(controllerId: string) => Promise<unknown>>(),
+  decideRemotePairing:
+    vi.fn<
+      (input: { controllerId: string; approve: boolean; persistent: boolean }) => Promise<unknown>
+    >(),
+  createRemoteAccessInvitation: vi.fn<
+    (input?: { bootstrap?: boolean; manager?: boolean }) => Promise<{
+      url: string;
+      expiresAt: string;
+    }>
+  >(),
+  getDaemonConfig: vi.fn<() => Promise<{ config: { relay?: { enabled?: boolean } } }>>(),
   enforceLocalAccessPolicy: vi.fn<() => Promise<void>>(),
 }));
 
@@ -25,6 +36,9 @@ vi.mock("@/runtime/host-runtime", () => ({
     isConnected: true,
     getRemoteAccessState: fixture.getRemoteAccessState,
     revokeRemoteController: fixture.revokeRemoteController,
+    decideRemotePairing: fixture.decideRemotePairing,
+    createRemoteAccessInvitation: fixture.createRemoteAccessInvitation,
+    getDaemonConfig: fixture.getDaemonConfig,
     getLastServerInfoMessage: () => ({ serverId: "srv_1" }),
   }),
   getHostRuntimeStore: () => ({
@@ -37,11 +51,11 @@ let root: Root;
 let container: HTMLDivElement;
 let queryClient: QueryClient;
 
-function mount() {
+function mount(onPendingAppear?: () => void) {
   act(() =>
     root.render(
       <QueryClientProvider client={queryClient}>
-        <RemoteAccessSection serverId="srv_1" />
+        <RemoteAccessSection serverId="srv_1" onPendingAppear={onPendingAppear} />
       </QueryClientProvider>,
     ),
   );
@@ -54,6 +68,12 @@ beforeEach(async () => {
   await i18n.changeLanguage("zh-CN");
   fixture.getRemoteAccessState.mockReset();
   fixture.revokeRemoteController.mockReset().mockResolvedValue({});
+  fixture.decideRemotePairing.mockReset().mockResolvedValue({});
+  fixture.createRemoteAccessInvitation.mockReset().mockResolvedValue({
+    url: "paseo://pair?invite=test-token",
+    expiresAt: "2026-11-19T12:00:00.000Z",
+  });
+  fixture.getDaemonConfig.mockReset().mockResolvedValue({ config: { relay: { enabled: true } } });
   fixture.enforceLocalAccessPolicy.mockReset().mockResolvedValue(undefined);
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -142,5 +162,134 @@ describe("RemoteAccessSection", () => {
     await expect
       .element(page.getByRole("button", { name: "撤销授权", exact: true }))
       .not.toBeInTheDocument();
+  });
+
+  it("renders pending pairing requests above authorized controllers and approves them", async () => {
+    fixture.getRemoteAccessState.mockResolvedValue({
+      state: {
+        enabled: true,
+        controlledOnly: false,
+        receiving: true,
+        canToggleReceiving: true,
+        canManage: true,
+        canRevoke: true,
+        canPair: true,
+        controllers: [
+          {
+            id: "controller_auth",
+            label: "Existing Manager",
+            fingerprint: "92388187d55e",
+            manager: true,
+            status: "authorized",
+            createdAt: "2026-11-18T00:00:00.000Z",
+            expiresAt: null,
+          },
+          {
+            id: "controller_pending",
+            label: "New Phone",
+            fingerprint: "abcdef123456",
+            manager: false,
+            status: "pending",
+            createdAt: "2026-11-19T00:00:00.000Z",
+            expiresAt: "2026-11-19T01:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    mount();
+
+    const pendingCard = page.getByTestId("remote-access-pending-controller_pending");
+    await expect.element(pendingCard).toBeVisible();
+    await expect.element(page.getByText("待确认", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("核对码：abcdef123456", { exact: true })).toBeVisible();
+
+    const pendingTop = (await pendingCard.element()).getBoundingClientRect().top;
+    const authorizedTop = (
+      await page.getByText("Existing Manager · 管理员", { exact: true }).element()
+    ).getBoundingClientRect().top;
+    expect(pendingTop).toBeLessThan(authorizedTop);
+
+    await page.getByRole("button", { name: "允许长期访问", exact: true }).click();
+    await vi.waitFor(() => {
+      expect(fixture.decideRemotePairing).toHaveBeenCalledExactlyOnceWith({
+        controllerId: "controller_pending",
+        approve: true,
+        persistent: true,
+      });
+    });
+  });
+
+  it("dismisses the consumed QR code and notifies onPendingAppear when a scanned device arrives", async () => {
+    const onPendingAppear = vi.fn();
+    let currentState: RemoteAccessState = {
+      enabled: true,
+      controlledOnly: false,
+      receiving: true,
+      canToggleReceiving: true,
+      canManage: true,
+      canRevoke: true,
+      canPair: true,
+      controllers: [
+        {
+          id: "controller_existing_pending",
+          label: "Earlier Pending",
+          fingerprint: "111111111111",
+          manager: false,
+          status: "pending",
+          createdAt: "2026-11-18T00:00:00.000Z",
+          expiresAt: "2026-11-19T01:00:00.000Z",
+        },
+      ],
+    };
+    fixture.getRemoteAccessState.mockImplementation(async () => ({ state: currentState }));
+
+    mount(onPendingAppear);
+
+    await expect
+      .element(page.getByTestId("remote-access-pending-controller_existing_pending"))
+      .toBeVisible();
+    expect(onPendingAppear).not.toHaveBeenCalled();
+
+    await page.getByRole("button", { name: "生成控制端配对链接", exact: true }).click();
+    await expect.element(page.getByText("paseo://pair?invite=test-token")).toBeVisible();
+    await expect
+      .element(page.getByText("等待扫码，扫码后确认卡片会显示在顶部", { exact: true }))
+      .toBeVisible();
+
+    currentState = {
+      ...currentState,
+      controllers: [
+        ...currentState.controllers,
+        {
+          id: "controller_scanned",
+          label: "Scanned Phone",
+          fingerprint: "222222222222",
+          manager: false,
+          status: "pending",
+          createdAt: "2026-11-19T00:00:00.000Z",
+          expiresAt: "2026-11-19T01:00:00.000Z",
+        },
+      ],
+    };
+
+    await vi.waitFor(
+      () => {
+        expect(onPendingAppear).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 3000 },
+    );
+    await expect
+      .element(page.getByTestId("remote-access-pending-controller_scanned"))
+      .toBeVisible();
+    await expect.element(page.getByText("paseo://pair?invite=test-token")).not.toBeInTheDocument();
+
+    const scannedTop = (
+      await page.getByTestId("remote-access-pending-controller_scanned").element()
+    ).getBoundingClientRect().top;
+    const earlierTop = (
+      await page.getByTestId("remote-access-pending-controller_existing_pending").element()
+    ).getBoundingClientRect().top;
+    expect(scannedTop).toBeLessThan(earlierTop);
   });
 });

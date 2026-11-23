@@ -22,6 +22,10 @@ export interface PushNotifications {
   revoke(token: string): void;
   send(payload: PushPayload): Promise<void>;
   sendAgentEvent(input: SendAgentPushEventInput): Promise<void>;
+  hasAlertSubscriber?(input: {
+    reason: AgentNotificationReason;
+    hasPresentClient: boolean;
+  }): boolean;
 }
 
 export type PushNotificationSender = Pick<PushNotifications, "send"> &
@@ -70,6 +74,16 @@ export function createPushNotifications(options: {
       options.logger.info({ tokenCount: tokens.length }, "Sending push notification");
       if (tokens.length === 0) return;
       await deliver(tokens, payload);
+    },
+    hasAlertSubscriber(input) {
+      return store.getActiveSubscriptions().some((subscription) => {
+        const prefs = subscription.preferences;
+        if (!allowsReason(input.reason, prefs)) {
+          return false;
+        }
+        const suppressWhenActive = prefs?.suppressWhenActive ?? true;
+        return !(suppressWhenActive && input.hasPresentClient);
+      });
     },
     async sendAgentEvent(input) {
       const subscriptions = store.getActiveSubscriptions();

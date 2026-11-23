@@ -9,6 +9,7 @@ import { pluginRequirements } from "../support/helpers/plugin-fixture";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import {
   closeSidebarDisplayPreferences,
+  notOnMobileHome,
   openMobileAgentSidebar,
   openSidebarDisplayPage,
 } from "../support/helpers/sidebar";
@@ -61,7 +62,10 @@ function badgeLine(page: Page, itemId: keyof typeof LABELS) {
 }
 
 function badge(page: Page, itemId: keyof typeof LABELS) {
-  return page.getByLabel(LABELS[itemId], { exact: true }).locator("visible=true");
+  return page
+    .getByLabel(LABELS[itemId], { exact: true })
+    .locator("visible=true")
+    .and(notOnMobileHome(page));
 }
 
 async function toggleShowItem(page: Page, label: string, touch: boolean) {

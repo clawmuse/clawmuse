@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from "react";
+
 export type NetworkType = "wifi" | "cellular" | "ethernet" | "other" | "none" | "unknown";
 
 export interface NetworkStatus {
@@ -83,4 +85,8 @@ export function subscribeNetworkStatus(listener: Listener): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+export function useNetworkStatus(): NetworkStatus {
+  return useSyncExternalStore(subscribeNetworkStatus, getNetworkStatus, getNetworkStatus);
 }

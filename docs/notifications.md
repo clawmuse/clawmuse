@@ -30,10 +30,15 @@ do not double-fire:
 - Daemon `register_push_token` carries per-token `preferences` (`permission`,
   `finished`, `error`, `running`, `showPreview`, `suppressWhenActive`), stored in
   `PushTokenStore`. Setting `suppressWhenActive: false` delivers pushes even
-  while a desktop or app client has active presence on that daemon.
-- `singleTaskPriority` defaults to `true`: daemon Expo push owns per-agent task
-  alerts while [ClawMuse Status](clawmuse-status.md) sets `suppressTaskAlerts`
-  and keeps `alert`/`fcm_alert` for Goals review notifications.
+  while a desktop or app client has active presence on that daemon. Terminal
+  agent pushes (`finished`, `error`) include `_contentAvailable: true` so the
+  native iOS Live Activity subscriber can immediately dismiss any stale or
+  unaddressable lock-screen capsule alongside the completion alert.
+- Per-agent daemon Expo push always owns task alerts (`singleTaskChannelPriority`
+  is normalized to `true` on load); [ClawMuse Status](clawmuse-status.md) keeps
+  `taskAlerts: false` (`completionPushActive` mirrors `pushEnabled && taskCompleted`)
+  and uses its `alert`/`fcm_alert` endpoint for Goals review notifications and
+  silent Live Activity cleanup.
 
 Per-agent mute is stored on the agent's persisted labels
 (`paseo.notifications-muted: "true"`). Daemon Expo push, desktop/web session

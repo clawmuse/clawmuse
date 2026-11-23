@@ -90,12 +90,55 @@ export default function contribute(client) {
   return () => {};
 }`;
 
+const OVERFLOW_TOGGLE_PLUGIN_SOURCE = `import { useComposer } from "@getpaseo/plugin/client";
+import { Select, Toggle } from "@getpaseo/plugin/client/ui";
+import { useState } from "react";
+
+const SCOPE_OPTIONS = [{ value: "standard", label: "Standard review" }];
+
+function PromptWatcher() {
+  useComposer();
+  return null;
+}
+
+function ReviewScope() {
+  const [value, setValue] = useState("standard");
+  return (
+    <Select
+      title="Review scope"
+      icon="CircleDot"
+      value={value}
+      options={SCOPE_OPTIONS}
+      onValueChange={({ value: next }) => setValue(next)}
+    />
+  );
+}
+
+function SandboxFlag() {
+  const [value, setValue] = useState(false);
+  return (
+    <Toggle
+      title="${ONE_TOGGLE_NAME}"
+      icon="Lock"
+      value={value}
+      onValueChange={({ value: next }) => setValue(next)}
+    />
+  );
+}
+
+export default function contribute(client) {
+  client.addComposerItem({ id: "prompt-watcher", Component: PromptWatcher });
+  client.addComposerItem({ id: "review-scope", Component: ReviewScope });
+  client.addComposerItem({ id: "sandbox-flag", Component: SandboxFlag });
+  return () => {};
+}`;
+
 const PICKER_NAME = "Review state";
 const PICKER_PLUGIN_SOURCE = `import { Select } from "@getpaseo/plugin/client/ui";
 import { useState } from "react";
 
 const OPTIONS = [
-  { value: "draft", label: "Draft" },
+  { value: "draft", label: "Needs final review" },
   { value: "ready", label: "Ready" },
 ];
 
@@ -181,6 +224,14 @@ export function withToggleAndWatcherComposerItems(
   run: (composer: ToolbarPluginComposer) => Promise<void>,
 ) {
   return withToolbarPlugin(page, ONE_TOGGLE_PLUGIN_SOURCE, run);
+}
+
+/** Runs `run` with a plugin toggle plus a labelled select so 880px condenses while 1000px stays full. */
+export function withOverflowToggleComposerItems(
+  page: Page,
+  run: (composer: ToolbarPluginComposer) => Promise<void>,
+) {
+  return withToolbarPlugin(page, OVERFLOW_TOGGLE_PLUGIN_SOURCE, run);
 }
 
 /** Runs `run` in an agent's composer with one plugin `Select` in the toolbar. */

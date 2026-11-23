@@ -1,222 +1,184 @@
 <p align="center">
-  <img src="packages/website/public/logo.svg" width="64" height="64" alt="Paseo logo">
+  <img src="https://clawmuse.com/brand/clawmuse-mark.svg" width="72" height="72" alt="ClawMuse logo">
 </p>
 
-<h1 align="center">Paseo</h1>
+<h1 align="center">ClawMuse</h1>
 
 <p align="center">
   <a href="README.md">English</a> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
-  <a href="README.ja.md">日本語</a> ·
-  <a href="README.ko.md">한국어</a>
+  <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/getpaseo/paseo/stargazers">
-    <img src="https://img.shields.io/github/stars/getpaseo/paseo?style=flat&logo=github" alt="GitHub stars">
+  <a href="https://github.com/clawmuse/clawmuse/stargazers">
+    <img src="https://img.shields.io/github/stars/clawmuse/clawmuse?style=flat-square&logo=github" alt="GitHub stars">
   </a>
-  <a href="https://github.com/getpaseo/paseo/releases">
-    <img src="https://img.shields.io/github/v/release/getpaseo/paseo?style=flat&logo=github" alt="GitHub release">
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/badge/License-Apache_2.0-5eead4?style=flat-square" alt="Apache-2.0 协议">
   </a>
-  <a href="https://x.com/moboudra">
-    <img src="https://img.shields.io/badge/%40moboudra-555?logo=x" alt="X">
+  <a href="https://clawmuse.com/zh/">
+    <img src="https://img.shields.io/badge/官网-clawmuse.com-102827?style=flat-square" alt="ClawMuse 官网">
   </a>
-  <a href="https://discord.gg/jz8T2uahpH">
-    <img src="https://img.shields.io/badge/Discord-555?logo=discord" alt="Discord">
+  <a href="https://apps.apple.com/app/clawmuse/id6810076165">
+    <img src="https://img.shields.io/badge/iOS-App_Store-0ea5e9?style=flat-square&logo=apple" alt="App Store 下载">
   </a>
-  <a href="https://www.reddit.com/r/PaseoAI/">
-    <img src="https://img.shields.io/badge/Reddit-555?logo=reddit" alt="Reddit">
+  <a href="https://clawmuse.com/zh/download/">
+    <img src="https://img.shields.io/badge/全平台-macOS_%7C_Windows_%7C_Linux_%7C_iOS_%7C_Android_%7C_Web-2ea44f?style=flat-square" alt="支持平台">
   </a>
-</p>
-
-<p align="center">Claude Code、Codex、Copilot、OpenCode 和 Pi agents 的统一界面。</p>
-
-<p align="center">
-  <img src="https://paseo.sh/hero-mockup.png" alt="Paseo app screenshot" width="100%">
 </p>
 
 <p align="center">
-  <img src="https://paseo.sh/mobile-mockup.png" alt="Paseo mobile app" width="100%">
+  <strong>在桌面端、iPhone、Android、Web 浏览器、实时语音或命令行中，随时操控你电脑上的 Claude Code、Codex、Copilot、OpenCode、Pi、Antigravity 与 Muse Code。项目与代码始终留在你自己的机器上。</strong>
 </p>
 
-> [!NOTE]
-> 我是独立维护者，不一定每天都能及时处理 GitHub Issues。
-> 如果问题很紧急或阻塞了你，[Discord](https://discord.gg/jz8T2uahpH) 是最快联系到我的地方。
+<p align="center">
+  <a href="https://clawmuse.com/zh/"><strong>官方网站</strong></a>
+  ·
+  <a href="https://clawmuse.com/zh/download/"><strong>下载客户端</strong></a>
+  ·
+  <a href="https://clawmuse.com/zh/docs/"><strong>使用指南</strong></a>
+  ·
+  <a href="https://clawmuse.com/zh/plugins/"><strong>官方插件</strong></a>
+</p>
 
----
+<p align="center">
+  <img src="https://clawmuse.com/screenshots/zh-wide-diff.webp" alt="ClawMuse 桌面端三栏工作区与代码 Diff 对比视图" width="100%">
+</p>
 
-在你自己的机器上并行运行 agents。无论在手机上还是桌前，都能推进交付。
-
-- **自托管：** Agents 在你的机器上运行，使用完整的本地开发环境、工具、配置和技能。
-- **多提供商：** 通过同一个界面使用 Claude Code、Codex、Copilot、OpenCode 和 Pi。为每个任务选择合适的模型。
-- **语音控制：** 在语音模式下口述任务或讨论问题。需要免手操作时很方便。
-- **跨设备：** 支持 iOS、Android、桌面端、Web 和 CLI。在桌前开始工作，用手机查看进度，也可以从终端脚本化操作。
-- **隐私优先：** Paseo 没有遥测、追踪，也不会强制登录。
-
-## 赞助商
-
-<!-- Sponsors: one cell per sponsor in the order of packages/website/src/data/sponsors.ts, then "become a sponsor" cells up to three. -->
 <table>
   <tr>
-    <td align="center" width="33%"><a href="https://hoplite.sh/?utm_source=paseo&utm_medium=readme&utm_campaign=sponsor"><picture><source media="(prefers-color-scheme: dark)" srcset="packages/website/public/sponsors/hoplite-on-dark.svg"><img src="packages/website/public/sponsors/hoplite-on-light.svg" alt="Hoplite" height="40"></picture></a><br><sub>Cloud coding agents</sub></td>
-    <td align="center" width="33%"><a href="https://paseo.sh/zh-CN/sponsor">成为 Paseo 赞助商</a></td>
-    <td align="center" width="33%"><a href="https://paseo.sh/zh-CN/sponsor">成为 Paseo 赞助商</a></td>
+    <td width="50%" align="center">
+      <img src="https://clawmuse.com/screenshots/zh-phone-chat.webp" alt="ClawMuse 移动端会话与工具验证" width="280">
+      <br><sub>手机端会话流、测试验证与语音派发</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="https://clawmuse.com/screenshots/zh-phone-diff.webp" alt="ClawMuse 移动端代码 Diff 审阅" width="280">
+      <br><sub>iOS & Android 原生逐行代码 Diff 审查</sub>
+    </td>
   </tr>
 </table>
 
-## 快速开始
+---
 
-Paseo 会运行一个名为 daemon 的本地服务，用来管理你的 coding agents。桌面 app、移动 app、Web app 和 CLI 等客户端都会连接到它。
+## 为什么选择 ClawMuse
+
+ClawMuse 是一个本地优先、面向多终端的开源 AI Coding Agent 控制平面。守护进程（Daemon）直接运行在你的 Mac、Linux 或 Windows 主机上，负责拉起各家编码 Agent、隔离 Git Worktree，并将结构化时间线、代码 Diff、仓库文件树与持久化终端实时同步到你手边的任意设备。
+
+- **多 Agent 结构化工作台** — 原生适配 **Claude Code**、**Codex**、**GitHub Copilot**、**OpenCode**、**Pi / OMP**、**Antigravity** 与 **Muse Code**，并支持 **Cursor**、**Kimi**、**Kiro**、**TRAE** 等 ACP Agent。思考过程、工具调用、代码变更和权限审批统一规范化展示，同时提供断连不退出的独立终端 Worker。
+- **桌面、原生手机端、Web 与 CLI 全覆盖** — 在桌面端 Electron 开始工作，离开座位后用原生 **iOS**（[App Store](https://apps.apple.com/app/clawmuse/id6810076165)）、**Android** 或 **Web**（`app.clawmuse.com`）随时接手，也能在服务器上直接用 CLI 编排。
+- **常驻实时语音助理与听写** — 离开电脑也能免手对话：主动汇总每台主机上正在跑、待审批与已完成的任务，自动核对归档，并口头派发新任务。
+- **Tasks & Goals 任务看板（`localGoals`）** — 支持 Planner 扫描仓库提议目标卡片，在手机或桌面审批后进入隔离 Git Worktree 按轮次预算无人值守执行、跑通独立校验并生成 PR，最终由所有者一键 `land` 合并。
+- **多机额度面板与近 30 天历史统计** — 统一追踪 5h / 7d 会话限额与跨主机合并的 30 天 Token 消耗，支持 iOS 锁屏灵动岛胶囊与桌面额度小组件。
+- **Daemon 托管插件体系与 SDK** — 插件只需在主机侧安装（内置会话翻译、限流自动重试、设备预览、自定义 Provider 与用量数据源等），即可在桌面、手机与 Web 同步呈现 UI 面板。
+- **代码与凭据留在本机** — 仓库文件、模型账号、MCP 配置与命令执行均留在你的主机内。
+
+---
+
+## 快速开始
 
 ### 前置条件
 
-你至少需要安装一个 agent CLI，并用你的凭据完成配置：
+在执行任务的主机上，至少安装并登录任意一款支持的 AI 编程工具：
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [Codex](https://github.com/openai/codex)
-- [GitHub Copilot](https://github.com/features/copilot/cli/)
+- [GitHub Copilot CLI](https://github.com/features/copilot/cli/)
 - [OpenCode](https://github.com/anomalyco/opencode)
 - [Pi](https://pi.dev)
+- Antigravity CLI / Muse Code / ACP 兼容工具（Cursor、Kimi、Kiro、TRAE 等）
 
-### 桌面 app（推荐）
+### 1. 官方安装包（推荐）
 
-从 [paseo.sh/download](https://paseo.sh/zh-CN/download) 或 [GitHub releases 页面](https://github.com/getpaseo/paseo/releases)下载。打开 app 后 daemon 会自动启动，不需要再安装其他东西。
+- **桌面端与 Android**：前往 [clawmuse.com/zh/download](https://clawmuse.com/zh/download/) 下载已签名的 macOS（Apple Silicon / Intel）、Windows、Linux（`.deb` / `.rpm` / `.tar.gz` / `AppImage`）与 Android APK。
+- **iOS / iPadOS**：在 [App Store](https://apps.apple.com/app/clawmuse/id6810076165) 直接下载。
 
-如果要从手机连接，在 Settings 中扫描显示的二维码。
+### 2. 从开源仓库源码构建与自托管运行
 
-### CLI / 无头模式
+> **开源版范围说明：** 本公开仓库以 **Apache-2.0** 协议完整开源桌面客户端、移动端/Web 前端、Daemon、CLI、通信协议、SDK、Relay 源码与内置插件；ClawMuse 托管商业服务（官方托管中继、账号中心、状态推送后端与云空间服务）不在本仓库内。
+>
+> 自建环境可通过 **局域网直连**、**SSH 隧道**、**Tailscale / WireGuard**，或自行部署 `packages/relay` 并配置 `PASEO_RELAY_ENDPOINT` 来连接手机与网页端。
 
-安装 CLI 并启动 Paseo：
-
-```bash
-npm install -g @getpaseo/cli
-paseo
-```
-
-终端中会显示一个二维码。你可以从任意客户端连接。这个方式适合服务器和远程机器。
-
-完整安装和配置见：
-
-- [文档](https://paseo.sh/zh-CN/docs)
-- [配置参考](https://paseo.sh/zh-CN/docs/configuration)
-
-## CLI
-
-你能在 app 中完成的事情，也都可以在终端中完成。
+环境要求：**Node.js 22+** 与 **npm**：
 
 ```bash
-paseo run --provider claude/opus-4.6 "implement user authentication"
-paseo run --provider codex/gpt-5.4 --worktree feature-x "implement feature X"
+git clone https://github.com/clawmuse/clawmuse.git
+cd clawmuse
+npm ci
 
-paseo ls                           # 列出正在运行的 agents
-paseo attach abc123                # 实时流式查看输出
-paseo send abc123 "also add tests" # 发送后续任务
-
-# 在远程 daemon 上运行
-paseo --host workstation.local:6767 run "run the full test suite"
-```
-
-更多内容见[完整 CLI 参考](https://paseo.sh/zh-CN/docs/cli)。
-
-## Skills
-
-Skills 会教你的 agent 使用 Paseo 来编排其他 agents。
-
-```bash
-npx skills add getpaseo/paseo
-```
-
-然后在任意 agent 对话中使用：
-
-- `/paseo-handoff` — 在 agents 之间交接工作。我会用它先和 Claude 规划，再交给 Codex 实现。
-- `/paseo-advisor` — 启动单个 agent 作为 advisor，提供第二意见，但不把工作委托出去。
-- `/paseo-committee` — 组建两个风格互补的 agents，让它们后退一步做根因分析并产出计划。
-
-## 开发
-
-Monorepo 包结构速览：
-
-- `packages/server`：Paseo daemon（agent 进程编排、WebSocket API、MCP server）
-- `packages/app`：Expo 客户端（iOS、Android、Web）
-- `packages/cli`：用于 daemon 和 agent 工作流的 `paseo` CLI
-- `packages/desktop`：Electron 桌面 app
-- `packages/relay`：用于远程连接的 relay 包
-- `packages/website`：营销站点和文档（`paseo.sh`）
-
-常用命令：
-
-```bash
-# 运行所有本地开发服务
-npm run dev
-
-# 单独运行某个界面
-npm run dev:server
-npm run dev:app
-npm run dev:desktop
-npm run dev:website
-
-# 构建 server stack
+# 构建协议、Client SDK、服务端 Daemon 与 CLI 类型声明
 npm run build:server
 
-# 全仓库检查
-npm run typecheck
+# 启动开发态本地 Daemon（默认使用仓库内 .dev/paseo-home，端口 6768）
+npm run dev
+
+# 在另一个终端启动 Electron 桌面端或使用 CLI
+npm run dev:desktop
+npm run cli -- ls -a -g
 ```
 
-## 支持 Paseo
-
-Paseo 由一个人开发，靠使用它的人来资助。你可以通过 [GitHub Sponsors](https://github.com/sponsors/boudra) 支持这项工作。公司也可以按月[赞助 Paseo](https://paseo.sh/zh-CN/sponsor#spot)，logo 会展示在本 README 顶部，以及 paseo.sh 的首页和文档中。
-
-## 相关项目
-
-- [getpaseo/paseo-relay](https://github.com/getpaseo/paseo-relay) — 官方分布式 relay，使用 Elixir 编写
-- [paseo-vscode](https://marketplace.visualstudio.com/items?itemName=hinnes.paseo-vscode) — VS Code 扩展
-
-### 自托管 relay TLS
-
-自托管 relay 默认使用 `ws://`，除非显式启用 TLS。对于 nginx 后面、监听 443 的 relay，可以这样启动 daemon：
+如需本地调试 Expo 移动端或 Web 端：
 
 ```bash
-PASEO_RELAY_ENDPOINT=127.0.0.1:8080 \
-PASEO_RELAY_PUBLIC_ENDPOINT=relay.example.com:443 \
-PASEO_RELAY_USE_TLS=true \
-paseo daemon start
+npm run build:app-deps
+npm run web
 ```
 
-等价配置：
+---
 
-```json
-{
-  "daemon": {
-    "relay": {
-      "enabled": true,
-      "endpoint": "127.0.0.1:8080",
-      "publicEndpoint": "relay.example.com:443",
-      "useTls": true
-    }
-  }
-}
+## CLI 常用命令
+
+桌面与手机端能做的全部操作，都可以通过 CLI 直接驱动同一套 WebSocket Daemon：
+
+```bash
+# 在当前目录或独立 Git Worktree 中启动编码 Agent
+npm run cli -- run --provider claude/sonnet-4.6 "检查鉴权中间件并补充单元测试"
+npm run cli -- run --provider codex/gpt-5.4 --worktree feat-cache "实现缓存淘汰策略"
+
+# 查看列表、流式日志、续发指令或处理权限请求
+npm run cli -- ls
+npm run cli -- logs <agent-id>
+npm run cli -- send <agent-id> "运行 vitest 测试并汇报结果"
+npm run cli -- permit allow <request-id>
+
+# 持久化终端与定时任务
+npm run cli -- terminal ls
+npm run cli -- schedule ls
+
+# 通过局域网、Tailscale 或 SSH 隧道直连远程主机 Daemon
+npm run cli -- --host my-workstation.ts.net:6768 ls
 ```
 
-最小 nginx WebSocket 代理配置：
+---
 
-```nginx
-server {
-  listen 443 ssl;
-  server_name relay.example.com;
+## 仓库目录结构
 
-  ssl_certificate /etc/letsencrypt/live/relay.example.com/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/relay.example.com/privkey.pem;
+| 目录                                | 说明                                                                                                                                       |
+| :---------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/server`                   | 本地 Node.js Daemon：Agent 生命周期管理、WebSocket API、MCP 工具集、Git/Worktree 编排、Local Goals 与独立终端 Worker                       |
+| `packages/app`                      | 跨平台 Expo / React Native 客户端，覆盖 iOS、Android、Web 与桌面共享界面                                                                   |
+| `packages/desktop`                  | Electron 桌面外壳：托管本地 Daemon、原生菜单、多窗口与内置可编程浏览器                                                                     |
+| `packages/cli`                      | Commander.js 命令行工具（`clawmuse` / `paseo`），适合无桌面服务器与自动化脚本                                                              |
+| `packages/protocol`                 | 向后兼容的 Zod 协议 Schema 与终端/文件二进制帧编解码                                                                                       |
+| `packages/client`                   | TypeScript SDK（`PaseoClient` / `PaseoApi`），供前端与插件统一调用                                                                         |
+| `packages/relay`                    | 基于 Noise `NK` 的零知识端到端加密中继传输层与参考实现                                                                                     |
+| `packages/plugin`                   | 插件运行时、清单规范与宿主 IPC 接口                                                                                                        |
+| `packages/highlight`                | 代码语法高亮与 Diff 分词引擎                                                                                                               |
+| `packages/expo-agent-live-activity` | iOS ActivityKit / WidgetKit 原生模块（灵动岛胶囊与配额小组件）                                                                             |
+| `packages/expo-two-way-audio`       | iOS/Android 原生全双工音频模块，支撑低延迟实时语音                                                                                         |
+| `packages/website`                  | [clawmuse.com](https://clawmuse.com/zh/) 官网源码                                                                                          |
+| `plugins/`                          | 内置官方插件（`antigravity-provider`、`conversation-translation`、`capacity-retry`、`device-preview`、`usage-auto-resume` 及各家用量源等） |
 
-  location /ws {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-  }
-}
-```
+---
 
-## License
+## 开源协议与致谢
 
-Apache-2.0
+- **开源协议**：本项目依据 [Apache License, Version 2.0](./LICENSE) 开源；完整版权与声明见 [NOTICE](./NOTICE)。
+- **致谢项目**：
+  - 衍生自 [Paseo](https://github.com/getpaseo/paseo)（Copyright (c) 2025-present Mohamed Boudra，Apache-2.0）。
+  - 提示词推荐相关模块参考并改造自 [Cindy](https://github.com/makecindy/cindy)（Copyright 2026 XD Inc.，Apache-2.0）。
+
+## 问题反馈与联系
+
+- 问题反馈与功能建议：[GitHub Issues](https://github.com/clawmuse/clawmuse/issues)
+- 联系邮箱：[hello@clawmuse.com](mailto:hello@clawmuse.com)
+- 官方网站：[clawmuse.com](https://clawmuse.com/zh/)

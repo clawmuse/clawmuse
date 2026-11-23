@@ -1069,7 +1069,7 @@ function ProviderTabBar({
 }) {
   return (
     <View style={styles.providerTabBar}>
-      <ScrollView
+      <SheetScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -1084,7 +1084,7 @@ function ProviderTabBar({
             onPress={onSelectProvider}
           />
         ))}
-      </ScrollView>
+      </SheetScrollView>
     </View>
   );
 }
@@ -1343,6 +1343,42 @@ function RecentModelsSection({
   );
 }
 
+function EmptyProviderScroll({
+  scrolling,
+  children,
+}: {
+  scrolling: "sheet" | "independent";
+  children: React.ReactNode;
+}) {
+  if (scrolling === "independent") {
+    return (
+      <IndependentScrollBoundary>
+        <ScrollView
+          style={styles.virtualizedModelList}
+          contentContainerStyle={styles.virtualizedModelListContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={MODEL_LIST_KEYBOARD_DISMISS_MODE}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
+        >
+          {children}
+        </ScrollView>
+      </IndependentScrollBoundary>
+    );
+  }
+  return (
+    <SheetScrollView
+      style={styles.virtualizedModelList}
+      contentContainerStyle={styles.virtualizedModelListContent}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode={MODEL_LIST_KEYBOARD_DISMISS_MODE}
+      showsVerticalScrollIndicator={false}
+    >
+      {children}
+    </SheetScrollView>
+  );
+}
+
 /**
  * The active provider's catalog: loading and error states inline so the tab
  * bar stays put above them, otherwise the scrollable row list with profiles
@@ -1452,7 +1488,7 @@ function ActiveProviderModels({
   const selection = provider.modelSelection;
   if (selection.kind === "loading") {
     return (
-      <View>
+      <EmptyProviderScroll scrolling={scrolling}>
         {topSections}
         <View style={styles.emptyState}>
           <View style={styles.rowSpinner}>
@@ -1460,12 +1496,12 @@ function ActiveProviderModels({
           </View>
           <Text style={styles.emptyStateText}>{t("modelSelector.loadingShort")}</Text>
         </View>
-      </View>
+      </EmptyProviderScroll>
     );
   }
   if (selection.kind === "error") {
     return (
-      <View>
+      <EmptyProviderScroll scrolling={scrolling}>
         {topSections}
         <ProviderErrorEmptyState
           providerId={provider.id}
@@ -1473,7 +1509,7 @@ function ActiveProviderModels({
           onRetryProvider={onRetryProvider}
           isRetryingProvider={isRetryingProvider}
         />
-      </View>
+      </EmptyProviderScroll>
     );
   }
   return (

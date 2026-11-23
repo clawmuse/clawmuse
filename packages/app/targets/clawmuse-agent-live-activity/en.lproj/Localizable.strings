@@ -1,5 +1,5 @@
 "CLAWMUSE_LIVE_ACTIVITY_START_TITLE" = "ClawMuse remote tasks";
-"CLAWMUSE_LIVE_ACTIVITY_START_BODY" = "%3$@ running, %1$@ need action, %2$@ done unread";
+"CLAWMUSE_LIVE_ACTIVITY_START_BODY" = "%3$@ running";
 "CLAWMUSE_LIVE_ACTIVITY_TITLE" = "ClawMuse remote tasks";
 "CLAWMUSE_LIVE_ACTIVITY_RUNNING" = "Running";
 "CLAWMUSE_LIVE_ACTIVITY_NEEDS_ACTION" = "Needs action";
@@ -20,6 +20,7 @@
 "CLAWMUSE_LIVE_ACTIVITY_USAGE_ACCESSIBILITY" = "Quota";
 "CLAWMUSE_LIVE_ACTIVITY_USAGE_UNLIMITED" = "Unlimited";
 "CLAWMUSE_LIVE_ACTIVITY_WAITING_FOR_UPDATE" = "Awaiting update";
+"CLAWMUSE_LIVE_ACTIVITY_STALE_HINT" = "Sync paused, tap to refresh";
 "CLAWMUSE_LIVE_ACTIVITY_LAST_UPDATED" = "Last synced";
 "CLAWMUSE_LIVE_ACTIVITY_ONLINE" = "Online";
 "CLAWMUSE_LIST_SEPARATOR" = ", ";
@@ -36,11 +37,11 @@
 "CLAWMUSE_WIDGET_AGE_MINUTES" = "%dm ago";
 "CLAWMUSE_WIDGET_AGE_HOURS" = "%dh ago";
 "CLAWMUSE_STATUS_NEEDS_ACTION_TITLE" = "ClawMuse remote tasks";
-"CLAWMUSE_STATUS_NEEDS_ACTION_BODY" = "%3$@ running, %1$@ need action, %2$@ done unread";
+"CLAWMUSE_STATUS_NEEDS_ACTION_BODY" = "%1$@ need action";
 "CLAWMUSE_STATUS_COMPLETED_TITLE" = "ClawMuse remote tasks";
-"CLAWMUSE_STATUS_COMPLETED_BODY" = "%3$@ running, %1$@ need action, %2$@ done unread";
+"CLAWMUSE_STATUS_COMPLETED_BODY" = "%2$@ finished unread";
 "CLAWMUSE_STATUS_MIXED_TITLE" = "ClawMuse remote tasks";
-"CLAWMUSE_STATUS_MIXED_BODY" = "%3$@ running, %1$@ need action, %2$@ done unread";
+"CLAWMUSE_STATUS_MIXED_BODY" = "%1$@ need action, %2$@ finished unread";
 "CLAWMUSE_WIDGET_INTENT_DATA_SOURCE" = "Data source";
 "CLAWMUSE_WIDGET_INTENT_COMPUTER" = "Computer";
 "CLAWMUSE_WIDGET_INTENT_AUTOMATIC" = "Automatic";

@@ -1,4 +1,5 @@
 import type { SelectedFile } from "@/attachments/selected-file";
+import { retainAttachmentForGarbageCollection } from "@/attachments/gc-retention";
 import { FILE_UPLOAD_MAX_BYTES } from "@/attachments/upload-limit";
 import type { AgentAttachment, ForgeSearchItem } from "@getpaseo/protocol/messages";
 import type { ActiveTurnBehavior } from "@getpaseo/protocol/messages";
@@ -109,40 +110,77 @@ export interface QueueWriter {
   ) => void;
 }
 
-export async function pickAndPersistImages(input: {
-  pickImages: () => Promise<PickedImageAttachmentInput[] | null>;
+export interface PersistPickedImagesInput {
+  pickedImages: readonly PickedImageAttachmentInput[];
   persister: Pick<
     AttachmentPersister,
     "persistFromBlob" | "persistFromFileUri" | "persistFromDataUrl"
-  >;
+  > &
+    Partial<Pick<AttachmentPersister, "deleteAttachments">>;
+  retainAttachment?: (attachmentId: string) => () => void;
+}
+
+export async function persistPickedImages(
+  input: PersistPickedImagesInput,
+): Promise<AttachmentMetadata[]> {
+  if (input.pickedImages.length === 0) return [];
+  const retain = input.retainAttachment ?? retainAttachmentForGarbageCollection;
+  const saved: AttachmentMetadata[] = [];
+  const releases: Array<() => void> = [];
+  try {
+    return await Promise.all(
+      input.pickedImages.map(async (picked) => {
+        const fileName = picked.fileName ?? null;
+        const mimeType = picked.mimeType;
+        let metadata: AttachmentMetadata;
+        if (picked.source.kind === "blob") {
+          metadata = await input.persister.persistFromBlob({
+            blob: picked.source.blob,
+            mimeType,
+            fileName,
+          });
+        } else if (picked.source.kind === "data_url") {
+          metadata = await input.persister.persistFromDataUrl({
+            dataUrl: picked.source.dataUrl,
+            mimeType,
+            fileName,
+          });
+        } else {
+          metadata = await input.persister.persistFromFileUri({
+            uri: picked.source.uri,
+            mimeType,
+            fileName,
+          });
+        }
+        releases.push(retain(metadata.id));
+        saved.push(metadata);
+        return metadata;
+      }),
+    );
+  } catch (error) {
+    for (const release of releases) release();
+    releases.length = 0;
+    if (saved.length > 0 && input.persister.deleteAttachments) {
+      await input.persister.deleteAttachments(saved);
+    }
+    throw error;
+  } finally {
+    for (const release of releases) release();
+  }
+}
+
+export async function pickAndPersistImages(input: {
+  pickImages: () => Promise<PickedImageAttachmentInput[] | null>;
+  persister: PersistPickedImagesInput["persister"];
+  retainAttachment?: (attachmentId: string) => () => void;
 }): Promise<AttachmentMetadata[]> {
   const result = await input.pickImages();
   if (!result?.length) return [];
-  return await Promise.all(
-    result.map(async (picked) => {
-      const fileName = picked.fileName ?? null;
-      const mimeType = picked.mimeType;
-      if (picked.source.kind === "blob") {
-        return await input.persister.persistFromBlob({
-          blob: picked.source.blob,
-          mimeType,
-          fileName,
-        });
-      }
-      if (picked.source.kind === "data_url") {
-        return await input.persister.persistFromDataUrl({
-          dataUrl: picked.source.dataUrl,
-          mimeType,
-          fileName,
-        });
-      }
-      return await input.persister.persistFromFileUri({
-        uri: picked.source.uri,
-        mimeType,
-        fileName,
-      });
-    }),
-  );
+  return await persistPickedImages({
+    pickedImages: result,
+    persister: input.persister,
+    retainAttachment: input.retainAttachment,
+  });
 }
 
 export async function uploadFileAttachments(input: {

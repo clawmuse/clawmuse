@@ -29,6 +29,8 @@ import { ClaudeIcon, CodexIcon } from "./demo-provider-icon";
 import { AppMark, Mark, Wordmark } from "./mark";
 import { ProductDemo } from "./product-demo";
 import { AgentShowcase } from "./agents";
+import changelog from "./changelog.json";
+import { EngineeringCapabilities, HighlightsShowcase } from "./home-spotlights";
 import {
   fileVersion,
   formatSize,
@@ -240,6 +242,10 @@ function Header({ language, page }: SiteProps) {
             {t("header.manageAccount")}
             <ArrowUpRight size={15} />
           </a>
+          <a className="mobile-login" href={sourceUrl} target="_blank" rel="noopener noreferrer">
+            GitHub
+            <ArrowUpRight size={15} />
+          </a>
         </nav>
         <div className="header-actions">
           <button
@@ -270,6 +276,16 @@ function Header({ language, page }: SiteProps) {
               ))}
             </select>
           </span>
+          <a
+            className="header-github"
+            href={sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub"
+          >
+            <GitHubMark />
+            <span>GitHub</span>
+          </a>
           <a className="button header-login" href={appUrl}>
             {t("header.openWorkspace")}
             <ArrowUpRight size={15} />
@@ -447,37 +463,106 @@ export function DownloadButton({
   );
 }
 
+interface ReleaseHighlight {
+  id: string;
+  sectionTitle: string;
+  text: string;
+}
+
+function GitHubMark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1.18-.02-2.14-3.2.69-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.27 5.68.41.36.78 1.07.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
+    </svg>
+  );
+}
+
+function HeroCopy({ language }: Localized) {
+  const { t } = useSiteTranslation(language);
+  return (
+    <div className="hero-copy">
+      <div className="hero-badge">
+        <span className="live-dot" />
+        {t("home.yourPersonalAiWorkspaceInBeta")}
+      </div>
+      <h1>{t("home.heroHeadline")}</h1>
+      <p>{t("home.keepYourAiWorkMovingFromYourPhoneStart")}</p>
+      <div className="hero-actions">
+        <DownloadButton language={language} label={t("home.getStarted")} />
+        <a className="button ghost" href="#experience">
+          {t("home.exploreTheWorkspace")}
+          <ArrowRight size={17} />
+        </a>
+      </div>
+      <div className="hero-footnote">
+        <FolderGit2 size={14} />
+        {t("plans.promise")}
+        <a href={sourceUrl}>
+          GitHub <ArrowUpRight size={13} />
+        </a>
+        <span className="hero-footnote-sep" aria-hidden="true">
+          ·
+        </span>
+        <a href={href("/download", language)}>{t("downloads.allPlatforms")}</a>
+      </div>
+    </div>
+  );
+}
+
+function HeroReleaseCard({ language }: Localized) {
+  const { t } = useSiteTranslation(language);
+  const isChinese = language === "zh-CN" || language === "zh-TW";
+  const entries = isChinese ? changelog["zh-CN"] : changelog.en;
+  const latest = entries[0];
+  if (!latest) return null;
+  const items: ReleaseHighlight[] = [];
+  for (const section of latest.sections) {
+    for (const text of section.items) {
+      if (items.length < 3) {
+        items.push({ id: `${section.title}-${items.length}`, sectionTitle: section.title, text });
+      }
+    }
+  }
+  return (
+    <aside className="hero-release-card" aria-label={t("home.whatsNew")}>
+      <header className="hero-release-head">
+        <span className="hero-release-title">
+          <i className="live-dot" aria-hidden="true" />
+          <span>{t("home.whatsNew")}</span>
+          <span className="hero-release-version">v{latest.version}</span>
+        </span>
+        <time className="hero-release-date" dateTime={latest.date}>
+          {latest.date}
+        </time>
+      </header>
+      <ul className="hero-release-list" dir={isChinese ? undefined : "ltr"}>
+        {items.map((item) => (
+          <li key={item.id}>
+            <span className="hero-release-tag">{item.sectionTitle}</span>
+            <p>{item.text}</p>
+          </li>
+        ))}
+      </ul>
+      <footer className="hero-release-foot">
+        <span>macOS · Windows · Linux · iOS · Android</span>
+        <PageLink page="/changelog" language={language} className="hero-release-more">
+          {t("home.releaseNotes")}
+          <ArrowUpRight size={13} aria-hidden="true" />
+        </PageLink>
+      </footer>
+    </aside>
+  );
+}
+
 function Home({ language }: Localized) {
   const { t } = useSiteTranslation(language);
   const hasAgentCatalog = language === "en" || language === "zh-CN";
   return (
     <div className="home-page">
       <section className="hero container personal-hero">
-        <div className="hero-copy">
-          <div className="hero-badge">
-            <span className="live-dot" />
-            {t("home.yourPersonalAiWorkspaceInBeta")}
-          </div>
-          <h1>{t("footer.giveInspirationTheAbilityToAct")}</h1>
-          <p>{t("home.keepYourAiWorkMovingFromYourPhoneStart")}</p>
-          <div className="hero-actions">
-            <DownloadButton language={language} label={t("home.getStarted")} />
-            <a className="button ghost" href="#experience">
-              {t("home.exploreTheWorkspace")}
-              <ArrowRight size={17} />
-            </a>
-          </div>
-          <div className="hero-footnote">
-            <FolderGit2 size={14} />
-            {t("plans.promise")}
-            <a href={sourceUrl}>
-              GitHub <ArrowUpRight size={13} />
-            </a>
-            <span className="hero-footnote-sep" aria-hidden="true">
-              ·
-            </span>
-            <a href={href("/download", language)}>{t("downloads.allPlatforms")}</a>
-          </div>
+        <div className="hero-split">
+          <HeroCopy language={language} />
+          <HeroReleaseCard language={language} />
         </div>
       </section>
       <section
@@ -506,8 +591,10 @@ function Home({ language }: Localized) {
           </div>
         </div>
       )}
+      <HighlightsShowcase language={language} />
       <RealDeviceShowcase language={language} />
       <WebWorkspaceSection language={language} />
+      <EngineeringCapabilities language={language} />
       <section className="trust-band">
         <div className="container trust-grid">
           <div>

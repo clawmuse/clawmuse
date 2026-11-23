@@ -1,5 +1,5 @@
 import { createVoiceAssistantTaskHost } from "./voice-assistant-host.js";
-import { matchesTaskBriefing } from "./task-review.js";
+import { matchesTaskBriefing, parseTaskDecisionText } from "./task-review.js";
 import { createAgentArchiveReview } from "../agent-archive-review.js";
 import { buildStoredAgentPayload } from "../../agent/agent-projections.js";
 import type { AgentSnapshotPayload } from "../../messages.js";
@@ -1402,6 +1402,7 @@ function setupArchiveReview() {
     decision: "completed" as const,
     completionEvidence: "Fixed the button and verified all tests pass.",
     nextStep: null,
+    evaluatedBy: { provider: "claude", model: "haiku" },
   }));
   const canStopRuntime = vi.fn(async () => true);
   const service = createAgentArchiveReview({ host, evaluate, canStopRuntime, now: () => clock });
@@ -1423,7 +1424,18 @@ test("AI archive requires an issued review and passes the exact revision and quo
   const h = setupArchiveReview();
   await expect(h.service.archive(taskId, "invented")).rejects.toThrow("scan again");
   const review = await h.service.review(taskId);
-  expect(review.eligible).toBe(true);
+  expect(review).toMatchObject({
+    agentId: taskId,
+    eligible: true,
+    reason: "Fixed the button and verified all tests pass.",
+    decision: "completed",
+    provider: "claude",
+    model: "haiku",
+    agentStatus: "idle",
+    latestUserMessage: "Fix the button and test it",
+    latestReply: "Fixed the button and verified all tests pass.",
+  });
+  expect(review.durationMs).toEqual(expect.any(Number));
   expect(h.host.archiveTask).not.toHaveBeenCalled();
   await expect(h.service.archive(taskId, review.token!)).resolves.toEqual({
     agentId: taskId,
@@ -1450,11 +1462,12 @@ test.each([
   async (patch, reason) => {
     const h = setupArchiveReview();
     h.change(patch as Partial<AssistantTaskDetail>);
-    expect(await h.service.review(taskId)).toEqual({
+    expect(await h.service.review(taskId)).toMatchObject({
       agentId: taskId,
       eligible: false,
       reason,
       token: null,
+      decision: "blocked",
     });
     expect(h.evaluate).not.toHaveBeenCalled();
   },
@@ -1467,11 +1480,14 @@ test("AI archive retains parents with children and tasks lacking a real completi
   ]);
   expect((await h.service.review(taskId)).reason).toBe("children");
   h.change({ lastMessage: "Still working. This turn has ended." });
-  expect(await h.service.review(taskId)).toEqual({
+  expect(await h.service.review(taskId)).toMatchObject({
     agentId: taskId,
     eligible: false,
     reason: "missing_evidence",
     token: null,
+    decision: "blocked",
+    provider: "claude",
+    model: "haiku",
   });
 });
 
@@ -1483,6 +1499,7 @@ test("AI archive discards a decision when new work arrives during generation", a
       decision: "completed",
       completionEvidence: "Fixed the button and verified all tests pass.",
       nextStep: null,
+      evaluatedBy: { provider: "claude", model: "haiku" },
     };
   });
   expect((await h.service.review(taskId)).reason).toBe("changed");
@@ -1502,11 +1519,12 @@ test("AI archive expires reviews and reports lifecycle refusal without retrying 
 test("AI archive keeps background work without asking the model for a decision", async () => {
   const h = setupArchiveReview();
   h.canStopRuntime.mockResolvedValue(false);
-  expect(await h.service.review(taskId)).toEqual({
+  expect(await h.service.review(taskId)).toMatchObject({
     agentId: taskId,
     eligible: false,
     token: null,
     reason: "background_work",
+    decision: "blocked",
   });
   expect(h.evaluate).not.toHaveBeenCalled();
 });
@@ -1516,4 +1534,38 @@ test("AI archive surfaces model failure and never issues an archive approval", a
   h.evaluate.mockRejectedValue(new Error("Model unavailable"));
   await expect(h.service.review(taskId)).rejects.toThrow("Model unavailable");
   expect(h.host.archiveTask).not.toHaveBeenCalled();
+});
+
+test("parseTaskDecisionText parses plain, fenced, and prose-wrapped JSON", () => {
+  expect(
+    parseTaskDecisionText(
+      '{"decision":"completed","completionEvidence":"All tests pass.","nextStep":null}',
+    ),
+  ).toEqual({
+    decision: "completed",
+    completionEvidence: "All tests pass.",
+    nextStep: null,
+  });
+
+  expect(
+    parseTaskDecisionText(
+      'Here is the decision:\n```json\n{"decision":"needs_user","completionEvidence":"","nextStep":"需要你确认是否继续"}\n```\nThanks.',
+    ),
+  ).toEqual({
+    decision: "needs_user",
+    completionEvidence: "",
+    nextStep: "需要你确认是否继续",
+  });
+
+  expect(
+    parseTaskDecisionText(
+      'Result: {"decision":"unfinished","completionEvidence":"","nextStep":"等待部署完成"} done.',
+    ),
+  ).toEqual({
+    decision: "unfinished",
+    completionEvidence: "",
+    nextStep: "等待部署完成",
+  });
+
+  expect(() => parseTaskDecisionText("No JSON here")).toThrow();
 });

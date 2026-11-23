@@ -31,9 +31,16 @@ export function MobilePanelOverlay({
 }: MobilePanelOverlayProps) {
   const { leftPanelWidth, position, windowWidth } = useMobilePanelsRuntime();
   const showMobileAgent = usePanelStore((state) => state.showMobileAgent);
+  const targetOpen = usePanelStore((state) => state.mobilePanel.target === panel);
   const overlayOpen = useIsMobilePanelActive(panel);
   const docked = presentation === "dock";
   const isOpen = docked ? dockVisible : overlayOpen;
+  // Gate hit-testing on the canonical store target rather than waiting for the
+  // Reanimated settle callback or animating `pointerEvents` in a worklet style.
+  // On Fabric, `pointerEvents` is a ShadowTree prop that Reanimated can drop
+  // during concurrent React commits while `opacity` updates synchronously,
+  // leaving an open drawer visually on screen yet completely untappable.
+  const isInteractive = docked ? dockVisible : targetOpen;
   const hostId = useId();
   const isLeft = panel === "agent-list";
   const width = isLeft ? leftPanelWidth : windowWidth;
@@ -52,16 +59,17 @@ export function MobilePanelOverlay({
   }, [isLeft, width]);
 
   const overlayAnimatedStyle = useAnimatedStyle(() => {
-    if (docked) return { opacity: 1, display: "flex" as const, pointerEvents: "box-none" as const };
+    if (docked) return { opacity: 1, display: "flex" as const };
     const isVisible = isLeft ? position.value < 0 : position.value > 0;
     if (isWeb) {
       return { display: isVisible ? ("flex" as const) : ("none" as const) };
     }
     // Preserve native scroll ranges while hidden. Collapsing layout makes Android
     // spring retained scroll offsets back to zero on touch cancellation or release.
+    // Keep hit-testing owned by the static `pointerEvents` props below so Fabric
+    // never drops a ShadowTree `pointerEvents` update out of sync with `opacity`.
     return {
       opacity: isVisible ? 1 : 0,
-      pointerEvents: isVisible ? ("box-none" as const) : ("none" as const),
     };
   }, [docked, isLeft]);
 
@@ -84,7 +92,7 @@ export function MobilePanelOverlay({
   if (!isWeb) {
     overlayPointerEvents = "box-none";
   } else {
-    overlayPointerEvents = isOpen ? "auto" : "none";
+    overlayPointerEvents = isInteractive ? "auto" : "none";
   }
 
   return (
@@ -103,20 +111,23 @@ export function MobilePanelOverlay({
           docked && !dockVisible && { display: "none" },
         ]}
       >
-        <Animated.View style={[docked ? styles.dockedPanel : styles.overlay, overlayAnimatedStyle]}>
+        <Animated.View
+          pointerEvents="box-none"
+          style={[docked ? styles.dockedPanel : styles.overlay, overlayAnimatedStyle]}
+        >
           <Pressable
             accessible={false}
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             onPress={showMobileAgent}
-            pointerEvents={isOpen ? "auto" : "none"}
+            pointerEvents={isInteractive ? "auto" : "none"}
             style={[StyleSheet.absoluteFill, docked && { display: "none" }]}
             testID={isOpen ? `${panel}-backdrop` : undefined}
           >
             <Animated.View pointerEvents="none" style={backdropStyle} />
           </Pressable>
 
-          <Animated.View pointerEvents={isOpen ? "auto" : "none"} style={combinedPanelStyle}>
+          <Animated.View pointerEvents={isInteractive ? "auto" : "none"} style={combinedPanelStyle}>
             <WindowChromeRootRegion corners="both">{children}</WindowChromeRootRegion>
           </Animated.View>
         </Animated.View>

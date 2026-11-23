@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { ICON_STROKE_WIDTH } from "@/styles/theme";
 import { composerToolbarOverhang, resolveComposerLeadingEdge } from "./toolbar-rails";
 
 describe("composer toolbar rails", () => {
   it("hangs each end highlight far enough to put its ink on the text rail and nests a trailing disc into the corner", () => {
-    // The 36pt highlight around the plus's ink (14/24 of a 20pt glyph, plus its 1.5 stroke).
-    expect(composerToolbarOverhang("attach", "touch")).toBeCloseTo((36 - (14 * 20) / 24 - 1.5) / 2);
+    // The plus's ink is 14/24 of its glyph plus the shared icon stroke.
+    expect(composerToolbarOverhang("attach", "touch")).toBeCloseTo(
+      (36 - (14 * 20) / 24 - ICON_STROKE_WIDTH) / 2,
+    );
     expect(composerToolbarOverhang("label", "touch")).toBe(8);
     expect(composerToolbarOverhang("none", "touch")).toBe(0);
     // A 36pt disc centred in the 44pt row sits 8 from the bottom edge, so it sits 8 from the side.

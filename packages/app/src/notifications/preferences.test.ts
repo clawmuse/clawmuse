@@ -132,6 +132,34 @@ describe("notification preferences store", () => {
     expect(map.size).toBe(0);
   });
 
+  it("heals legacy persisted singleTaskChannelPriority: false back to true on load", async () => {
+    const { storage, map } = createMemoryStorage();
+    map.set(
+      "@paseo:notification-preferences:v1",
+      JSON.stringify({
+        pushEnabled: true,
+        singleTaskChannelPriority: false,
+        taskCompleted: true,
+      }),
+    );
+    const store = createNotificationPreferencesStore({
+      storage,
+      permissions: {
+        isNative: true,
+        getPermissionsAsync: async () => ({ status: "granted", canAskAgain: true }),
+        requestPermissionsAsync: async () => ({ status: "granted" }),
+      },
+    });
+
+    const loaded = await store.ensureLoaded();
+
+    expect(loaded.singleTaskChannelPriority).toBe(true);
+    expect(toStatusPushPreferences(loaded)).toMatchObject({
+      taskAlerts: false,
+      completionPushActive: true,
+    });
+  });
+
   it("projects single-task priority and running alert flags to daemon and status preferences", () => {
     const custom = {
       ...DEFAULT_MOBILE_NOTIFICATION_PREFERENCES,
@@ -153,12 +181,20 @@ describe("notification preferences store", () => {
 
     expect(toStatusPushPreferences(custom)).toEqual({
       taskAlerts: false,
+      completionPushActive: true,
       needsAction: true,
       completed: true,
       runningAlert: true,
       goalsReview: true,
       suppressWhenActive: false,
     });
+
+    expect(
+      toStatusPushPreferences({
+        ...custom,
+        taskCompleted: false,
+      }).completionPushActive,
+    ).toBe(false);
 
     expect(
       toStatusPushPreferences({

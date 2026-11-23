@@ -1373,6 +1373,7 @@ export const ar: TranslationResources = {
         newAgentHere: "وكيل جديد على هذا المضيف",
         settings: "إعدادات المضيف",
         more: "مضيفون آخرون",
+        reorderHost: "تحريك {{name}}",
         shownCount: "المضيفون المعروضون: {{count}}",
         clear: "مسح",
         running: "قيد التشغيل: {{count}}",
@@ -2744,6 +2745,14 @@ export const ar: TranslationResources = {
         label: "التمرير Terminal",
         description: "يتم الاحتفاظ بالخطوط في المخزن المؤقت الطرفي المدمج",
         accessibilityLabel: "خطوط التمرير Terminal",
+      },
+      showReasoning: {
+        label: "إظهار التفكير",
+        description: "إظهار خطوات التفكير في المحادثة",
+      },
+      showToolCalls: {
+        label: "إظهار استدعاءات الأدوات",
+        description: "إظهار استدعاءات Shell والبحث والأدوات الأخرى في المحادثة",
       },
       autoExpandReasoning: {
         label: "عرض التفكير دائماً",

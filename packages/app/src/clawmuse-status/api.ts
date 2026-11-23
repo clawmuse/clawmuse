@@ -142,18 +142,33 @@ export class ClawMuseStatusApiClient {
 
   async updatePushPreferences(
     preferences: Partial<StatusInstallationPushPreferences>,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       await this.authorizedRequest("/v1/mobile/push-preferences", {
         method: "PUT",
         body: preferences,
       });
+      return true;
     } catch (error) {
       if (
         error instanceof ClawMuseStatusHttpError &&
         (error.status === 404 || error.status === 405)
       ) {
-        return;
+        return false;
+      }
+      if (
+        error instanceof ClawMuseStatusHttpError &&
+        error.status === 422 &&
+        error.code === "invalid_push_preferences" &&
+        preferences.completionPushActive !== undefined
+      ) {
+        // COMPAT(status-completion-push-pref): remove after 2027-02-01 once deployed status servers accept completionPushActive.
+        const { completionPushActive: _ignored, ...legacyPreferences } = preferences;
+        await this.authorizedRequest("/v1/mobile/push-preferences", {
+          method: "PUT",
+          body: legacyPreferences,
+        });
+        return true;
       }
       throw error;
     }
@@ -189,6 +204,26 @@ export class ClawMuseStatusApiClient {
     return parseWidgetTokenResponse(
       await this.authorizedRequest("/v1/mobile/widget-tokens", { method: "POST" }),
     );
+  }
+
+  /**
+   * A long-lived `push:write` token so native Swift can upload `activity_update`
+   * tokens during locked background wakeups without rotating the refresh token.
+   */
+  async issueLiveActivityPushToken(): Promise<WidgetTokenResponse | null> {
+    try {
+      return parseWidgetTokenResponse(
+        await this.authorizedRequest("/v1/mobile/live-activity-tokens", { method: "POST" }),
+      );
+    } catch (error) {
+      if (
+        error instanceof ClawMuseStatusHttpError &&
+        (error.status === 404 || error.status === 405)
+      ) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   async getSummary(): Promise<ClawMuseStatusSummary> {

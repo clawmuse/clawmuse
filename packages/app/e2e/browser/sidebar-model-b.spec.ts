@@ -60,7 +60,15 @@ test.describe("Model B sidebar shape", () => {
       await expect(workspace).toHaveAttribute("role", "button");
       await expect(workspace).toHaveJSProperty("tagName", "DIV");
       await workspace.hover();
-      await expect(workspace.locator("button")).not.toHaveCount(0);
+      await expect(
+        workspace.getByTestId(
+          `sidebar-workspace-archive-button-${getServerId()}:${seeded.workspaceId}`,
+        ),
+      ).toBeVisible();
+      await expect(
+        workspace.getByTestId(`sidebar-workspace-kebab-${getServerId()}:${seeded.workspaceId}`),
+      ).toBeVisible();
+      await expect(workspace.locator("button")).toHaveCount(0);
       expect(
         errors.filter((message) => message.includes("uniProps") || message.includes("nested")),
       ).toEqual([]);
@@ -223,6 +231,13 @@ test.describe("Model B sidebar shape", () => {
       await expect(
         doneRows.getByTestId(`sidebar-workspace-row-${getServerId()}:${activeMock.workspaceId}`),
       ).toHaveCount(0);
+
+      await expect(page.getByTestId("sidebar-status-group-count-running")).toHaveText("1");
+      await expect(page.getByTestId("sidebar-status-group-count-done")).toHaveCount(0);
+      await page.getByTestId("sidebar-status-group-done").click();
+      await expect(page.getByTestId("sidebar-status-group-count-done")).toHaveText("1");
+      await page.getByTestId("sidebar-status-group-done").click();
+      await expect(page.getByTestId("sidebar-status-group-count-done")).toHaveCount(0);
     } finally {
       await idleProject.cleanup();
       await activeMock.cleanup();

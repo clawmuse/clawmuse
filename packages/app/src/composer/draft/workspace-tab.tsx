@@ -18,6 +18,7 @@ import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-
 import { buildWorkspaceDraftAgentConfig } from "@/screens/workspace/workspace-draft-agent-config";
 import { buildDraftStoreKey } from "@/stores/draft-keys";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
+import { useDraftStore } from "@/stores/draft-store";
 import type { Agent } from "@/stores/session-store";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import { useWorkspaceDraftSubmissionStore } from "@/stores/workspace-draft-submission-store";
@@ -26,6 +27,7 @@ import { encodeImages } from "@/utils/encode-images";
 import { useOpenWorkspaceArchive } from "@/workspace/use-open-workspace-archive";
 import { shouldAutoFocusWorkspaceDraftComposer } from "@/screens/workspace/workspace-draft-pane-focus";
 import {
+  resolveDraftCarryOverInput,
   resolveDraftWorkingDirectory,
   shouldAllowEmptyDraftText,
   validateDraftSubmission,
@@ -533,6 +535,15 @@ export function WorkspaceDraftComposer({
         });
       },
       onCreateSuccess: ({ result }) => {
+        const carryOverDraft = resolveDraftCarryOverInput(
+          useDraftStore.getState().getDraftInput(draftStoreKey),
+        );
+        if (carryOverDraft) {
+          useDraftStore.getState().saveDraftInput({
+            draftKey: buildDraftStoreKey({ serverId, agentId: result.id }),
+            draft: carryOverDraft,
+          });
+        }
         clearDraftInput("sent");
         clearWorkspaceAttachments({ scopeKey: draftAttachmentScopeKey });
         useWorkspaceDraftSubmissionStore.getState().clearDraftSetup({ draftId });

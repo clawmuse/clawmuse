@@ -15,10 +15,11 @@ export interface RedirectIfArchivingActiveWorkspaceInput {
 
 export interface RedirectIfArchivingActiveWorkspaceDeps {
   navigateToRoute: (route: Href) => void;
-  navigateToWorkspace: (target: SidebarShortcutWorkspaceTarget) => void;
+  navigateToWorkspace: (target: SidebarShortcutWorkspaceTarget & { surface?: "sidebar" }) => void;
   readWorkspaces: (serverId: string) => Iterable<WorkspaceDescriptor>;
   /** Sidebar rows in top-to-bottom visual order. */
   readSidebarTargets: () => readonly SidebarShortcutWorkspaceTarget[];
+  isSidebarOverlayOpen: () => boolean;
   openAgentList: () => void;
 }
 
@@ -33,6 +34,7 @@ export function redirectIfArchivingActiveWorkspace(
     return false;
   }
 
+  const sidebarOverlayOpen = deps.isSidebarOverlayOpen();
   const next = resolveNextWorkspaceAfterArchive({
     targets: deps.readSidebarTargets(),
     archived: { serverId: input.serverId, workspaceId: input.workspaceId },
@@ -42,7 +44,7 @@ export function redirectIfArchivingActiveWorkspace(
       ),
   });
   if (next) {
-    deps.navigateToWorkspace(next);
+    deps.navigateToWorkspace(sidebarOverlayOpen ? { ...next, surface: "sidebar" } : next);
     return true;
   }
 
@@ -53,6 +55,8 @@ export function redirectIfArchivingActiveWorkspace(
       workspaces: deps.readWorkspaces(input.serverId),
     }),
   );
-  deps.openAgentList();
+  if (!sidebarOverlayOpen) {
+    deps.openAgentList();
+  }
   return true;
 }

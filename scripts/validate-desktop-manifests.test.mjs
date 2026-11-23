@@ -9,7 +9,10 @@ import { test } from "vitest";
 import { validateDesktopManifests } from "./validate-desktop-manifests.mjs";
 import { prepareDesktopUpdates, verifyDesktopUpdateManifests } from "./prepare-desktop-updates.mjs";
 import { prepareClawmuseDownloads } from "./prepare-clawmuse-downloads.mjs";
-import { finalizeMacDistribution } from "../packages/desktop/scripts/finalize-mac-distribution.mjs";
+import {
+  finalizeMacDistribution,
+  generateBlockmap,
+} from "../packages/desktop/scripts/finalize-mac-distribution.mjs";
 import { dump, load } from "js-yaml";
 import { findFile, resolveFiles } from "electron-updater/out/providers/Provider.js";
 
@@ -140,6 +143,23 @@ test("DMG stapling refreshes checksums and blockmaps before staging Mac updates"
       },
     });
     assert.equal(called, false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("generateBlockmap builds a real gzip blockmap and returns matching size and sha512", async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "clawmuse-real-blockmap-"));
+  try {
+    const file = path.join(directory, "ClawMuse-1.6.0-arm64.dmg");
+    const payload = Buffer.alloc(64 * 1024, 0x42);
+    writeFileSync(file, payload);
+    const result = await generateBlockmap(file);
+    assert.equal(result.size, payload.length);
+    assert.equal(result.sha512, createHash("sha512").update(payload).digest("base64"));
+    assert.equal(existsSync(`${file}.blockmap`), true);
+    assert.equal(existsSync(`${file}.blockmap.finalizing`), false);
+    assert.ok(readFileSync(`${file}.blockmap`).length > 0);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

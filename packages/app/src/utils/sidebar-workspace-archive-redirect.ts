@@ -18,6 +18,7 @@ export function redirectIfArchivingActiveWorkspace(
     readWorkspaces: (serverId) =>
       useSessionStore.getState().sessions[serverId]?.workspaces.values() ?? [],
     readSidebarTargets: () => useKeyboardShortcutsStore.getState().sidebarShortcutWorkspaceTargets,
+    isSidebarOverlayOpen: () => usePanelStore.getState().mobilePanel.target === "agent-list",
     openAgentList: () =>
       usePanelStore.getState().openAgentListForLayout({
         isCompact: useWorkspaceLayoutStore.getState().layoutMode === "compact",

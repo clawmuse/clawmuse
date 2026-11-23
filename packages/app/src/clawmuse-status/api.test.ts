@@ -465,8 +465,15 @@ describe("ClawMuseStatusApiClient requests", () => {
   it("syncs push preferences and tolerates older status servers without the route", async () => {
     let return404 = false;
     const { api, requests } = await enrolledClient((request) => {
-      if (request.path === "/v1/mobile/push-preferences" && return404) {
+      if (
+        (request.path === "/v1/mobile/push-preferences" ||
+          request.path === "/v1/mobile/live-activity-tokens") &&
+        return404
+      ) {
         return { status: 404, body: { error: "not_found" } };
+      }
+      if (request.path === "/v1/mobile/live-activity-tokens") {
+        return { body: { accessToken: "la-push-token", expiresIn: 2_592_000 } };
       }
       if (request.path === "/v1/mobile/push-endpoints/push_to_start") {
         return { body: { removed: 1 } };
@@ -474,15 +481,22 @@ describe("ClawMuseStatusApiClient requests", () => {
       return { body: { updated: true } };
     });
 
-    await api.updatePushPreferences({
-      taskAlerts: false,
-      runningAlert: true,
-      suppressWhenActive: false,
+    expect(
+      await api.updatePushPreferences({
+        taskAlerts: false,
+        runningAlert: true,
+        suppressWhenActive: false,
+      }),
+    ).toBe(true);
+    expect(await api.issueLiveActivityPushToken()).toEqual({
+      accessToken: "la-push-token",
+      expiresIn: 2_592_000,
     });
     expect(await api.unregisterAlertPushEndpoint("push_to_start")).toBe(1);
 
     return404 = true;
-    await expect(api.updatePushPreferences({ taskAlerts: false })).resolves.toBeUndefined();
+    await expect(api.updatePushPreferences({ taskAlerts: false })).resolves.toBe(false);
+    await expect(api.issueLiveActivityPushToken()).resolves.toBeNull();
 
     expect(requests).toEqual([
       {
@@ -490,6 +504,12 @@ describe("ClawMuseStatusApiClient requests", () => {
         method: "PUT",
         bearer: "access-1",
         body: { taskAlerts: false, runningAlert: true, suppressWhenActive: false },
+      },
+      {
+        path: "/v1/mobile/live-activity-tokens",
+        method: "POST",
+        bearer: "access-1",
+        body: null,
       },
       {
         path: "/v1/mobile/push-endpoints/push_to_start",
@@ -502,6 +522,48 @@ describe("ClawMuseStatusApiClient requests", () => {
         method: "PUT",
         bearer: "access-1",
         body: { taskAlerts: false },
+      },
+      {
+        path: "/v1/mobile/live-activity-tokens",
+        method: "POST",
+        bearer: "access-1",
+        body: null,
+      },
+    ]);
+  });
+
+  it("falls back cleanly when a pre-completionPushActive server rejects the new preference field", async () => {
+    const { api, requests } = await enrolledClient((request) => {
+      if (
+        request.path === "/v1/mobile/push-preferences" &&
+        request.body !== null &&
+        typeof request.body === "object" &&
+        "completionPushActive" in request.body
+      ) {
+        return { status: 422, body: { error: "invalid_push_preferences" } };
+      }
+      return { body: { updated: true } };
+    });
+
+    await expect(
+      api.updatePushPreferences({
+        taskAlerts: false,
+        completionPushActive: true,
+        completed: true,
+      }),
+    ).resolves.toBe(true);
+    expect(requests).toEqual([
+      {
+        path: "/v1/mobile/push-preferences",
+        method: "PUT",
+        bearer: "access-1",
+        body: { taskAlerts: false, completionPushActive: true, completed: true },
+      },
+      {
+        path: "/v1/mobile/push-preferences",
+        method: "PUT",
+        bearer: "access-1",
+        body: { taskAlerts: false, completed: true },
       },
     ]);
   });

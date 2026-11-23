@@ -61,6 +61,7 @@ import {
 import { HostPicker } from "@/components/hosts/host-picker";
 import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-preferences/menu";
 import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
+import { SidebarConnectivityBanner } from "@/components/sidebar/sidebar-connectivity-banner";
 import { SidebarHostStrip } from "@/components/sidebar/host-strip";
 import { SidebarToastRegion } from "@/components/sidebar/sidebar-toast-region";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
@@ -73,6 +74,7 @@ import {
   type SidebarFooterAction,
 } from "@/components/sidebar-footer-layout";
 import {
+  COMPACT_ACTION_BUTTON_SIZE,
   controlSizingForLayout,
   mapLayout,
   TOOLBAR_CONTROL_SIZES,
@@ -116,7 +118,6 @@ import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
 import { NewAgentAction } from "@/components/new-agent-action";
-import { COMPACT_FLOATING_ACTION_BUTTON_CLEARANCE } from "@/components/ui/floating-action-button";
 
 type SidebarTheme = ReturnType<typeof useUnistyles>["theme"];
 
@@ -497,7 +498,7 @@ function SidebarFooter({
           <SidebarFooterRows {...footerRows} onBeforeNavigate={onBeforeNavigate} />
         ) : null}
         <View
-          style={styles.sidebarFooter}
+          style={[styles.sidebarFooter, compact && styles.sidebarFooterCompact]}
           onLayout={handleRowLayout}
           testID="sidebar-footer-bottom-line"
         >
@@ -672,15 +673,19 @@ function MobileSidebar({
     [labels.closeSidebar, closeSidebar],
   );
 
+  // Touch footer buttons are 44pt tall around 20pt glyphs (12pt built-in inset below the icon),
+  // so trim that same 12pt from tall home-indicator insets without letting controls touch the bar.
+  const mobileBottomPadding =
+    insetsBottom > 0 ? Math.max(Math.min(insetsBottom, SPACING[3]), insetsBottom - SPACING[3]) : 0;
   const mobileSidebarInsetStyle = useMemo(
     () => ({
       paddingTop: insetsTop,
-      paddingBottom: insetsBottom,
+      paddingBottom: mobileBottomPadding,
       paddingLeft: insetsLeft,
       paddingRight: insetsRight,
       backgroundColor: theme.colors.surfaceSidebar,
     }),
-    [insetsTop, insetsBottom, insetsLeft, insetsRight, theme.colors.surfaceSidebar],
+    [insetsTop, mobileBottomPadding, insetsLeft, insetsRight, theme.colors.surfaceSidebar],
   );
 
   const navRows = (
@@ -706,6 +711,8 @@ function MobileSidebar({
           onBeforeNavigate={closeSidebar}
           panelGestureRef={closeGestureRef}
         />
+
+        <SidebarConnectivityBanner hasProjects={projects.length > 0} onRefresh={handleRefresh} />
 
         <View style={styles.mobileWorkspaceList}>
           <SidebarViewSlot dismiss={handleWorkspacePress}>
@@ -914,7 +921,7 @@ function DesktopSidebar({
     const scale = resolveDesktopSidebarScale(contentWidth);
     return {
       width: (contentWidth - sidebarBorderWidth - leftInset) / scale,
-      height: contentHeight.value / scale,
+      height: contentHeight.value > 0 ? contentHeight.value / scale : "100%",
       // Layout zoom paints SVGs and text at the final web resolution instead of
       // resampling the transformed sidebar surface.
       ...(isWeb ? ({ zoom: scale } as ViewStyle) : { transform: [{ scale }] }),
@@ -1194,16 +1201,18 @@ const styles = StyleSheet.create((theme) => ({
     maxHeight: "50%",
   },
   mobileNavRowsGroup: {
-    paddingTop: theme.spacing[2],
+    paddingTop: 0,
     gap: 2,
-    paddingBottom: theme.spacing[1.5],
+    paddingBottom: theme.spacing[1],
   },
   sidebarContent: {
     flex: 1,
     minHeight: 0,
   },
   mobileWorkspaceList: { flex: 1, minHeight: 0 },
-  mobileListClearance: { height: COMPACT_FLOATING_ACTION_BUTTON_CLEARANCE },
+  // `SidebarWorkspaceList` already applies `FLOATING_ACTION_BUTTON_INSET` (`spacing[4]`) as
+  // `listContent.paddingBottom`, so only the compact FAB's own height is needed here.
+  mobileListClearance: { height: COMPACT_ACTION_BUTTON_SIZE },
   mobileCloseButton: {
     marginRight: theme.spacing[2],
   },
@@ -1251,6 +1260,10 @@ const styles = StyleSheet.create((theme) => ({
     minHeight: mapLayout(density.iconButton, (height) => height + theme.spacing[1.5] * 2),
     paddingHorizontal: FOOTER_ROW_PADDING,
     paddingVertical: theme.spacing[1.5],
+  },
+  sidebarFooterCompact: {
+    minHeight: density.iconButton,
+    paddingVertical: 0,
   },
   footerSpacer: {
     flex: 1,

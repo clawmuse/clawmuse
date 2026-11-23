@@ -19,6 +19,8 @@ interface PresentationInput {
   transform: TimelineItemTransform | undefined;
   display: ChatDisplay;
   autoExpandReasoning?: boolean;
+  showReasoning?: boolean;
+  showToolCalls?: boolean;
   /** User messages whose collapsed turn the reader opened. */
   expandedTurnHostIds: ReadonlySet<string>;
   isTurnActive: boolean;
@@ -74,6 +76,8 @@ export function createStreamPresentation() {
 
   let historySource: StreamItem[] | undefined;
   let historyTransform: TimelineItemTransform | undefined;
+  let historyShowReasoning = true;
+  let historyShowToolCalls = true;
   let historyRows: StreamItem[] = [];
   let preparedTail: StreamItem[] | undefined;
   let preparedAutoExpandReasoning: boolean | undefined;
@@ -161,18 +165,33 @@ export function createStreamPresentation() {
 
   return (input: PresentationInput): StreamPresentation => {
     const level: ToolCallDetailLevel = input.display === "full" ? "detailed" : "overview";
+    const { showReasoning = true, showToolCalls = true } = input;
+    const isVisible = (item: StreamItem): boolean => {
+      if (item.kind === "thought") return showReasoning;
+      if (item.kind !== "tool_call") return true;
+      return (
+        showToolCalls || (item.payload.source === "agent" && item.payload.data.name === "speak")
+      );
+    };
     // Retained history is not reprojected or regrouped on each live text update.
-    if (historySource !== input.tail || historyTransform !== input.transform) {
+    if (
+      historySource !== input.tail ||
+      historyTransform !== input.transform ||
+      historyShowReasoning !== showReasoning ||
+      historyShowToolCalls !== showToolCalls
+    ) {
       historyRows = projectPluginTimelineItems(input.tail, input.transform).flatMap<StreamItem>(
-        (item) => presentRows(item),
+        (item) => presentRows(item).filter(isVisible),
       );
       historySource = input.tail;
       historyTransform = input.transform;
+      historyShowReasoning = showReasoning;
+      historyShowToolCalls = showToolCalls;
     }
     const head: StreamItem[] = [];
     for (const item of projectPluginTimelineItems(input.head, input.transform, "streaming")) {
       const blocks = presentRows(item);
-      head.push(...blocks);
+      head.push(...blocks.filter(isVisible));
     }
     if (
       preparedTail !== historyRows ||
