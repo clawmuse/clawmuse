@@ -25,6 +25,7 @@ import {
 import { getTranslator } from "../clawmuse/i18n/i18n";
 import { languages, locales } from "../clawmuse/i18n/locales";
 import { agentFor, agentRoutes } from "../clawmuse/agents-content";
+import { installerMirrorUrl, primaryPlatformInstaller, release } from "../clawmuse/downloads";
 
 for (const language of languages) {
   test(`${language} iOS download opens the public App Store listing`, async ({ page }) => {
@@ -1136,11 +1137,11 @@ test("downloads secondary formats, checksums, product demo and showcase images",
   await expect(macos).toContainText("Apple Silicon");
   await expect(macos.locator(".installer a.button")).toHaveAttribute(
     "href",
-    "https://agent-relay.clawmuse.com/updates/installers/v1.5.8/ClawMuse-1.5.8-arm64.dmg",
+    installerMirrorUrl(primaryPlatformInstaller("macos", "arm64")!),
   );
   await expect(macos.locator(".arm-download-trigger")).toHaveAttribute(
     "href",
-    "https://agent-relay.clawmuse.com/updates/installers/v1.5.10/ClawMuse-1.5.10-x64.dmg",
+    installerMirrorUrl(primaryPlatformInstaller("macos", "x64")!),
   );
 
   const windows = page
@@ -1158,7 +1159,7 @@ test("downloads secondary formats, checksums, product demo and showcase images",
 
   await page.locator(".checksums-jump").click();
   await expect(page.locator(".checksums-panel")).toHaveAttribute("open", "");
-  await expect(page.locator(".checksum-row")).toHaveCount(13);
+  await expect(page.locator(".checksum-row")).toHaveCount(release.files.length);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
   await page.setViewportSize({ width: 1440, height: 900 });

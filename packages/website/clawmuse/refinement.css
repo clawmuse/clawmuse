@@ -1896,8 +1896,14 @@ html {
 }
 
 .refined-site .smart-download-more.text-link {
+  gap: 5px;
   font-size: 13.5px;
   color: var(--muted);
+}
+
+.refined-site .smart-download-more.text-link > svg {
+  width: 14px;
+  height: 14px;
 }
 
 .refined-site .smart-download-more.text-link:hover {

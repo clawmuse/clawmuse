@@ -31,13 +31,7 @@ import { ProductDemo } from "./product-demo";
 import { AgentShowcase } from "./agents";
 import changelog from "./changelog.json";
 import { EngineeringCapabilities, HighlightsShowcase } from "./home-spotlights";
-import {
-  fileVersion,
-  formatSize,
-  installerMirrorUrl,
-  primaryPlatformInstaller,
-  release,
-} from "./downloads";
+import { fileVersion, installerMirrorUrl, primaryPlatformInstaller, release } from "./downloads";
 
 import {
   accountUrl,
@@ -380,6 +374,11 @@ export function DownloadButton({
 }: Localized & { label: string; showAllPlatforms?: boolean }) {
   const { t } = useSiteTranslation(language);
   const detected = useDetectedPlatform();
+  const allPlatformsLink = showAllPlatforms ? (
+    <PageLink page="/download" language={language} className="text-link smart-download-more">
+      {t("downloads.allPlatforms")}
+    </PageLink>
+  ) : null;
 
   if (detected?.kind === "ios") {
     return (
@@ -388,11 +387,7 @@ export function DownloadButton({
           {t("downloads.downloadOnAppStore")}
           <ArrowUpRight size={17} />
         </a>
-        {showAllPlatforms && (
-          <PageLink page="/download" language={language} className="smart-download-more">
-            {t("downloads.allPlatforms")}
-          </PageLink>
-        )}
+        {allPlatformsLink}
       </span>
     );
   }
@@ -407,11 +402,7 @@ export function DownloadButton({
             {t("downloads.downloadForMac")}
             <span className="button-meta">v{fileVersion(macFile)}</span>
           </a>
-          {showAllPlatforms && (
-            <PageLink page="/download" language={language} className="smart-download-more">
-              {t("downloads.allPlatforms")} ({formatSize(macFile.size)} DMG)
-            </PageLink>
-          )}
+          {allPlatformsLink}
         </span>
       );
     }
@@ -427,11 +418,7 @@ export function DownloadButton({
             {t("downloads.downloadForWindows")}
             <span className="button-meta">{winFile.arch}</span>
           </a>
-          {showAllPlatforms && (
-            <PageLink page="/download" language={language} className="smart-download-more">
-              {t("downloads.allPlatforms")}
-            </PageLink>
-          )}
+          {allPlatformsLink}
         </span>
       );
     }
@@ -446,11 +433,7 @@ export function DownloadButton({
             <Download size={17} />
             {t("downloads.downloadForAndroid")}
           </a>
-          {showAllPlatforms && (
-            <PageLink page="/download" language={language} className="smart-download-more">
-              {t("downloads.allPlatforms")}
-            </PageLink>
-          )}
+          {allPlatformsLink}
         </span>
       );
     }

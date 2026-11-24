@@ -46,11 +46,12 @@ export function PageLink({
   language,
   children,
   className = "text-link",
-}: Localized & { page: Page; children: ReactNode; className?: string }) {
+}: Localized & { page: Page; children?: ReactNode; className?: string }) {
+  const isTextLink = className.split(/\s+/).includes("text-link");
   return (
     <a href={href(page, language)} className={className}>
       {children}
-      {className === "text-link" && <ArrowRight size={17} />}
+      {isTextLink && <ArrowRight size={17} />}
     </a>
   );
 }

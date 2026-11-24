@@ -1,12 +1,16 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { officialPluginIds, pluginsCopy } from "../clawmuse/plugins-content";
 import { describe, expect, it } from "vitest";
 import { coreRoutes, descriptionFor, href, routeInfo, titleFor } from "../clawmuse/content";
 import {
+  fileVersion,
   installerMirrorUrl,
   platformVersion,
   primaryPlatformInstaller,
   release,
 } from "../clawmuse/downloads";
+import { PageLink } from "../clawmuse/ui";
 import { articleRoutes } from "../clawmuse/editorial-content";
 import { agentFor, agentRoutes, isAgentPage } from "../clawmuse/agents-content";
 import { getTranslator, resources } from "../clawmuse/i18n/i18n";
@@ -180,17 +184,42 @@ describe("ClawMuse website languages", () => {
     expect(macIntel).toBeDefined();
     expect(winX64).toBeDefined();
     expect(winArm).toBeDefined();
-    expect(platformVersion("macos")).toBe("1.5.8");
+    const macVersion = fileVersion(mac!);
+    const macIntelVersion = fileVersion(macIntel!);
+    expect(platformVersion("macos")).toBe(macVersion);
     expect(installerMirrorUrl(mac!)).toBe(
-      "https://agent-relay.clawmuse.com/updates/installers/v1.5.8/ClawMuse-1.5.8-arm64.dmg",
+      `https://agent-relay.clawmuse.com/updates/installers/v${macVersion}/ClawMuse-${macVersion}-arm64.dmg`,
     );
     expect(installerMirrorUrl(macIntel!)).toBe(
-      "https://agent-relay.clawmuse.com/updates/installers/v1.5.10/ClawMuse-1.5.10-x64.dmg",
+      `https://agent-relay.clawmuse.com/updates/installers/v${macIntelVersion}/ClawMuse-${macIntelVersion}-x64.dmg`,
     );
     expect(installerMirrorUrl(winX64!)).toContain(`/v${release.version}/`);
     expect(winArm!.arch).toBe("arm64");
     for (const file of release.files) {
       expect(file.sha256).toMatch(/^[a-f0-9]{64}$/);
     }
+  });
+
+  it("renders text-link arrows on compound PageLink classes and omits them on button links", () => {
+    const secondaryHtml = renderToStaticMarkup(
+      createElement(
+        PageLink,
+        { page: "/download", language: "zh-CN", className: "text-link smart-download-more" },
+        "全部平台与版本",
+      ),
+    );
+    expect(secondaryHtml).toContain('class="text-link smart-download-more"');
+    expect(secondaryHtml).toContain('href="/zh/download/"');
+    expect(secondaryHtml).toContain("<svg");
+    expect(secondaryHtml).not.toContain("DMG");
+
+    const buttonHtml = renderToStaticMarkup(
+      createElement(
+        PageLink,
+        { page: "/download", language: "zh-CN", className: "button primary" },
+        "下载 ClawMuse",
+      ),
+    );
+    expect(buttonHtml).not.toContain("<svg");
   });
 });
