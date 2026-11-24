@@ -24,11 +24,11 @@ export function isSeoPage(page: string): page is SeoPage {
 }
 
 // Full document titles for search results. On-page headings and navigation keep their own labels.
-// Lead with what people search for; the brand goes last unless the page is about ClawMuse itself.
+// Lead with ClawMuse on the homepage and brand/product-info pages; inner guides can lead with search intent.
 export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   en: {
     "/": {
-      title: "Use Claude Code and Codex from your phone or browser — ClawMuse",
+      title: "ClawMuse — Control Local AI Agents from Phone & Web",
       description:
         "Away from your computer? Use Claude Code, Codex and other AI coding agents on your own computer from your phone or the web, with the models you choose. Open source.",
     },
@@ -80,7 +80,7 @@ export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   },
   "zh-CN": {
     "/": {
-      title: "在手机和网页上用 Claude Code、Codex — ClawMuse",
+      title: "ClawMuse — 手机与网页远程操控本地 AI Agent",
       description:
         "不在电脑前，也能用手机或网页操作自己电脑上的 Claude Code、Codex 等 AI 编程工具：派任务、看改动、语音跟进。模型随你选，代码开源。",
     },
@@ -130,7 +130,7 @@ export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   },
   "zh-TW": {
     "/": {
-      title: "在手機和網頁上用 Claude Code、Codex — ClawMuse",
+      title: "ClawMuse — 手機與網頁遠端操控本地 AI Agent",
       description:
         "不在電腦前，也能用手機或網頁操作自己電腦上的 Claude Code、Codex 等 AI 工具：指派任務、查看變更、透過語音助理跟進。模型隨你選，程式碼開源。",
     },
@@ -180,7 +180,7 @@ export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   },
   ja: {
     "/": {
-      title: "スマホとブラウザで Claude Code と Codex を使う — ClawMuse",
+      title: "ClawMuse — スマホとWebでローカルAIエージェント操作",
       description:
         "外出先でも、スマホやブラウザから自分のパソコンの Claude Code や Codex などの AI コーディングツールを使えます。モデルは自由に選べて、オープンソースです。",
     },
@@ -232,7 +232,7 @@ export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   },
   ko: {
     "/": {
-      title: "휴대폰과 웹에서 Claude Code와 Codex 사용하기 — ClawMuse",
+      title: "ClawMuse — 휴대폰과 웹에서 로컬 AI 에이전트 제어",
       description:
         "밖에서도 휴대폰이나 웹으로 내 컴퓨터의 Claude Code, Codex 등 AI 코딩 도구를 사용하세요. 모델은 자유롭게 고를 수 있고, 오픈 소스입니다.",
     },
@@ -284,7 +284,7 @@ export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   },
   es: {
     "/": {
-      title: "Usa Claude Code y Codex desde el móvil o la web — ClawMuse",
+      title: "ClawMuse — Controla agentes de IA locales desde móvil y web",
       description:
         "¿Lejos del ordenador? Usa Claude Code, Codex y otros agentes de IA de tu propio ordenador desde el móvil o la web, con los modelos que elijas. Código abierto.",
     },
@@ -336,7 +336,7 @@ export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   },
   fr: {
     "/": {
-      title: "Claude Code et Codex sur téléphone et sur le web — ClawMuse",
+      title: "ClawMuse — Pilotez vos agents IA locaux sur mobile et web",
       description:
         "Loin de votre ordinateur ? Utilisez Claude Code, Codex et d’autres agents IA de votre ordinateur depuis votre téléphone ou le web, avec vos modèles. Open source.",
     },
@@ -388,7 +388,7 @@ export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   },
   "pt-BR": {
     "/": {
-      title: "Use Claude Code e Codex pelo celular ou pela web — ClawMuse",
+      title: "ClawMuse — Controle agentes de IA locais pelo celular e web",
       description:
         "Longe do computador? Use Claude Code, Codex e outros agentes de IA do seu computador pelo celular ou pela web, com os modelos que escolher. Código aberto.",
     },
@@ -440,7 +440,7 @@ export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   },
   ru: {
     "/": {
-      title: "Claude Code и Codex на телефоне и в браузере — ClawMuse",
+      title: "ClawMuse — Локальные ИИ-агенты с телефона и в браузере",
       description:
         "Не за компьютером? Пользуйтесь Claude Code, Codex и другими ИИ-агентами на своём компьютере с телефона или в браузере, с моделями на ваш выбор. Открытый код.",
     },
@@ -492,7 +492,7 @@ export const seoCopy: Record<Language, Record<SeoPage, SeoEntry>> = {
   },
   ar: {
     "/": {
-      title: "استخدم Claude Code وCodex من الهاتف أو الويب — ClawMuse",
+      title: "ClawMuse — تحكّم بوكلاء الذكاء الاصطناعي من الهاتف والويب",
       description:
         "بعيد عن حاسوبك؟ استخدم Claude Code وCodex ووكلاء الذكاء الاصطناعي الأخرى على حاسوبك من الهاتف أو الويب، مع النماذج التي تختارها. مفتوح المصدر.",
     },
