@@ -2853,3 +2853,73 @@ test.each([
     }
   },
 );
+
+test("PluginAgentSession exposes usageSession with provider, model, merged env, and clears on close", async () => {
+  const logger = createTestLogger();
+  const harness = createProviderHarness({
+    handleInput: async (input, emit) => {
+      if (input.type === "session.configure" && input.changes.model !== undefined) {
+        emit({
+          type: "session.config",
+          sessionId: input.sessionId,
+          config: {
+            model: input.changes.model ?? undefined,
+            mode: "build",
+            models: [
+              { id: "plugin-model", label: "Plugin model" },
+              { id: "plugin-model-2", label: "Plugin model 2" },
+            ],
+            modes: [{ id: "build", label: "Build" }],
+            thinkingOptions: [],
+          },
+        });
+        emit({ type: "request.completed", requestId: input.requestId });
+        return true;
+      }
+      return false;
+    },
+  });
+  const registry = new PluginAgentClientRegistry(logger);
+  registry.replace([harness.registration]);
+  const client = registry.definitions()[harness.registration.id]!.createClient(logger, {
+    env: {
+      PLUGIN_RUNTIME_VAR: "from-runtime",
+      SHARED_VAR: "runtime-value",
+    },
+  });
+  try {
+    const session = await client.createSession(
+      { provider: harness.registration.id, cwd: "/tmp/plugin-usage-session" },
+      {
+        env: {
+          PLUGIN_LAUNCH_VAR: "from-launch",
+          SHARED_VAR: "launch-value",
+        },
+      },
+    );
+
+    const first = session.usageSession?.();
+    expect(first).not.toBeNull();
+    expect(first).toMatchObject({
+      provider: harness.registration.id,
+      model: "plugin-model",
+      sessionKey: expect.any(String),
+    });
+    expect(first?.env.PLUGIN_RUNTIME_VAR).toBe("from-runtime");
+    expect(first?.env.PLUGIN_LAUNCH_VAR).toBe("from-launch");
+    expect(first?.env.SHARED_VAR).toBe("launch-value");
+
+    const second = session.usageSession?.();
+    expect(second?.sessionKey).toBe(first?.sessionKey);
+
+    await session.setModel?.("plugin-model-2");
+    const afterModelChange = session.usageSession?.();
+    expect(afterModelChange?.model).toBe("plugin-model-2");
+    expect(afterModelChange?.sessionKey).toBe(first?.sessionKey);
+
+    await session.close();
+    expect(session.usageSession?.()).toBeNull();
+  } finally {
+    await registry.shutdown();
+  }
+});

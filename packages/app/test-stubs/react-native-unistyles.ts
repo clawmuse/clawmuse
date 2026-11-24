@@ -156,11 +156,12 @@ export const StyleSheet = {
 
 type UniPropsMapping = (theme: typeof testTheme, runtime: object) => Record<string, unknown>;
 
-/** Applies `uniProps` with the test theme, the way Unistyles maps theme values onto props. */
-export const withUnistyles = <T>(Component: T): T => {
+/** Applies `mappings` and `uniProps` with the test theme, the way Unistyles maps theme values onto props. */
+export const withUnistyles = <T>(Component: T, mappings?: UniPropsMapping): T => {
   function ThemedComponent({ uniProps, ...props }: { uniProps?: UniPropsMapping }) {
     // Explicit props win over mapped ones, as in Unistyles' `deepMergeObjects(mappings, uniProps, props)`.
     return createElement(Component as ElementType, {
+      ...(mappings ? mappings(testTheme, {}) : {}),
       ...(uniProps ? uniProps(testTheme, {}) : {}),
       ...props,
     });

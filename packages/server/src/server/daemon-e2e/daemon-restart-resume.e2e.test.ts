@@ -75,6 +75,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { DaemonClient } from "../test-utils/daemon-client.js";
+import { brand } from "../../brand.generated.js";
 
 async function restartFixture(
   root: string,
@@ -243,9 +244,15 @@ test.each([false, true])(
   60000,
 );
 
-test.each([undefined, false, true])(
-  "host restart recovery settings (enabled=%s)",
-  async (enabled) => {
+test.each([
+  { enabled: undefined, appUpdate: false },
+  { enabled: false, appUpdate: false },
+  { enabled: true, appUpdate: false },
+  { enabled: undefined, appUpdate: true },
+  { enabled: false, appUpdate: true },
+])(
+  "host restart recovery settings (enabled=$enabled, appUpdate=$appUpdate)",
+  async ({ enabled, appUpdate }) => {
     const root = await mkdtemp(path.join(tmpdir(), "resume-settings-process-"));
     const processes: ChildProcess[] = [];
     let client: DaemonClient | undefined;
@@ -280,12 +287,21 @@ test.each([undefined, false, true])(
         path.join(first.paseoHome, "agents"),
         createTestLogger(),
       ).get(working.id);
+      if (appUpdate) {
+        const exited = once(first.child, "exit");
+        await client.shutdownServer({ reason: "app_update" });
+        expect(await exited).toEqual([0, null]);
+      }
       await client.close();
       client = undefined;
       await stopFixture(first.child, false);
       const second = await restartFixture(root, settings);
       processes.push(second.child);
-      client = new DaemonClient({ url: `ws://127.0.0.1:${second.port}/ws`, appVersion: "0.13.0" });
+      const restartedClient = new DaemonClient({
+        url: `ws://127.0.0.1:${second.port}/ws`,
+        appVersion: "0.13.0",
+      });
+      client = restartedClient;
       await client.connect();
       const storage = new AgentStorage(path.join(second.paseoHome, "agents"), createTestLogger());
       // Resume runs in the background; it is done once the saved intent is consumed.
@@ -296,10 +312,40 @@ test.each([undefined, false, true])(
           .split("\n")
           .map((line) => JSON.parse(line))
           .filter((entry) => entry.prompt === settings.resumePrompt);
-      await expect.poll(resumePrompts).toHaveLength(enabled ? 1 : 0);
+      await expect.poll(resumePrompts).toHaveLength(enabled === false ? 0 : 1);
       expect((await client.fetchAgent(idle.id))?.agent.status).toBe("closed");
       const restored = await storage.get(working.id);
       expect(restored?.persistence?.sessionId).toBe(original?.persistence?.sessionId);
+      const readNotices = async (agentId: string) => {
+        const timeline = await restartedClient.fetchAgentTimeline(agentId, {
+          direction: "tail",
+          projection: "canonical",
+        });
+        return timeline.entries
+          .map((entry) => entry.item)
+          .filter((item) => item.type === "notification");
+      };
+      expect(await readNotices(working.id)).toEqual(
+        appUpdate
+          ? [
+              {
+                type: "notification",
+                level: "warning",
+                message: `A ${brand.name} update interrupted this turn. If it does not resume, send a message to continue.`,
+              },
+            ]
+          : [],
+      );
+      expect(await readNotices(idle.id)).toEqual([]);
+      await client.sendMessage(working.id, "Continue manually.");
+      await expect
+        .poll(
+          async () =>
+            (await readFile(path.join(root, "all-prompts.jsonl"), "utf8"))
+              .split("\n")
+              .filter((line) => line.includes("Continue manually.")).length,
+        )
+        .toBe(1);
     } finally {
       await client?.close();
       for (const child of processes.toReversed()) await stopFixture(child, true);

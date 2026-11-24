@@ -504,7 +504,7 @@ describe("desktop stops and terminals", () => {
 
     expect(harness.stops).toEqual([{ keepTerminals: true }]);
     expect(calls).toEqual([
-      ["daemon", "stop", "--host", "127.0.0.1:6799", "--keep-terminals", "--json"],
+      ["daemon", "stop", "--host", "127.0.0.1:6799", "--keep-terminals", "--app-update", "--json"],
     ]);
   });
 
@@ -524,7 +524,14 @@ describe("desktop stops and terminals", () => {
     await stopCapturedDaemon({ ...harness.input, reason: "app_update", keepTerminals: true });
 
     expect(harness.stops).toEqual([{ keepTerminals: true }, { keepTerminals: false }]);
-    expect(calls[1]).toEqual(["daemon", "stop", "--host", "127.0.0.1:6799", "--json"]);
+    expect(calls[1]).toEqual([
+      "daemon",
+      "stop",
+      "--host",
+      "127.0.0.1:6799",
+      "--app-update",
+      "--json",
+    ]);
     expect(harness.logged).toContain(
       "daemon v0.11.0 cannot keep terminals; stopping it and closing them",
     );

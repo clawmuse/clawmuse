@@ -12,9 +12,8 @@ module.exports = async function () {
   }
   if (process.platform !== "darwin") return config;
 
-  const { resolveMacSigning, MAC_SIGNING_ENV_KEYS, isMacCodePath } =
-    await import("./scripts/mac-signing.mjs");
-  config.mac = resolveMacSigning({ version });
+  const { resolveMacSigning, isMacCodePath } = await import("./scripts/mac-signing.mjs");
+  config.mac = resolveMacSigning({});
   if (dateBuild) {
     config.mac.bundleShortVersion = dateBuild[1];
     config.mac.bundleVersion = String(Number(dateBuild[2]));
@@ -28,11 +27,6 @@ module.exports = async function () {
       ignore: (file) => Boolean(originalIgnore?.(file)) || !isMacCodePath(file),
     });
   };
-  config.dmg = { sign: config.mac.notarize };
-  if (!config.mac.notarize) {
-    // A local test build must not import certificates or touch a signing keychain.
-    for (const key of MAC_SIGNING_ENV_KEYS) delete process.env[key];
-    process.env.CSC_IDENTITY_AUTO_DISCOVERY = "false";
-  }
+  config.dmg = { sign: true };
   return config;
 };

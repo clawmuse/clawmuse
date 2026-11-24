@@ -1559,4 +1559,92 @@ describe("antigravity wakeups, subagents, usage, and runtime safety", () => {
     ).toBe(false);
     await lowPrioSession.prompt("HELLO", "s-lowprio");
   });
+
+  it("recovers from stale post-turn tool updates, orphan ACP chunks, ACP-streamed waiting stalls, and detached stdio grandchildren without deadlocking TURN_ACTIVE", async () => {
+    // 1. Standalone terminal tool_call and updates to already-settled foreground tools must not
+    //    fabricate a phantom autonomous turn.
+    const staleToolSession = await setupHarness();
+    await staleToolSession.open(undefined, "s-stale", "full-access");
+    await staleToolSession.prompt("POST_TURN_STALE_TOOL_AND_ORPHAN_ACP", "s-stale");
+    await staleToolSession.wait(
+      (e) =>
+        e.type === "timeline.item" &&
+        e.sessionId === "s-stale" &&
+        e.item.type === "tool_call" &&
+        e.item.id === "late-standalone-tool-1",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    expect(
+      staleToolSession.events.some(
+        (e) =>
+          e.type === "session.turn" && e.sessionId === "s-stale" && e.turnId.startsWith("wakeup-"),
+      ),
+    ).toBe(false);
+    expect(await staleToolSession.canStopRuntime("s-stale")).toBe(true);
+    await staleToolSession.prompt("HELLO", "s-stale");
+
+    // 2. A late orphan ACP chunk with no matching transcript PLANNER_RESPONSE settles after the
+    //    orphan quiet window instead of staying wedged in awaitingPlannerResponse forever.
+    const orphanAcpSession = await setupHarness({ AGY_AUTONOMOUS_ORPHAN_ACP_SETTLE_MS: "120" });
+    await orphanAcpSession.open(undefined, "s-orphan-acp", "full-access");
+    await orphanAcpSession.prompt("POST_TURN_ORPHAN_ACP_CHUNK", "s-orphan-acp");
+    expect(
+      await orphanAcpSession.assistantMessageContaining("LATE_ORPHAN_ACP_TEXT", "s-orphan-acp"),
+    ).toBe("LATE_ORPHAN_ACP_TEXT");
+    await orphanAcpSession.turnCompleted("wakeup-1", "s-orphan-acp");
+    expect(await orphanAcpSession.canStopRuntime("s-orphan-acp")).toBe(true);
+    await orphanAcpSession.prompt("HELLO", "s-orphan-acp");
+
+    // 3. An autonomous wakeup that streamed ACP updates and then stalled in WAITING (status 9)
+    //    in default mode without prompting for permission is still aborted by the stall guard.
+    const acpStallSession = await setupHarness({ AGY_AUTONOMOUS_TOOL_STALL_TIMEOUT_MS: "150" });
+    await acpStallSession.open(undefined, "s-acp-stall", "default");
+    await acpStallSession.prompt("BG_WAKEUP_ACP_STALLED_WAITING", "s-acp-stall");
+    const failedStallTool = await acpStallSession.failedToolCall(
+      "acp-stalled-shell-1",
+      "s-acp-stall",
+    );
+    expect(JSON.stringify(failedStallTool)).toContain("Full access");
+    await acpStallSession.turnCompleted("wakeup-1", "s-acp-stall");
+    expect(await acpStallSession.canStopRuntime("s-acp-stall")).toBe(true);
+    await acpStallSession.prompt("HELLO", "s-acp-stall");
+
+    // 4. Interrupting a turn whose child spawned a detached process inheriting stdio still settles
+    //    promptly instead of hanging forever waiting for Node's `close` event.
+    const detachedSession = await setupHarness({ AGY_TEST_IGNORE_CANCEL: "yes" });
+    await detachedSession.open(undefined, "s-detached", "full-access");
+    const startedAt = Date.now();
+    await detachedSession.sendRequest({
+      type: "session.prompt",
+      sessionId: "s-detached",
+      prompt: {
+        clientMessageId: "detached-hang-prompt",
+        delivery: "auto",
+        input: { type: "message", content: [{ type: "text", text: "HANG_WITH_DETACHED_STDIO" }] },
+      },
+    });
+    await detachedSession.wait(
+      (e) =>
+        e.type === "timeline.item" &&
+        e.sessionId === "s-detached" &&
+        e.item.type === "assistant_message" &&
+        e.item.text.includes("Waiting with detached child"),
+    );
+    const interruptStarted = Date.now();
+    await detachedSession.sendRequest({
+      type: "session.interrupt",
+      requestId: "interrupt-detached",
+      sessionId: "s-detached",
+    });
+    await detachedSession.wait(
+      (e) =>
+        e.type === "session.turn" &&
+        e.sessionId === "s-detached" &&
+        e.turnId === "turn-1" &&
+        e.state === "canceled",
+    );
+    expect(Date.now() - interruptStarted).toBeLessThan(2000);
+    expect(Date.now() - startedAt).toBeLessThan(4000);
+    await detachedSession.prompt("HELLO", "s-detached");
+  });
 });

@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import {
   requireTerminalKeepCapability,
   type DaemonClient,
@@ -14,6 +14,7 @@ export function daemonStopCommand(): Command {
   return addJsonAndDaemonHostOptions(new Command("stop").description("Stop the selected daemon"))
     .option("--timeout <seconds>", "Graceful exit deadline (default: 15)")
     .option("--force", "Permit forced local process cleanup")
+    .addOption(new Option("--app-update").hideHelp())
     .option(
       "--keep-terminals",
       "Leave terminals running; the next daemon started for this home takes them back",
@@ -50,7 +51,11 @@ async function runStop(options: CommandOptions, deps: StopCommandDeps) {
       // Checked on the connection that carries the shutdown: a daemon without the capability
       // would close the terminals it was asked to keep.
       if (keepTerminals) requireTerminalKeepCapability(client, describeDaemonTarget(target));
-      await client.shutdownServer({ timeout: remaining(), keepTerminals });
+      await client.shutdownServer({
+        timeout: remaining(),
+        keepTerminals,
+        ...(options.appUpdate === true ? { reason: "app_update" } : {}),
+      });
     } finally {
       await client.close();
     }

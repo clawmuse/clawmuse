@@ -3089,6 +3089,42 @@ export const ja: TranslationResources = {
         removeErrorMessage: "接続を削除できません",
         timeout: "タイムアウト",
       },
+      relay: {
+        title: "リレーサーバー",
+        nodeTitle: "リレーノード",
+        currentEndpoint: "現在のアドレス: {{endpoint}}",
+        customTitle: "カスタムリレーアドレス",
+        editCustom: "編集",
+        latencyTitle: "ホスト遅延",
+        probeAction: "再計測",
+        probing: "計測中...",
+        probeErrorTitle: "リレー遅延を計測できません",
+        nodes: {
+          guangzhou: "広州",
+          singapore: "シンガポール",
+          custom: "カスタム",
+        },
+        recommendTitle: "{{node}}ノードの方が高速です",
+        recommendDescription:
+          "{{node}}（{{targetLatency}}）は現在のノード（{{currentLatency}}）より低遅延です。",
+        switchTo: "{{node}}に切り替え",
+        confirmTitle: "リレーを{{target}}に切り替えますか？",
+        confirmMessage:
+          "ホストを再起動せず、実行中のエージェントも継続します。同じアカウントでログイン済みのデバイスは自動更新されますが、招待リンクのみでペアリングしたデバイスは再ペアリングが必要です。",
+        confirmAction: "切り替え",
+        switchErrorTitle: "リレーを切り替えられません",
+        switchedNotice: "リレーを {{endpoint}} に切り替えました",
+        lockedTitle: "リレーアドレスは環境変数で固定されています",
+        lockedDescription:
+          "PASEO_RELAY_ENDPOINT または PASEO_RELAY_PUBLIC_ENDPOINT で管理されています。ここで変更するには環境変数を削除してください。",
+        customSheetTitle: "カスタムリレーアドレス",
+        customEndpointLabel: "リレーアドレス（host:port）",
+        customPublicEndpointLabel: "公開アドレス（任意）",
+        customPublicEndpointHint:
+          "空欄にするとリレーアドレスまたは既定の公開エイリアスを使用します。",
+        customPublicEndpointPlaceholder: "リレーアドレスと同じ",
+        customTlsLabel: "TLS を使用（wss://）",
+      },
       pairDevices: {
         title: "デバイスをペアリング",
         rowTitle: "デバイスをペアリング",

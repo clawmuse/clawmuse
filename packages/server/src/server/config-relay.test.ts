@@ -101,6 +101,12 @@ describe("daemon relay config", () => {
     const config = loadConfig(home, { env: { PASEO_RELAY_ENABLED: "true" } });
     expect(config.relayEnabled).toBe(true);
     expect(config.relayEnabledMutable).toBe(false);
+    expect(config.relayEndpointMutable).toBe(true);
+
+    const lockedEndpoint = loadConfig(home, {
+      env: { PASEO_RELAY_ENDPOINT: "custom.example:443" },
+    });
+    expect(lockedEndpoint.relayEndpointMutable).toBe(false);
   });
 
   test("keeps relay off and locked when no endpoint is configured", async () => {

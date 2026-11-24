@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { collectAssets, uploadWithRetry } from "./upload-release-assets.mjs";
-import { assertDraftRelease } from "./cnb/upload-github-draft.mjs";
+import { assertDraftRelease, planPrereleaseAssetAction } from "./cnb/upload-github-draft.mjs";
 import {
   classifyUploadTier,
   planDraftUploads,
@@ -10,7 +10,7 @@ import {
   verifyFinalAssets,
 } from "./cnb/relay-release-upload.mjs";
 
-test("ClawMuse uploads refuse public releases and incorrectly marked stable releases", () => {
+test("ClawMuse uploads refuse public stable releases while allowing additive beta prereleases", () => {
   const stable = { tag: "v1.0.0", prerelease: "false" };
   assert.doesNotThrow(() => assertDraftRelease(undefined, stable));
   assert.doesNotThrow(() => assertDraftRelease({ draft: true, prerelease: false }, stable));
@@ -25,6 +25,55 @@ test("ClawMuse uploads refuse public releases and incorrectly marked stable rele
   assert.throws(
     () => assertDraftRelease(undefined, { ...stable, prerelease: "true" }),
     /Wrong prerelease/,
+  );
+
+  const beta = { tag: "v1.6.1-beta.5", prerelease: "true" };
+  assert.doesNotThrow(() => assertDraftRelease(undefined, beta));
+  assert.doesNotThrow(() => assertDraftRelease({ draft: true, prerelease: true }, beta));
+  assert.doesNotThrow(() => assertDraftRelease({ draft: false, prerelease: true }, beta));
+  assert.throws(
+    () => assertDraftRelease({ draft: false, prerelease: false }, beta),
+    /channel mismatch/,
+  );
+
+  // Published prerelease allows appending new platform assets, skipping identical uploads,
+  // refreshing aggregate SHA256SUMS.txt, and refuses overwriting published binary installers.
+  assert.deepEqual(
+    planPrereleaseAssetAction({
+      filename: "ClawMuse-1.6.1-beta.5-arm64.dmg",
+      size: 190_000_000,
+      existingAssets: [],
+      isPublishedPrerelease: true,
+    }),
+    { action: "upload", deleteIds: [] },
+  );
+  assert.deepEqual(
+    planPrereleaseAssetAction({
+      filename: "ClawMuse-Setup-1.6.1-beta.5-x64.exe",
+      size: 150_000_000,
+      existingAssets: [{ id: 10, state: "uploaded", size: 150_000_000 }],
+      isPublishedPrerelease: true,
+    }),
+    { action: "skip", deleteIds: [] },
+  );
+  assert.deepEqual(
+    planPrereleaseAssetAction({
+      filename: "SHA256SUMS.txt",
+      size: 1800,
+      existingAssets: [{ id: 11, state: "uploaded", size: 900 }],
+      isPublishedPrerelease: true,
+    }),
+    { action: "upload", deleteIds: [11] },
+  );
+  assert.throws(
+    () =>
+      planPrereleaseAssetAction({
+        filename: "ClawMuse-Setup-1.6.1-beta.5-x64.exe",
+        size: 151_000_000,
+        existingAssets: [{ id: 10, state: "uploaded", size: 150_000_000 }],
+        isPublishedPrerelease: true,
+      }),
+    /Refusing to overwrite published prerelease asset/,
   );
 });
 
@@ -153,6 +202,50 @@ test("plans draft uploads by deleting starter/mismatched assets and ordering by 
   assert.equal(classifyUploadTier("beta.yml", 700), 1);
   assert.equal(classifyUploadTier("ClawMuse-1.6.0-beta.1-android.apk", 300_000_000), 2);
   assert.equal(classifyUploadTier("ClawMuse-Setup-1.6.0-beta.1.exe", 290_000_000), 3);
+
+  // Published beta prereleases allow adding new platforms and refreshing SHA256SUMS.txt,
+  // while refusing to replace an already-uploaded binary installer with different bytes.
+  const additive = planDraftUploads({
+    localFiles: [
+      { filename: "ClawMuse-Setup-1.6.1-beta.5-x64.exe", size: 150_000_000 },
+      { filename: "ClawMuse-1.6.1-beta.5-arm64.dmg", size: 190_000_000 },
+      { filename: "SHA256SUMS.txt", size: 1500 },
+    ],
+    remoteAssets: [
+      { id: 10, name: "ClawMuse-Setup-1.6.1-beta.5-x64.exe", size: 150_000_000, state: "uploaded" },
+      { id: 11, name: "SHA256SUMS.txt", size: 800, state: "uploaded" },
+    ],
+    forceNames: new Set(["SHA256SUMS.txt"]),
+    publishedPrerelease: true,
+  });
+  assert.deepEqual(
+    additive.skipped.map((item) => item.filename),
+    ["ClawMuse-Setup-1.6.1-beta.5-x64.exe"],
+  );
+  assert.deepEqual(
+    additive.deleteAssets.map((item) => item.id),
+    [11],
+  );
+  assert.deepEqual(
+    additive.uploads.map((item) => item.filename),
+    ["SHA256SUMS.txt", "ClawMuse-1.6.1-beta.5-arm64.dmg"],
+  );
+  assert.throws(
+    () =>
+      planDraftUploads({
+        localFiles: [{ filename: "ClawMuse-Setup-1.6.1-beta.5-x64.exe", size: 151_000_000 }],
+        remoteAssets: [
+          {
+            id: 10,
+            name: "ClawMuse-Setup-1.6.1-beta.5-x64.exe",
+            size: 150_000_000,
+            state: "uploaded",
+          },
+        ],
+        publishedPrerelease: true,
+      }),
+    /Refusing to overwrite published prerelease asset/,
+  );
 });
 
 test("verifies final GitHub assets require state=uploaded and exact byte sizes", () => {

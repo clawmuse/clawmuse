@@ -466,6 +466,39 @@ export class AccountModel {
   connectLocal = () => this.enqueue(() => this.syncLocalDevice(false), { action: "connectLocal" });
   connectLocalInBackground = () =>
     this.enqueue(() => this.syncLocalDevice(true), { background: true });
+  refreshDeviceRelayOffer = (
+    serverId: string,
+    relay: { endpoint: string; useTls: boolean },
+    options?: { isLocalDaemon?: boolean },
+  ) =>
+    this.enqueue(
+      async () => {
+        if (!this.state.account) return;
+        if (options?.isLocalDaemon) {
+          await this.syncLocalDevice(true);
+          return;
+        }
+        if (serverId === this.cloudHostId) return;
+        if (
+          !relay.useTls ||
+          !brand.relayEndpoints.some((candidate) => candidate === relay.endpoint)
+        )
+          return;
+        const device = this.state.devices.find((entry) => entry.serverId === serverId);
+        if (!device || device.offer.pairing) return;
+        const nextOffer: ConnectionOffer = {
+          ...device.offer,
+          relay: { endpoint: relay.endpoint, useTls: true },
+        };
+        await this.request("/clawmuse/devices", { offer: nextOffer, label: device.label });
+        this.publish({
+          devices: this.state.devices.map((entry) =>
+            entry.serverId === serverId ? { ...entry, offer: nextOffer } : entry,
+          ),
+        });
+      },
+      { background: true },
+    );
   registerDevice = (offer: ConnectionOffer, label: string) =>
     this.enqueue(
       async () => {

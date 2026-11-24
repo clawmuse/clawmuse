@@ -792,23 +792,19 @@ test("Mac signing retains Mach-O binaries and bundles without signing binary res
   }
 });
 
-test("Mac test packaging does not require Apple signing credentials", () => {
+test("Mac packaging signs every build, including betas, with Developer ID", () => {
   const workflow = load(
     readFileSync(new URL(".github/workflows/mac-desktop-release.yml", repoRoot), "utf8"),
   );
   const build = workflow.jobs.build.steps.find((step) => step.name === "构建 macOS 包（arm64）");
   assert.ok(!build.run.includes("macos-signing-env"));
-  assert.match(build.run, /mac-signing\.mjs "\$DESKTOP_VERSION"/);
+  assert.match(build.run, /mac-signing\.mjs\n/);
   const config = load(
     readFileSync(new URL("packages/desktop/electron-builder.yml", repoRoot), "utf8"),
   );
   assert.equal(config.mac.notarize, true);
   assert.equal(config.mac.forceCodeSigning, true);
-  assert.deepEqual(resolveMacSigning({ version: "0.13.0-beta.7", env: {} }), {
-    identity: "-",
-    notarize: false,
-    forceCodeSigning: false,
-  });
+  assert.throws(() => resolveMacSigning({ env: {} }), /Developer ID/);
   assert.ok(config.mac.publish.url.endsWith("/desktop/macos/"));
   for (const file of [config.mac.entitlements, config.mac.entitlementsInherit]) {
     const entitlements = readFileSync(new URL(`packages/desktop/${file}`, repoRoot), "utf8");
@@ -825,12 +821,11 @@ const macReleaseEnv = {
   APPLE_KEYCHAIN_PROFILE: "clawmuse-notary",
 };
 
-test("Mac stable builds require an explicit Developer ID and notarization credentials", () => {
-  assert.throws(() => resolveMacSigning({ version: "0.13.0", env: {} }), /Developer ID/);
+test("Mac builds require an explicit Developer ID and notarization credentials", () => {
+  assert.throws(() => resolveMacSigning({ env: {} }), /Developer ID/);
   assert.throws(
     () =>
       resolveMacSigning({
-        version: "0.13.0",
         env: {
           ...macReleaseEnv,
           APPLE_SIGN_IDENTITY: "Apple Distribution: ClawMuse Test (ABCDEFGHIJ)",
@@ -841,7 +836,6 @@ test("Mac stable builds require an explicit Developer ID and notarization creden
   assert.throws(
     () =>
       resolveMacSigning({
-        version: "0.13.0",
         env: { ...macReleaseEnv, APPLE_TEAM_ID: "WRONGTEAM1" },
       }),
     /APPLE_TEAM_ID/,
@@ -849,12 +843,11 @@ test("Mac stable builds require an explicit Developer ID and notarization creden
   assert.throws(
     () =>
       resolveMacSigning({
-        version: "0.13.0",
         env: { ...macReleaseEnv, APPLE_KEYCHAIN_PROFILE: "" },
       }),
     /notarization credentials/,
   );
-  assert.deepEqual(resolveMacSigning({ version: "0.13.0", env: macReleaseEnv }), {
+  assert.deepEqual(resolveMacSigning({ env: macReleaseEnv }), {
     identity: "ClawMuse Test (ABCDEFGHIJ)",
     forceCodeSigning: true,
     notarize: true,
@@ -871,14 +864,14 @@ test("Mac notarization accepts complete credential sets and rejects incomplete h
     },
   ]) {
     const env = { ...macReleaseEnv, APPLE_KEYCHAIN_PROFILE: "", ...credentials };
-    assert.equal(resolveMacSigning({ version: "0.13.0", env }).notarize, true);
+    assert.equal(resolveMacSigning({ env }).notarize, true);
   }
   for (const credentials of [
     { APPLE_ID: "developer@example.com" },
     { APPLE_API_KEY_ID: "TESTKEY123" },
   ]) {
     assert.throws(
-      () => resolveMacSigning({ version: "0.13.0", env: { ...macReleaseEnv, ...credentials } }),
+      () => resolveMacSigning({ env: { ...macReleaseEnv, ...credentials } }),
       /notarization requires/,
     );
   }
@@ -901,11 +894,10 @@ function macVerificationHarness({ signature, assessment, failTool } = {}) {
   return { calls, run };
 }
 
-test("Mac stable artifact gate requires the matching signed, stapled, Gatekeeper-approved app", () => {
+test("Mac artifact gate requires the matching signed, stapled, Gatekeeper-approved app", () => {
   const harness = macVerificationHarness();
   verifyMacDistribution({
     appPath: "/Applications/ClawMuse.app",
-    version: "0.13.0",
     env: macReleaseEnv,
     run: harness.run,
   });
@@ -929,7 +921,6 @@ test("Mac stable artifact gate requires the matching signed, stapled, Gatekeeper
     assert.throws(() =>
       verifyMacDistribution({
         appPath: "/Applications/ClawMuse.app",
-        version: "0.13.0",
         env: macReleaseEnv,
         run: rejected.run,
       }),
@@ -937,42 +928,37 @@ test("Mac stable artifact gate requires the matching signed, stapled, Gatekeeper
   }
 });
 
-test("Mac beta verification never requires a certificate or invokes Apple tools", () => {
+test("Mac beta verification requires the same Developer ID gate as stable", () => {
   const harness = macVerificationHarness();
-  verifyMacDistribution({
-    appPath: "/Applications/ClawMuse.app",
-    version: "0.13.0-beta.7",
-    env: {},
-    run: harness.run,
-  });
+  assert.throws(
+    () =>
+      verifyMacDistribution({ appPath: "/Applications/ClawMuse.app", env: {}, run: harness.run }),
+    /Developer ID/,
+  );
   assert.deepEqual(harness.calls, []);
 });
 
-test("electron-builder loads signed stable and credential-free beta configurations", () => {
+test("electron-builder loads Developer ID signed beta and stable configurations", () => {
   const script = `
     const assert = require('node:assert/strict');
     Object.defineProperty(process, 'platform', { value: 'darwin' });
-    require(process.cwd() + '/packages/desktop/package.json').version = '0.13.0-beta.7';
-    process.env.CSC_LINK = 'must-not-be-imported';
-    process.env.APPLE_APP_SPECIFIC_PASSWORD = 'must-not-be-used';
     const { getConfig } = require('app-builder-lib/out/util/config/config.js');
-    getConfig(process.cwd() + '/packages/desktop', 'electron-builder.config.cjs').then(async config => {
-      assert.equal(config.mac.identity, '-');
-      assert.equal(config.mac.notarize, false);
-      assert.equal(config.mac.forceCodeSigning, false);
-      assert.equal(config.dmg.sign, false);
-      assert.equal(config.mac.publish.url, 'https://agent-relay.clawmuse.com/updates/desktop/macos/');
-      assert.equal(process.env.CSC_LINK, undefined);
-      assert.equal(process.env.APPLE_APP_SPECIFIC_PASSWORD, undefined);
-      require(process.cwd() + '/packages/desktop/package.json').version = '0.13.0';
+    require(process.cwd() + '/packages/desktop/package.json').version = '0.13.0-beta.7';
+    getConfig(process.cwd() + '/packages/desktop', 'electron-builder.config.cjs').then(
+      () => assert.fail('beta config must require Developer ID'),
+      (error) => assert.match(error.message, /Developer ID/),
+    ).then(async () => {
       Object.assign(process.env, ${JSON.stringify(macReleaseEnv)});
-      const stable = await getConfig(process.cwd() + '/packages/desktop', 'electron-builder.config.cjs');
-      assert.equal(stable.mac.identity, 'ClawMuse Test (ABCDEFGHIJ)');
-      assert.equal(stable.mac.notarize, true);
-      assert.equal(stable.mac.forceCodeSigning, true);
-      assert.equal(typeof stable.mac.sign, 'function');
-      assert.equal(stable.dmg.sign, true);
-      assert.equal(stable.mac.publish.url, config.mac.publish.url);
+      for (const version of ['0.13.0-beta.7', '0.13.0']) {
+        require(process.cwd() + '/packages/desktop/package.json').version = version;
+        const config = await getConfig(process.cwd() + '/packages/desktop', 'electron-builder.config.cjs');
+        assert.equal(config.mac.identity, 'ClawMuse Test (ABCDEFGHIJ)', version);
+        assert.equal(config.mac.notarize, true, version);
+        assert.equal(config.mac.forceCodeSigning, true, version);
+        assert.equal(typeof config.mac.sign, 'function', version);
+        assert.equal(config.dmg.sign, true, version);
+        assert.equal(config.mac.publish.url, 'https://agent-relay.clawmuse.com/updates/desktop/macos/');
+      }
       require(process.cwd() + '/packages/desktop/package.json').version = '1.5.5+1108';
       const dated = await getConfig(process.cwd() + '/packages/desktop', 'electron-builder.config.cjs');
       assert.equal(dated.mac.bundleShortVersion, '1.5.5');

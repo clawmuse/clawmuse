@@ -3108,6 +3108,42 @@ export const ru: TranslationResources = {
         removeErrorMessage: "Не удалось удалить подключение",
         timeout: "Время ожидания истекло",
       },
+      relay: {
+        title: "Сервер ретрансляции",
+        nodeTitle: "Узел ретрансляции",
+        currentEndpoint: "Текущий адрес: {{endpoint}}",
+        customTitle: "Пользовательский адрес",
+        editCustom: "Изменить",
+        latencyTitle: "Задержка хоста",
+        probeAction: "Проверить",
+        probing: "Проверка...",
+        probeErrorTitle: "Не удалось измерить задержку",
+        nodes: {
+          guangzhou: "Гуанчжоу",
+          singapore: "Сингапур",
+          custom: "Свой",
+        },
+        recommendTitle: "Узел {{node}} быстрее для этого хоста",
+        recommendDescription:
+          "{{node}} ({{targetLatency}}) имеет меньшую задержку, чем текущий узел ({{currentLatency}}).",
+        switchTo: "Переключить на {{node}}",
+        confirmTitle: "Переключить ретрансляцию на {{target}}?",
+        confirmMessage:
+          "Запущенные агенты продолжат работу без перезапуска хоста. Устройства с тем же аккаунтом обновятся автоматически; устройства, подключённые только по ссылке-приглашению, потребуется подключить повторно.",
+        confirmAction: "Переключить",
+        switchErrorTitle: "Не удалось переключить ретрансляцию",
+        switchedNotice: "Ретрансляция переключена на {{endpoint}}",
+        lockedTitle: "Адрес ретрансляции заблокирован",
+        lockedDescription:
+          "Задаётся через PASEO_RELAY_ENDPOINT или PASEO_RELAY_PUBLIC_ENDPOINT. Удалите переменную окружения, чтобы изменить адрес здесь.",
+        customSheetTitle: "Пользовательский адрес ретрансляции",
+        customEndpointLabel: "Адрес ретрансляции (host:port)",
+        customPublicEndpointLabel: "Публичный адрес (необязательно)",
+        customPublicEndpointHint:
+          "Оставьте пустым, чтобы использовать адрес ретрансляции или публичный псевдоним по умолчанию.",
+        customPublicEndpointPlaceholder: "Как адрес ретрансляции",
+        customTlsLabel: "Использовать TLS (wss://)",
+      },
       pairDevices: {
         title: "Подключение устройств",
         rowTitle: "Подключить устройство",

@@ -121,7 +121,7 @@ import { applyRecordPatch } from "./record-patch.js";
 import type { WorkspaceGitRuntimeSnapshot, WorkspaceGitService } from "./workspace-git-service.js";
 import type { ProjectUpdate } from "./workspace-reconciliation-service.js";
 import {
-  CLIENT_SHUTDOWN_RPC_REASON,
+  normalizeClientShutdownRpcReason,
   normalizeClientRestartRpcReason,
 } from "./lifecycle-reasons.js";
 import { DirectorySyncService } from "./directory-sync/index.js";
@@ -3279,7 +3279,7 @@ export class Session {
           keepTerminals: msg.killTerminals !== true,
         });
       case "shutdown_server_request":
-        return this.handleShutdownServerRequest(msg.requestId, {
+        return this.handleShutdownServerRequest(msg.requestId, msg.reason, {
           keepTerminals: msg.keepTerminals === true,
         });
       case "client_heartbeat":
@@ -3522,6 +3522,8 @@ export class Session {
         return this.daemonSession.handleGetPairingOfferRequest(msg);
       case "daemon.config.reload.request":
         return this.daemonSession.handleConfigReloadRequest(msg);
+      case "daemon.relay.probe.request":
+        return this.daemonSession.handleProbeRelayRequest(msg);
       case "hub.management.daemon.connect.request":
       case "hub.management.daemon.get_status.request":
       case "hub.management.daemon.disconnect.request":
@@ -3914,9 +3916,10 @@ export class Session {
 
   private async handleShutdownServerRequest(
     requestId: string,
+    requestedReason: string | undefined,
     options: { keepTerminals: boolean },
   ): Promise<void> {
-    const reason = CLIENT_SHUTDOWN_RPC_REASON;
+    const reason = normalizeClientShutdownRpcReason(requestedReason);
     this.sessionLogger.warn(
       { reason, keepTerminals: options.keepTerminals },
       "Shutdown requested via websocket",

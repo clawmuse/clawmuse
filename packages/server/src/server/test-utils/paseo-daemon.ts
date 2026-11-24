@@ -18,6 +18,7 @@ import type { AgentProfile } from "@getpaseo/protocol/messages";
 interface TestPaseoDaemonOptions {
   daemonVersion?: string;
   desktopManaged?: boolean;
+  onLifecycleIntent?: PaseoDaemonConfig["onLifecycleIntent"];
   downloadTokenTtlMs?: number;
   corsAllowedOrigins?: string[];
   listen?: string;
@@ -231,6 +232,7 @@ async function prepareTestDaemonConfig(
     autoArchiveAfterMerge: options.autoArchiveAfterMerge,
     resumeOnStartup: options.resumeOnStartup,
     resumePrompt: options.resumePrompt,
+    onLifecycleIntent: options.onLifecycleIntent,
     pluginsEnabled: options.pluginsEnabled,
     plugins: options.plugins,
     pluginRegistryUrl: options.pluginRegistryUrl,

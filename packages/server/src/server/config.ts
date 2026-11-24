@@ -278,6 +278,7 @@ interface ResolveRelayInput {
 interface ResolvedRelay {
   enabled: boolean;
   enabledMutable: boolean;
+  endpointMutable: boolean;
   requireProtectedSecurity: boolean;
   endpoint: string;
   publicEndpoint: string;
@@ -346,6 +347,9 @@ function resolveRelayConfig(input: ResolveRelayInput): ResolvedRelay {
     enabled,
     enabledMutable:
       hasEndpoint && input.cliRelayEnabled === undefined && environmentEnabled === undefined,
+    endpointMutable:
+      input.env.PASEO_RELAY_ENDPOINT === undefined &&
+      input.env.PASEO_RELAY_PUBLIC_ENDPOINT === undefined,
     requireProtectedSecurity: input.persisted.daemon?.relay?.requireProtectedSecurity ?? false,
     endpoint,
     publicEndpoint,
@@ -631,6 +635,11 @@ export type ResolvedDaemonSettings = Pick<
   | "pluginsEnabled"
   | "plugins"
   | "relayEnabled"
+  | "relayEndpointMutable"
+  | "relayEndpoint"
+  | "relayPublicEndpoint"
+  | "relayUseTls"
+  | "relayPublicUseTls"
   | "relayRequireProtectedSecurity"
   | "appBaseUrl"
   | "idleRuntimeCleanup"
@@ -674,6 +683,7 @@ export function resolveConfigFromPersisted(
     staticDir: "public",
     agentClients: {},
     relayEnabledMutable: relay.enabledMutable,
+    relayEndpointMutable: relay.endpointMutable,
     relayAutoSelect: shouldSelectRegionalRelay(env, persisted, relay),
     relayEndpoint: relay.endpoint,
     relayPublicEndpoint: relay.publicEndpoint,
@@ -723,6 +733,11 @@ export function resolveReloadableConfig(
     usageMonitoring: persisted.usageMonitoring,
     plugins: persisted.plugins,
     relayEnabled: relay.enabled,
+    relayEndpointMutable: relay.endpointMutable,
+    relayEndpoint: relay.endpoint,
+    relayPublicEndpoint: relay.publicEndpoint,
+    relayUseTls: relay.useTls,
+    relayPublicUseTls: relay.publicUseTls,
     relayRequireProtectedSecurity: relay.requireProtectedSecurity,
     idleRuntimeCleanup: persisted.agents?.idleRuntimeCleanup ?? true,
     ...resolveRestartRecoveryConfig(persisted.agents),
@@ -879,7 +894,7 @@ function resolveSpeechOverrideControlledPaths(
 
 function resolveRestartRecoveryConfig(agents: PersistedConfig["agents"]) {
   return {
-    resumeOnStartup: agents?.resumeOnStartup ?? false,
+    resumeOnStartup: agents?.resumeOnStartup ?? true,
     resumePrompt: agents?.resumePrompt ?? "Resume working.",
   };
 }

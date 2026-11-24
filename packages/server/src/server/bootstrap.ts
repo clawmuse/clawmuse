@@ -453,6 +453,7 @@ export interface PaseoDaemonConfig {
   agentStoragePath: string;
   relayEnabled?: boolean;
   relayEnabledMutable?: boolean;
+  relayEndpointMutable?: boolean;
   relayRequireProtectedSecurity?: boolean;
   relayAutoSelect?: boolean;
   relayEndpoint?: string;
@@ -518,7 +519,7 @@ export interface PaseoDaemon {
   browserToolsBroker: BrowserToolsBroker;
   start(): Promise<void>;
   /** Stops the daemon. Terminals keep running for the next daemon only with keepTerminals. */
-  stop(options?: { keepTerminals?: boolean }): Promise<void>;
+  stop(options?: { keepTerminals?: boolean; reason?: string }): Promise<void>;
   getListenTarget(): ListenTarget | null;
   getServerId(): string;
 }
@@ -581,9 +582,19 @@ function resolveExpressTrustProxySetting(config: PaseoDaemonConfig): true | stri
 }
 
 function createInitialRelayConfig(config: ResolvedDaemonSettings): MutableDaemonConfig["relay"] {
+  const endpoint = config.relayEndpoint ?? brand.relayEndpoint;
+  const publicEndpoint = config.relayPublicEndpoint ?? endpoint;
+  const useTls =
+    config.relayUseTls ?? brand.relayEndpoints.some((candidate) => candidate === endpoint);
+  const publicUseTls = config.relayPublicUseTls ?? useTls;
   return {
     enabled: config.relayEnabled ?? true,
     requireProtectedSecurity: config.relayRequireProtectedSecurity ?? false,
+    endpoint,
+    publicEndpoint,
+    useTls,
+    publicUseTls,
+    endpointMutable: config.relayEndpointMutable ?? true,
   };
 }
 
@@ -618,7 +629,7 @@ function createInitialMutableDaemonConfig(config: ResolvedDaemonSettings): Mutab
     autoArchiveAfterMerge: config.autoArchiveAfterMerge ?? false,
     enableTerminalAgentHooks: config.enableTerminalAgentHooks ?? false,
     idleRuntimeCleanup: config.idleRuntimeCleanup !== false,
-    resumeOnStartup: config.resumeOnStartup === true,
+    resumeOnStartup: config.resumeOnStartup ?? true,
     resumePrompt: config.resumePrompt ?? "Resume working.",
     appendSystemPrompt: config.appendSystemPrompt ?? "",
     pluginsEnabled: resolvePluginsEnabled(config),
@@ -663,29 +674,12 @@ export async function createPaseoDaemon(
     speechConfig: config.speech,
   });
   logger.info({ elapsed: elapsed() }, "Speech service created");
-  const daemonConfigStore = new DaemonConfigStore(config.paseoHome, initialMutableConfig, logger, {
-    speechEnv: config.configReload?.env,
-    relayEnabledMutable: config.relayEnabledMutable ?? true,
-    startupPersisted: config.configReload?.startupPersisted,
-    speech: createSpeechSettingsOwner({
-      paseoHome: config.paseoHome,
-      env: resolveReloadEnv(config),
-      speechService,
-    }),
-    reloadSource: {
-      resolve: (persisted) => {
-        const reloaded = resolveReloadableConfig(persisted, {
-          env: resolveReloadEnv(config),
-          cli: config.configReload?.cli,
-          relayEnabledFallback: config.configReload?.relayEnabledFallback,
-        });
-        return {
-          mutable: createInitialMutableDaemonConfig(reloaded),
-          overrideControlledPaths: reloaded.overrideControlledPaths,
-        };
-      },
-    },
-  });
+  const daemonConfigStore = new DaemonConfigStore(
+    config.paseoHome,
+    initialMutableConfig,
+    logger,
+    createDaemonConfigStoreOptions(config, speechService),
+  );
   const orchestrationSkills = createOrchestrationSkills(daemonConfigStore);
   void orchestrationSkills.autoUpdate().catch((error) => {
     logger.error({ err: error }, "Failed to maintain orchestration skills at startup");
@@ -2026,9 +2020,7 @@ export async function createPaseoDaemon(
                 ),
               serverId,
             });
-            daemonConfigStore.onFieldChange("relay.enabled", (value) => {
-              relayRuntime?.setEnabled(value === true);
-            });
+            connectRelayRuntimeConfig(daemonConfigStore, relayRuntime);
             await hubRelationships.start();
           };
 
@@ -2067,7 +2059,7 @@ export async function createPaseoDaemon(
     }
   };
 
-  const stop = async (options?: { keepTerminals?: boolean }) => {
+  const stop: PaseoDaemon["stop"] = async (options) => {
     const keepTerminals = options?.keepTerminals === true;
     let terminalShutdownError: unknown = null;
     localCredential = null;
@@ -2089,7 +2081,9 @@ export async function createPaseoDaemon(
     await wsServer?.agentMessages.close();
     agentManager.prepareForShutdown();
     await restartRecovery.captureRunningAgents();
-    await closeAllAgents(logger, agentManager);
+    const interruptedByUpdate =
+      options?.reason === "app_update" || options?.reason === "daemon_update";
+    await closeAllAgents(logger, agentManager, interruptedByUpdate);
     await withTimeout({
       promise: pluginRuntime.drainEvents(),
       timeoutMs: AGENT_CLOSE_TIMEOUT_MS,
@@ -2164,13 +2158,17 @@ export async function createPaseoDaemon(
  */
 const AGENT_CLOSE_TIMEOUT_MS = 5_000;
 
-async function closeAllAgents(logger: Logger, agentManager: AgentManager): Promise<void> {
+async function closeAllAgents(
+  logger: Logger,
+  agentManager: AgentManager,
+  interruptedByUpdate: boolean,
+): Promise<void> {
   const agents = agentManager.listAgents({ includeInternal: true });
   await Promise.all(
     agents.map(async (agent) => {
       try {
         await withTimeout({
-          promise: agentManager.closeAgent(agent.id),
+          promise: agentManager.closeAgent(agent.id, { interruptedByUpdate }),
           timeoutMs: AGENT_CLOSE_TIMEOUT_MS,
           label: `close agent ${agent.id}`,
         });
@@ -2187,4 +2185,50 @@ export function connectIdleRuntimeCleanupConfig(
 ): () => void {
   cleanup.setEnabled(store.get().idleRuntimeCleanup !== false);
   return store.onFieldChange("idleRuntimeCleanup", (value) => cleanup.setEnabled(value !== false));
+}
+
+function connectRelayRuntimeConfig(store: DaemonConfigStore, runtime: RelayRuntime): () => void {
+  return store.onApply((next) => {
+    const previous = runtime.getConfig();
+    runtime.reconfigure({
+      enabled: next.relay?.enabled ?? previous.enabled,
+      endpoint: next.relay?.endpoint ?? previous.endpoint,
+      publicEndpoint: next.relay?.publicEndpoint ?? previous.publicEndpoint,
+      useTls: next.relay?.useTls ?? previous.useTls,
+      publicUseTls: next.relay?.publicUseTls ?? previous.publicUseTls,
+    });
+    return () => {
+      runtime.reconfigure(previous);
+    };
+  });
+}
+
+function createDaemonConfigStoreOptions(
+  config: PaseoDaemonConfig,
+  speechService: ReturnType<typeof createSpeechService>,
+): ConstructorParameters<typeof DaemonConfigStore>[3] {
+  return {
+    speechEnv: config.configReload?.env,
+    relayEnabledMutable: config.relayEnabledMutable ?? true,
+    relayEndpointMutable: config.relayEndpointMutable ?? true,
+    startupPersisted: config.configReload?.startupPersisted,
+    speech: createSpeechSettingsOwner({
+      paseoHome: config.paseoHome,
+      env: resolveReloadEnv(config),
+      speechService,
+    }),
+    reloadSource: {
+      resolve: (persisted) => {
+        const reloaded = resolveReloadableConfig(persisted, {
+          env: resolveReloadEnv(config),
+          cli: config.configReload?.cli,
+          relayEnabledFallback: config.configReload?.relayEnabledFallback,
+        });
+        return {
+          mutable: createInitialMutableDaemonConfig(reloaded),
+          overrideControlledPaths: reloaded.overrideControlledPaths,
+        };
+      },
+    },
+  };
 }

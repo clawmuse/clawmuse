@@ -14,6 +14,7 @@ import { useProviderIcon, type ProviderIconComponent } from "@/components/provid
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-badge";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { useCompactTimeAgo } from "@/hooks/use-time-ago";
 import { formatErrorMessage } from "@/utils/error-messages";
 import type { Theme } from "@/styles/theme";
@@ -57,7 +58,7 @@ const BADGE_SPINNER = <ThemedBadgeSpinner size={12} />;
 
 function AgentRelativeTime({ date }: { date: Date }) {
   const label = useCompactTimeAgo(date);
-  return <Text style={styles.metaText}>{label}</Text>;
+  return <Text style={[styles.metaText, styles.metaNoShrink]}>{label}</Text>;
 }
 
 function resolveBadge(
@@ -166,6 +167,33 @@ function resolveReviewReasonText(item: ArchiveRowItem, t: TFunction): string | n
   return phase === "failed" ? formatErrorMessage(reason) : reason;
 }
 
+function resolveWorkspaceOutcomeNote(
+  item: ArchiveRowItem,
+  t: TFunction,
+): { text: string; variant: "muted" | "warning" | "error" } | null {
+  if (item.entry.phase !== "archived") return null;
+  switch (item.entry.workspaceOutcome) {
+    case "archived":
+      return { text: t("aiArchive.workspaceOutcome.archived"), variant: "muted" };
+    case "kept_dirty_worktree":
+      return { text: t("aiArchive.workspaceOutcome.keptDirtyWorktree"), variant: "warning" };
+    case "kept_running_scripts":
+      return { text: t("aiArchive.workspaceOutcome.keptRunningScripts"), variant: "warning" };
+    case "kept_terminals":
+      return { text: t("aiArchive.workspaceOutcome.keptTerminals"), variant: "warning" };
+    case "failed":
+      return { text: t("aiArchive.workspaceOutcome.failed"), variant: "error" };
+    default:
+      return null;
+  }
+}
+
+function resolveWorkspaceOutcomeStyle(variant: "muted" | "warning" | "error") {
+  if (variant === "error") return styles.errorNote;
+  if (variant === "warning") return styles.warningNote;
+  return styles.provenance;
+}
+
 function LiveConditionNotes({ item }: { item: ArchiveRowItem }) {
   const { t } = useTranslation();
   const pendingCount = item.agent.pendingPermissionCount ?? 0;
@@ -236,9 +264,11 @@ function ConversationPreviewBox({
 function AgentRowMetaLine({
   item,
   showHostLabel,
+  compactDesktop = false,
 }: {
   item: ArchiveRowItem;
   showHostLabel: boolean;
+  compactDesktop?: boolean;
 }) {
   const locationText = useMemo(() => formatWorkspaceLocation(item), [item]);
   const modelLabel = item.meta.model
@@ -246,18 +276,22 @@ function AgentRowMetaLine({
     : item.agent.provider;
 
   return (
-    <View style={styles.metaLine}>
+    <View style={compactDesktop ? styles.metaLineDesktop : styles.metaLine}>
       {showHostLabel ? (
         <>
-          <Text style={styles.metaStrong}>{item.agent.serverLabel}</Text>
+          <Text style={styles.metaStrong} numberOfLines={1}>
+            {item.agent.serverLabel}
+          </Text>
           <Text style={styles.metaDot}>·</Text>
         </>
       ) : null}
-      <Text style={styles.metaText} numberOfLines={1}>
+      <Text style={[styles.metaText, styles.metaEllipsis]} numberOfLines={1}>
         {locationText}
       </Text>
       <Text style={styles.metaDot}>·</Text>
-      <Text style={styles.metaText}>{modelLabel}</Text>
+      <Text style={[styles.metaText, styles.metaEllipsis]} numberOfLines={1}>
+        {modelLabel}
+      </Text>
       <Text style={styles.metaDot}>·</Text>
       <AgentRelativeTime date={item.agent.lastActivityAt} />
     </View>
@@ -271,6 +305,7 @@ function AgentRowActions({
   hostBusy,
   canCheckAi,
   canArchive,
+  inline = false,
   onToggleDetails,
   onOpen,
   onCheck,
@@ -282,6 +317,7 @@ function AgentRowActions({
   hostBusy: boolean;
   canCheckAi: boolean;
   canArchive: boolean;
+  inline?: boolean;
   onToggleDetails: () => void;
   onOpen: () => void;
   onCheck: () => void;
@@ -296,7 +332,7 @@ function AgentRowActions({
   const hasCheckedOnce = item.entry.phase !== "idle";
 
   return (
-    <View style={styles.rowActions}>
+    <View style={inline ? styles.rowActionsInline : styles.rowActions}>
       {hasPreview ? (
         <Button
           variant="ghost"
@@ -308,7 +344,7 @@ function AgentRowActions({
           {t(detailsOpen ? "aiArchive.hideDetails" : "aiArchive.showDetails")}
         </Button>
       ) : null}
-      <View style={styles.actionSpacer} />
+      {!inline ? <View style={styles.actionSpacer} /> : null}
       <Button
         variant="ghost"
         size="sm"
@@ -369,12 +405,14 @@ export function AgentArchiveRow({
   onOpen,
 }: AgentArchiveRowProps) {
   const { t } = useTranslation();
+  const isCompact = useIsCompactFormFactor();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const ProviderIcon = useProviderIcon(item.agent.provider, item.agent.serverId);
 
   const badge = resolveBadge(item, t);
   const reasonText = resolveReviewReasonText(item, t);
   const provenanceText = formatProvenance(item, t);
+  const workspaceOutcomeNote = resolveWorkspaceOutcomeNote(item, t);
   const hasPreview = Boolean(
     item.entry.review?.latestUserMessage || item.entry.review?.latestReply,
   );
@@ -385,29 +423,30 @@ export function AgentArchiveRow({
   const handleArchive = useCallback(() => onArchive(item), [item, onArchive]);
   const toggleDetails = useCallback(() => setDetailsOpen((open) => !open), []);
 
-  return (
-    <View style={styles.row} testID={`ai-archive-row-${item.agent.id}`}>
-      <View style={styles.rowHeader}>
-        <View style={styles.titleWrap}>
-          <ThemedProviderIcon Icon={ProviderIcon} />
-          <Text style={styles.title} numberOfLines={2}>
-            {item.agent.title || item.agent.id}
-          </Text>
-        </View>
-        <StatusBadge
-          label={badge.label}
-          variant={badge.variant}
-          leading={badge.spinner ? BADGE_SPINNER : undefined}
-        />
-      </View>
+  const badgeNode = (
+    <StatusBadge
+      label={badge.label}
+      variant={badge.variant}
+      leading={badge.spinner ? BADGE_SPINNER : undefined}
+    />
+  );
 
-      <AgentRowMetaLine item={item} showHostLabel={showHostLabel} />
-
+  const detailsNode = (
+    <>
       {!isArchived ? <LiveConditionNotes item={item} /> : null}
 
       {reasonText ? (
         <Text style={item.entry.phase === "failed" ? styles.errorReason : styles.reason}>
           {reasonText}
+        </Text>
+      ) : null}
+
+      {workspaceOutcomeNote ? (
+        <Text
+          style={resolveWorkspaceOutcomeStyle(workspaceOutcomeNote.variant)}
+          testID={`ai-archive-workspace-outcome-${item.agent.id}`}
+        >
+          {workspaceOutcomeNote.text}
         </Text>
       ) : null}
 
@@ -419,6 +458,59 @@ export function AgentArchiveRow({
           latestReply={item.entry.review?.latestReply}
         />
       ) : null}
+    </>
+  );
+
+  if (!isCompact) {
+    return (
+      <View style={[styles.row, styles.rowDesktop]} testID={`ai-archive-row-${item.agent.id}`}>
+        <View style={styles.desktopMainRow}>
+          <View style={styles.desktopInfo}>
+            <View style={styles.titleWrap}>
+              <ThemedProviderIcon Icon={ProviderIcon} />
+              <Text style={styles.title} numberOfLines={1}>
+                {item.agent.title || item.agent.id}
+              </Text>
+            </View>
+            <AgentRowMetaLine item={item} showHostLabel={showHostLabel} compactDesktop />
+          </View>
+          <View style={styles.desktopTrailing}>
+            {badgeNode}
+            <AgentRowActions
+              item={item}
+              hasPreview={hasPreview}
+              detailsOpen={detailsOpen}
+              hostBusy={hostBusy}
+              canCheckAi={canCheckAi}
+              canArchive={canArchive}
+              inline
+              onToggleDetails={toggleDetails}
+              onOpen={handleOpen}
+              onCheck={handleCheck}
+              onArchive={handleArchive}
+            />
+          </View>
+        </View>
+        {detailsNode}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.row} testID={`ai-archive-row-${item.agent.id}`}>
+      <View style={styles.rowHeader}>
+        <View style={styles.titleWrap}>
+          <ThemedProviderIcon Icon={ProviderIcon} />
+          <Text style={styles.title} numberOfLines={2}>
+            {item.agent.title || item.agent.id}
+          </Text>
+        </View>
+        {badgeNode}
+      </View>
+
+      <AgentRowMetaLine item={item} showHostLabel={showHostLabel} />
+
+      {detailsNode}
 
       <AgentRowActions
         item={item}
@@ -444,6 +536,28 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
+  },
+  rowDesktop: {
+    gap: theme.spacing[1.5],
+    paddingHorizontal: theme.spacing[3.5],
+    paddingVertical: theme.spacing[2],
+  },
+  desktopMainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[3],
+  },
+  desktopInfo: {
+    flex: 1,
+    minWidth: 0,
+    gap: theme.spacing[0.5],
+  },
+  desktopTrailing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    flexShrink: 0,
   },
   rowHeader: {
     flexDirection: "row",
@@ -471,19 +585,34 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[1.5],
   },
+  metaLineDesktop: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+    minWidth: 0,
+  },
   metaStrong: {
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
     color: theme.colors.foregroundMuted,
+    flexShrink: 0,
   },
   metaText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.foregroundMuted,
     flexShrink: 1,
   },
+  metaEllipsis: {
+    minWidth: 0,
+  },
+  metaNoShrink: {
+    flexShrink: 0,
+  },
   metaDot: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.foregroundMuted,
+    flexShrink: 0,
   },
   liveNotes: {
     gap: theme.spacing[1],
@@ -532,6 +661,12 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[1.5],
     paddingTop: theme.spacing[1],
+  },
+  rowActionsInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+    flexShrink: 0,
   },
   actionSpacer: {
     flex: 1,

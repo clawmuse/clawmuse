@@ -47,6 +47,7 @@ import type {
   AgentSlashCommand,
   AgentStreamEvent,
   AgentTimelineItem,
+  AgentUsageSession,
   FetchCatalogOptions,
   ImportableProviderSession,
   ImportedProviderSession,
@@ -968,7 +969,10 @@ class PluginAgentClient implements AgentClient {
 
   readonly getCatalogCacheKey?: AgentClient["getCatalogCacheKey"];
 
-  constructor(registration: ProviderRegistration, runtimeSettings?: ProviderRuntimeSettings) {
+  constructor(
+    registration: ProviderRegistration,
+    private readonly runtimeSettings?: ProviderRuntimeSettings,
+  ) {
     this.provider = registration.id;
     this.runtime = new ProviderRuntime(registration, runtimeSettings);
     if (registration.getCatalogCacheKey)
@@ -1119,6 +1123,10 @@ class PluginAgentClient implements AgentClient {
       this.attachPendingChildren();
     };
     const config = mapSessionConfig(input.config, input.launchContext, input.persist);
+    const harnessEnvironment = createProviderEnv({
+      runtimeSettings: this.runtimeSettings,
+      overlays: [input.launchContext?.env],
+    });
     const session = new PluginAgentSession(
       this.provider,
       bridge,
@@ -1141,6 +1149,8 @@ class PluginAgentClient implements AgentClient {
       },
       bind,
       config.settings,
+      harnessEnvironment,
+      config.model,
     );
     bind(bridge);
     return session;
@@ -1219,6 +1229,7 @@ class PluginAgentSession implements AgentSession {
   private readonly committedOptions: Record<string, JsonValue>;
   /** While `applyOptions` waits on the plugin, its `session.config` answers that call. */
   private applyingOptions = false;
+  private readonly usageSessionKey = randomUUID();
   private currentTurnId: string | null = null;
   private closed = false;
   private replay: {
@@ -1241,6 +1252,8 @@ class PluginAgentSession implements AgentSession {
     ) => Promise<ProviderRuntimeSession>,
     private readonly onBind: (bridge: ProviderRuntimeSession) => void,
     givenOptions: Readonly<Record<string, JsonValue>>,
+    private readonly harnessEnvironment: Record<string, string>,
+    private readonly initialModel?: string,
   ) {
     this.subagentIdsBySession.set(bridge.id, null);
     // Every setting the session opened with that was not given, including ones nobody set.
@@ -1258,6 +1271,16 @@ class PluginAgentSession implements AgentSession {
 
   get id(): string {
     return this.describePersistence()?.sessionId ?? this.bridge.id;
+  }
+
+  usageSession(): AgentUsageSession | null {
+    if (this.closed) return null;
+    return {
+      provider: this.provider,
+      model: this.bridge.config.model ?? this.initialModel,
+      env: this.harnessEnvironment,
+      sessionKey: this.usageSessionKey,
+    };
   }
 
   get capabilities(): AgentCapabilityFlags {

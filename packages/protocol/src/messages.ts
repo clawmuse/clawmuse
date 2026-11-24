@@ -275,6 +275,12 @@ const MutableRelayConfigSchema = z
     // COMPAT(relayProtectedSecurity): added in v0.13.0, keep optional while old daemons are supported.
     // When true the daemon admits only relay sessions that negotiated protected endpoint security.
     requireProtectedSecurity: z.boolean().optional(),
+    // COMPAT(relayEndpointConfig): added in v1.6.1, keep optional while old daemons are supported.
+    endpoint: z.string().optional(),
+    publicEndpoint: z.string().optional(),
+    useTls: z.boolean().optional(),
+    publicUseTls: z.boolean().optional(),
+    endpointMutable: z.boolean().optional(),
   })
   .passthrough();
 
@@ -1727,6 +1733,11 @@ export const DaemonConfigReloadRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const DaemonRelayProbeRequestSchema = z.object({
+  type: z.literal("daemon.relay.probe.request"),
+  requestId: z.string(),
+});
+
 export const ClawMuseStatusGetRequestSchema = z.object({
   type: z.literal("clawmuse.status.get.request"),
   requestId: z.string(),
@@ -2229,6 +2240,7 @@ export const RestartServerRequestMessageSchema = z.object({
 export const ShutdownServerRequestMessageSchema = z.object({
   type: z.literal("shutdown_server_request"),
   requestId: z.string(),
+  reason: z.string().optional(),
   // Shutdown closes terminals unless this is true. Gate on
   // `features.terminalsSurviveRestart`: older daemons drop the field.
   keepTerminals: z.boolean().optional(),
@@ -3799,6 +3811,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   DaemonGetStatusRequestSchema,
   DaemonGetPairingOfferRequestSchema,
   DaemonConfigReloadRequestSchema,
+  DaemonRelayProbeRequestSchema,
   ClawMuseStatusGetRequestSchema,
   ClawMuseStatusCreateMobileEnrollmentRequestSchema,
   GoalsListRequestSchema,
@@ -4340,6 +4353,8 @@ export const ServerInfoStatusPayloadSchema = z
         daemonSelfUpdate: z.boolean().optional(),
         // COMPAT(terminalsSurviveRestart): added in v0.12.0, remove gate after 2027-04-21.
         terminalsSurviveRestart: z.boolean().optional(),
+        // COMPAT(relayEndpointConfig): added in v1.6.1, remove gate after 2027-05-24.
+        relayEndpointConfig: z.boolean().optional(),
         // COMPAT(agentForkContext): added in v0.1.102, remove gate after 2026-12-28.
         agentForkContext: z.boolean().optional(),
         // COMPAT(agentForkContextCursor): added in v0.1.108, remove gate after 2027-01-14.
@@ -5896,6 +5911,26 @@ export const DaemonConfigReloadResponseSchema = z.object({
       appliedPaths: z.array(z.string()),
       restartRequiredPaths: z.array(z.string()),
       overrideControlledPaths: z.array(z.string()),
+    })
+    .passthrough(),
+});
+
+export const DaemonRelayProbeEntrySchema = z
+  .object({
+    endpoint: z.string(),
+    publicEndpoint: z.string(),
+    ok: z.boolean(),
+    ms: z.number().nullable(),
+  })
+  .passthrough();
+
+export const DaemonRelayProbeResponseSchema = z.object({
+  type: z.literal("daemon.relay.probe.response"),
+  payload: z
+    .object({
+      requestId: z.string(),
+      selected: z.string(),
+      probes: z.array(DaemonRelayProbeEntrySchema),
     })
     .passthrough(),
 });
@@ -7932,6 +7967,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   DaemonGetStatusResponseSchema,
   DaemonGetPairingOfferResponseSchema,
   DaemonConfigReloadResponseSchema,
+  DaemonRelayProbeResponseSchema,
   ClawMuseStatusGetResponseSchema,
   ClawMuseStatusCreateMobileEnrollmentResponseSchema,
   GoalsListResponseSchema,
@@ -8211,6 +8247,7 @@ export type ListAvailableProvidersResponse = z.infer<typeof ListAvailableProvide
 export type DaemonGetStatusResponse = z.infer<typeof DaemonGetStatusResponseSchema>;
 export type DaemonGetPairingOfferResponse = z.infer<typeof DaemonGetPairingOfferResponseSchema>;
 export type DaemonConfigReloadResponse = z.infer<typeof DaemonConfigReloadResponseSchema>;
+export type DaemonRelayProbeResponse = z.infer<typeof DaemonRelayProbeResponseSchema>;
 export type ClawMuseStatusGetResponse = z.infer<typeof ClawMuseStatusGetResponseSchema>;
 export type ClawMuseStatusCreateMobileEnrollmentResponse = z.infer<
   typeof ClawMuseStatusCreateMobileEnrollmentResponseSchema

@@ -19,6 +19,9 @@ const daemon = await createTestPaseoDaemon({
   logger: pino({ level: "warn" }, pino.destination(join(root, "fixture.log"))),
   cleanup: false,
   mcpEnabled: true,
+  onLifecycleIntent: (intent) => {
+    if (intent.type === "shutdown") void stop(intent.reason);
+  },
   agentClients: createTestAgentClients({
     onStartTurn: (prompt, config) => {
       void appendFile(join(root, "all-prompts.jsonl"), `${JSON.stringify({ prompt, config })}\n`);
@@ -31,17 +34,18 @@ const daemon = await createTestPaseoDaemon({
       String(prompt).includes("HOLD_CHILD") ? held.promise : Promise.resolve(),
   }),
 });
+async function stop(reason?: string): Promise<void> {
+  try {
+    await daemon.daemon.stop({ reason });
+    process.exit(0);
+  } catch (error) {
+    console.error(error);
+    process.exit(1);
+  }
+}
 process.send({ port: daemon.port, paseoHome: daemon.paseoHome, cwd: daemon.staticDir });
 process.on("message", (message) => {
   if (message === "finish") held.resolve();
   if (message === "release-resume") resumeReleased.resolve();
-  if (message === "stop") {
-    void daemon.close().then(
-      () => process.exit(0),
-      (error) => {
-        console.error(error);
-        process.exit(1);
-      },
-    );
-  }
+  if (message === "stop") void stop();
 });

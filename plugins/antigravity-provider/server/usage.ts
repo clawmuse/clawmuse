@@ -17,10 +17,15 @@ import { accountLocatorKey, resolveAntigravityDataDir } from "./internal/data-di
 
 const USAGE_TIMEOUT_MS = 18_000;
 
+const modelGroupSchema = z.enum(["gemini", "third-party"]);
+type AntigravityModelGroup = z.infer<typeof modelGroupSchema>;
+
 const inputSchema = z
   .object({
     locatorId: z.string().min(1),
     dataDir: z.string().min(1),
+    scopeKind: z.enum(["global", "session"]).optional(),
+    modelGroup: modelGroupSchema.optional(),
   })
   .strict();
 
@@ -146,16 +151,22 @@ export class Usage {
           });
         }
 
+        const modelGroup = scope.kind === "session" ? inferModelGroup(scope.model) : undefined;
         return [
           {
             key: locatorId,
             harness: "Antigravity",
-            input: { locatorId, dataDir },
+            input: {
+              locatorId,
+              dataDir,
+              ...(scope.kind === "session" ? { scopeKind: "session" as const } : {}),
+              ...(modelGroup ? { modelGroup } : {}),
+            },
           },
         ];
       },
       fetch: async (rawInput) => {
-        const { locatorId, dataDir } = inputSchema.parse(rawInput);
+        const { locatorId, dataDir, scopeKind, modelGroup } = inputSchema.parse(rawInput);
         const launch = this.resolveLaunch(locatorId, dataDir);
         const env: NodeJS.ProcessEnv = {
           ...launch.env,
@@ -184,7 +195,10 @@ export class Usage {
           return classifyUsageFailure(usageResult.reason);
         }
 
-        const parsedUsage = parseUsageStdout(usageResult.value.stdout, usageResult.value.stderr);
+        const parsedUsage = parseUsageStdout(usageResult.value.stdout, usageResult.value.stderr, {
+          scopeKind,
+          modelGroup,
+        });
         if ("report" in parsedUsage) {
           return parsedUsage.report;
         }
@@ -285,9 +299,15 @@ async function isExecutableOrFile(candidate: string): Promise<boolean> {
   }
 }
 
+interface ParseUsageOptions {
+  scopeKind?: "global" | "session";
+  modelGroup?: AntigravityModelGroup;
+}
+
 function parseUsageStdout(
   stdout: string,
   stderr: string,
+  options: ParseUsageOptions = {},
 ): { windows: UsageWindow[]; planLabel?: string } | { report: UsageReport } {
   const trimmed = stdout.trim();
   const combined = [trimmed, stderr.trim()].filter(Boolean).join("\n");
@@ -297,12 +317,12 @@ function parseUsageStdout(
 
   const jsonPayload = tryParseJson(trimmed);
   if (jsonPayload !== undefined) {
-    const fromJson = parseUsageJsonPayload(jsonPayload, combined);
+    const fromJson = parseUsageJsonPayload(jsonPayload, combined, options);
     if (fromJson) return fromJson;
   }
 
   if (trimmed.includes("\t")) {
-    return { windows: parseUsageTsv(trimmed) };
+    return { windows: parseUsageTsv(trimmed, options) };
   }
   if (!trimmed) {
     return { windows: [] };
@@ -313,6 +333,7 @@ function parseUsageStdout(
 function parseUsageJsonPayload(
   jsonPayload: unknown,
   combined: string,
+  options: ParseUsageOptions = {},
 ): { windows: UsageWindow[]; planLabel?: string } | { report: UsageReport } | null {
   const parsed = usageCommandOutputSchema.safeParse(jsonPayload);
   if (!parsed.success) return null;
@@ -322,7 +343,7 @@ function parseUsageJsonPayload(
     return { report: classifyCombinedText(errorText) };
   }
   const planLabel = extractUsagePlanLabel(parsed.data.command?.data);
-  const windows = extractUsageJsonWindows(parsed.data);
+  const windows = extractUsageJsonWindows(parsed.data, options);
   return planLabel ? { windows, planLabel } : { windows };
 }
 
@@ -339,17 +360,24 @@ function extractUsagePlanLabel(
   return data?.tier?.trim() || data?.plan?.trim() || undefined;
 }
 
-function extractUsageJsonWindows(data: z.infer<typeof usageCommandOutputSchema>): UsageWindow[] {
+function extractUsageJsonWindows(
+  data: z.infer<typeof usageCommandOutputSchema>,
+  options: ParseUsageOptions = {},
+): UsageWindow[] {
   const groups = data.command?.data?.groups;
-  if (groups && groups.length > 0) return buildWindowsFromGroups(groups);
-  if (data.response) return parseUsageTsv(data.response);
+  if (groups && groups.length > 0) return buildWindowsFromGroups(groups, options);
+  if (data.response) return parseUsageTsv(data.response, options);
   return [];
 }
 
 function buildWindowsFromGroups(
   groups: ReadonlyArray<z.infer<typeof usageGroupSchema>>,
+  options: ParseUsageOptions = {},
 ): UsageWindow[] {
   const windows: UsageWindow[] = [];
+  const hasMatchingModelGroup =
+    options.modelGroup !== undefined &&
+    groups.some((group) => groupMatchesModelGroup(group.name, options.modelGroup!));
   let summaryCount = 0;
 
   for (const group of groups) {
@@ -358,6 +386,8 @@ function buildWindowsFromGroups(
       (a, b) => bucketWindowSortRank(a) - bucketWindowSortRank(b),
     );
     const hasFiveHour = orderedBuckets.some((bucket) => isFiveHourBucket(bucket));
+    const isMatchedGroup =
+      hasMatchingModelGroup && groupMatchesModelGroup(group.name, options.modelGroup!);
 
     orderedBuckets.forEach((bucket, index) => {
       const usedPct =
@@ -366,8 +396,16 @@ function buildWindowsFromGroups(
           : null;
       const { windowLabel, shortSuffix } = describeBucketWindow(bucket);
       const isPrimary = isFiveHourBucket(bucket) || (!hasFiveHour && index === 0);
-      const summary = isPrimary && summaryCount < 2;
-      if (summary) summaryCount += 1;
+      const isWeekly = isWeeklyBucket(bucket);
+      let summary = false;
+      if (hasMatchingModelGroup) {
+        summary = isMatchedGroup && (isPrimary || isWeekly);
+      } else if (options.scopeKind === "session") {
+        summary = isPrimary || isWeekly;
+      } else {
+        summary = isPrimary && summaryCount < 2;
+        if (summary) summaryCount += 1;
+      }
 
       const id =
         bucket.id?.trim() ||
@@ -390,7 +428,7 @@ function buildWindowsFromGroups(
   return windows;
 }
 
-function parseUsageTsv(text: string): UsageWindow[] {
+function parseUsageTsv(text: string, options: ParseUsageOptions = {}): UsageWindow[] {
   const grouped = new Map<string, Array<z.infer<typeof usageBucketSchema>>>();
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -411,6 +449,7 @@ function parseUsageTsv(text: string): UsageWindow[] {
   }
   return buildWindowsFromGroups(
     [...grouped.entries()].map(([name, buckets]) => ({ name, buckets })),
+    options,
   );
 }
 
@@ -492,8 +531,25 @@ function shortenGroupName(name: string): string {
   return name.replace(/\s+models?$/i, "").trim() || name;
 }
 
+function inferModelGroup(model: string | undefined): AntigravityModelGroup | undefined {
+  const normalized = model?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized.includes("gemini") || normalized.includes("orchestrator")) return "gemini";
+  if (normalized.includes("claude") || normalized.includes("gpt")) return "third-party";
+  return undefined;
+}
+
+function groupMatchesModelGroup(groupName: string, modelGroup: AntigravityModelGroup): boolean {
+  if (modelGroup === "gemini") return /^gemini\b/i.test(groupName);
+  return /claude.*gpt|gpt.*claude|third[- ]party|^3p\b|^claude\b|^gpt\b/i.test(groupName);
+}
+
 function isFiveHourBucket(bucket: z.infer<typeof usageBucketSchema>): boolean {
   return bucket.window === "5h" || /five[- ]hour|\b5[- ]?h(?:our)?\b/i.test(bucket.name);
+}
+
+function isWeeklyBucket(bucket: z.infer<typeof usageBucketSchema>): boolean {
+  return bucket.window === "weekly" || /weekly|\b7[- ]?d(?:ay)?\b/i.test(bucket.name);
 }
 
 function bucketWindowSortRank(bucket: z.infer<typeof usageBucketSchema>): number {

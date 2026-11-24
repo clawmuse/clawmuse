@@ -187,7 +187,7 @@ async function main() {
             clearTimeout(forceExit);
             return 1;
           }
-          await daemon.stop({ keepTerminals });
+          await daemon.stop({ keepTerminals, reason });
           clearTimeout(forceExit);
           logger.info("Server closed");
           return options?.successExitCode ?? 0;

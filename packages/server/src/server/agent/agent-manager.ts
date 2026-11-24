@@ -28,6 +28,7 @@ import type { ToolPolicy } from "@getpaseo/protocol/agent-types";
 import type { ProviderPaseoToolsPolicy } from "@getpaseo/protocol/provider-config";
 import { z } from "zod";
 import type { TerminalManager } from "../../terminal/terminal-manager.js";
+import { brand } from "../../brand.generated.js";
 
 import {
   AgentTurnStartCanceledError,
@@ -641,6 +642,12 @@ interface AgentMetadataPatch {
 }
 
 const SYSTEM_ERROR_PREFIX = "[System Error]";
+type TimelineEvent = Extract<AgentStreamEvent, { type: "timeline" }>;
+const UPDATE_INTERRUPTION_NOTICE = {
+  type: "notification",
+  level: "warning",
+  message: `A ${brand.name} update interrupted this turn. If it does not resume, send a message to continue.`,
+} as const;
 
 function normalizePersistenceForConfig(
   handle: AgentPersistenceHandle | null,
@@ -2252,7 +2259,7 @@ export class AgentManager {
           this.collectingRuntimes.add(agent.id);
           try {
             return await this.runLifecycleMutation(agent.id, () =>
-              this.closeAgentRuntime(agent.id, () => isEligible() && revalidate()),
+              this.closeAgentRuntime(agent.id, { canClose: () => isEligible() && revalidate() }),
             );
           } finally {
             this.collectingRuntimes.delete(agent.id);
@@ -2280,7 +2287,7 @@ export class AgentManager {
     );
   }
 
-  closeAgent(agentId: string): Promise<void> {
+  closeAgent(agentId: string, options?: { interruptedByUpdate?: boolean }): Promise<void> {
     const existing = this.inFlightAgentCloses.get(agentId);
     if (existing) {
       return existing;
@@ -2288,7 +2295,7 @@ export class AgentManager {
 
     const close = this.runLifecycleMutation(agentId, async () => {
       // A preceding reload or archive may already have closed the durable agent.
-      if (this.agents.has(agentId)) await this.closeAgentRuntime(agentId);
+      if (this.agents.has(agentId)) await this.closeAgentRuntime(agentId, options);
     });
     this.inFlightAgentCloses.set(agentId, close);
     const clearClose = () => {
@@ -2300,7 +2307,10 @@ export class AgentManager {
     return close;
   }
 
-  private async closeAgentRuntime(agentId: string, canClose?: () => boolean): Promise<boolean> {
+  private async closeAgentRuntime(
+    agentId: string,
+    options?: { canClose?: () => boolean; interruptedByUpdate?: boolean },
+  ): Promise<boolean> {
     const agent = this.requireAgent(agentId);
     this.logger.trace(
       {
@@ -2315,7 +2325,25 @@ export class AgentManager {
       "agent.manager.close.start",
     );
     await this.drainSessionEvents(agentId);
-    if (canClose && !canClose()) return false;
+    if (options?.canClose && !options.canClose()) return false;
+    if (options?.interruptedByUpdate && agent.lifecycle === "running" && !agent.internal) {
+      const timestamp = new Date().toISOString();
+      this.agentStreamCoalescer.flushFor(agentId);
+      this.recordAndDispatchTimelineItem(
+        agentId,
+        UPDATE_INTERRUPTION_NOTICE,
+        agent.provider,
+        agent.activeTurnId ?? undefined,
+        { timestamp },
+      );
+      if (this.registry) {
+        this.trackBackgroundTask(
+          this.registry.recordUpdateInterruption(agentId, timestamp).catch((err) => {
+            this.logger.error({ err, agentId }, "Failed to persist update interruption");
+          }),
+        );
+      }
+    }
     // Retain ownership until shutdown succeeds. A failed close may still own a
     // native writer, so publishing a resumable closed snapshot would orphan it.
     await agent.session.close();
@@ -3365,6 +3393,7 @@ export class AgentManager {
     } catch (error) {
       if (error instanceof AgentTurnStartCanceledError) {
         if (!pendingRun.settled) {
+          const liveAutonomous = this.captureLiveAutonomousTurn(agent);
           if (options?.clientMessageId) {
             this.recordSubmittedPrompt(agent, prompt, options.clientMessageId, "rejected", {
               messageId: options.clientMessageId,
@@ -3377,6 +3406,10 @@ export class AgentManager {
           });
           this.finalizeForegroundTurn(agent);
           this.runs.settleForegroundRun(agentId, pendingRun.token);
+          this.restoreLiveAutonomousTurn(agent, liveAutonomous);
+          if (this.replayStagedEvents(agentId, pendingRun)) {
+            await this.drainSessionEvents(agentId);
+          }
         }
         return null;
       }
@@ -3394,6 +3427,7 @@ export class AgentManager {
         this.runs.settleForegroundRun(agentId, pendingRun.token);
         throw error;
       }
+      const liveAutonomous = this.captureLiveAutonomousTurn(agent);
       agent.pendingReplacement = false;
       const errorMsg = error instanceof Error ? error.message : "Failed to start turn";
       this.runs.settleForegroundStart(pendingRun, { status: "failed", error: errorMsg });
@@ -3413,9 +3447,54 @@ export class AgentManager {
       } finally {
         // A steer waiting on this start is released only once the run is cleared.
         this.runs.settleForegroundRun(agentId, pendingRun.token);
+        this.restoreLiveAutonomousTurn(agent, liveAutonomous);
+        if (this.replayStagedEvents(agentId, pendingRun)) {
+          await this.drainSessionEvents(agentId);
+        }
       }
       throw error;
     }
+  }
+
+  private captureLiveAutonomousTurn(
+    agent: ActiveManagedAgent,
+  ): { turnId: string; startedAt: Date | null } | null {
+    if (agent.activeForegroundTurnId !== null || !agent.activeTurnId) {
+      return null;
+    }
+    return {
+      turnId: agent.activeTurnId,
+      startedAt: agent.activeTurnStartedAt,
+    };
+  }
+
+  private restoreLiveAutonomousTurn(
+    agent: ActiveManagedAgent,
+    autonomous: { turnId: string; startedAt: Date | null } | null,
+  ): void {
+    if (
+      !autonomous ||
+      agent.activeForegroundTurnId !== null ||
+      agent.activeTurnId !== null ||
+      this.runs.hasRun(agent.id)
+    ) {
+      return;
+    }
+    this.runs.trackAutonomousRun(agent.id, autonomous.turnId);
+    this.openActiveTurn(agent, autonomous.turnId, autonomous.startedAt ?? new Date());
+    agent.lastError = undefined;
+    agent.lifecycle = "running";
+    this.emitState(agent);
+  }
+
+  private replayStagedEvents(agentId: string, pendingRun: PendingForegroundRun): boolean {
+    if (pendingRun.stagedEvents.length === 0) {
+      return false;
+    }
+    for (const stagedEvent of pendingRun.stagedEvents.splice(0)) {
+      this.enqueueSessionEvent(agentId, stagedEvent);
+    }
+    return true;
   }
 
   private async ensureInteractiveSession(agentId: string): Promise<ActiveManagedAgent> {
@@ -5226,7 +5305,7 @@ export class AgentManager {
     broadcast: boolean,
     broadcastTimeline: boolean,
   ): Promise<void> {
-    const historyEvents: Extract<AgentStreamEvent, { type: "timeline" }>[] = [];
+    const historyEvents: TimelineEvent[] = [];
     const providerSubagentEvents: Extract<AgentStreamEvent, { type: "provider_subagent" }>[] = [];
     for await (const rawEvent of agent.session.streamHistory()) {
       const event = limitAgentStreamEventContent(rawEvent);
@@ -5256,7 +5335,7 @@ export class AgentManager {
         this.dispatch({ type: "provider_subagent", event: update });
       }
     }
-    for (const event of historyEvents) {
+    for (const event of await this.withUpdateInterruptions(agent, historyEvents)) {
       const row = this.recordTimeline(
         agent.id,
         event.item,
@@ -5282,7 +5361,7 @@ export class AgentManager {
       | Iterable<AgentStreamEvent> = agent.session.streamHistory(),
   ): Promise<void> {
     const deferredBroadcast = typeof broadcast === "function";
-    const historyEvents: Extract<AgentStreamEvent, { type: "timeline" }>[] = [];
+    const historyEvents: TimelineEvent[] = [];
     const historySubagentEvents: Extract<AgentStreamEvent, { type: "provider_subagent" }>[] = [];
     agent.historyPrimed = false;
     try {
@@ -5325,7 +5404,7 @@ export class AgentManager {
         this.dispatch(managerEvent);
       }
     }
-    for (const event of historyEvents) {
+    for (const event of await this.withUpdateInterruptions(agent, historyEvents)) {
       const row = this.recordTimeline(
         agent.id,
         event.item,
@@ -5356,6 +5435,38 @@ export class AgentManager {
         timestamp: row.timestamp,
       });
     }
+  }
+
+  private async withUpdateInterruptions(
+    agent: ActiveManagedAgent,
+    history: TimelineEvent[],
+  ): Promise<TimelineEvent[]> {
+    const record = await this.registry?.get(agent.id);
+    if (!record?.updateInterruptions?.length) return history;
+    // Provider replay has no record of the daemon's shutdown notice.
+    const notices = record.updateInterruptions.map(
+      (timestamp): TimelineEvent => ({
+        type: "timeline",
+        item: UPDATE_INTERRUPTION_NOTICE,
+        provider: agent.provider,
+        timestamp,
+      }),
+    );
+    const merged: TimelineEvent[] = [];
+    let nextNotice = 0;
+    for (const event of history) {
+      if (event.timestamp) {
+        const time = Date.parse(event.timestamp);
+        while (
+          nextNotice < notices.length &&
+          Date.parse(record.updateInterruptions[nextNotice]) < time
+        ) {
+          merged.push(notices[nextNotice++]);
+        }
+      }
+      merged.push(event);
+    }
+    return merged.concat(notices.slice(nextNotice));
   }
 
   private notifyForegroundTurnWaiters(agentId: string, event: AgentStreamEvent): void {
@@ -5942,7 +6053,7 @@ export class AgentManager {
     item: AgentTimelineItem,
     provider: AgentProvider,
     turnId?: string,
-    options?: { providerMessageId?: string },
+    options?: { providerMessageId?: string; timestamp?: string },
   ): AgentStreamEvent {
     const row = this.recordTimeline(agentId, item, { ...options, turnId });
     const event: AgentStreamEvent = {

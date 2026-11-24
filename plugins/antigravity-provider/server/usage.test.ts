@@ -61,7 +61,65 @@ describe("antigravity usage source", () => {
       provider: "antigravity",
       env: { ANTIGRAVITY_EXECUTABLE_DATA_DIR: dataDir },
     });
-    expect(agySessionLocators).toEqual(globalLocators);
+    expect(agySessionLocators).toEqual([
+      {
+        ...globalLocators[0],
+        input: { ...(globalLocators[0]!.input as Record<string, unknown>), scopeKind: "session" },
+      },
+    ]);
+  });
+
+  it("summarizes 5h and weekly windows for the active model group in session scope", async () => {
+    const dataDir = await createDataDir(true);
+    const usage = new Usage();
+    usage.rememberLaunch(fakeLaunch(dataDir, { AGY_TEST_USAGE: "json", AGY_TEST_CREDITS: "json" }));
+    const reg = usage.registration();
+
+    const [geminiLocator] = await reg.discover({
+      kind: "session",
+      provider: "antigravity",
+      model: "gemini-4-neon-medium",
+      env: { ANTIGRAVITY_EXECUTABLE_DATA_DIR: dataDir },
+    });
+    const geminiReport = await reg.fetch(geminiLocator!.input);
+    expect(geminiReport.status).toBe("available");
+    if (geminiReport.status === "available") {
+      expect(geminiReport.windows.filter((w) => w.summary).map((w) => w.id)).toEqual([
+        "gemini-5h",
+        "gemini-weekly",
+      ]);
+    }
+
+    const [claudeLocator] = await reg.discover({
+      kind: "session",
+      provider: "antigravity",
+      model: "claude-opus-5-5-high",
+      env: { ANTIGRAVITY_EXECUTABLE_DATA_DIR: dataDir },
+    });
+    const claudeReport = await reg.fetch(claudeLocator!.input);
+    expect(claudeReport.status).toBe("available");
+    if (claudeReport.status === "available") {
+      expect(claudeReport.windows.filter((w) => w.summary).map((w) => w.id)).toEqual([
+        "3p-5h",
+        "3p-weekly",
+      ]);
+    }
+
+    const [unknownModelLocator] = await reg.discover({
+      kind: "session",
+      provider: "antigravity",
+      env: { ANTIGRAVITY_EXECUTABLE_DATA_DIR: dataDir },
+    });
+    const unknownModelReport = await reg.fetch(unknownModelLocator!.input);
+    expect(unknownModelReport.status).toBe("available");
+    if (unknownModelReport.status === "available") {
+      expect(unknownModelReport.windows.filter((w) => w.summary).map((w) => w.id)).toEqual([
+        "gemini-5h",
+        "gemini-weekly",
+        "3p-5h",
+        "3p-weekly",
+      ]);
+    }
   });
 
   it("returns empty discovery when no Antigravity login markers exist", async () => {

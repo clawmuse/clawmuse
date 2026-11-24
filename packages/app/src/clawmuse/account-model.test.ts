@@ -1190,3 +1190,53 @@ it("syncs host order with the account directory and flushes offline reorders bef
   expect(olderSample.model.getState().error).toBeNull();
   expect(olderPending).toBeNull();
 });
+
+it("refreshes a remote account device relay offer without altering label or failing on custom endpoints", async () => {
+  const gd32Offer = {
+    v: 2 as const,
+    serverId: "srv_gd32",
+    daemonPublicKeyB64: "gd32-public-key",
+    relay: { endpoint: "agent-relay.ppb.cn:443", useTls: true },
+  };
+  const enrolled: unknown[] = [];
+  const sample = fixture(async (path, body) => {
+    if (path === "/get-session") return { status: 200, data: { user: { id: "alice" } } };
+    if (path === "/clawmuse/devices" && body !== undefined) {
+      enrolled.push(body);
+      return { status: 200, data: { ok: true } };
+    }
+    return {
+      status: 200,
+      data: {
+        account: { id: "alice", name: "Alice", email: "alice@example.test" },
+        devices: [{ serverId: "srv_gd32", label: "GD32", offer: gd32Offer }],
+      },
+    };
+  });
+
+  await sample.model.refresh();
+  await sample.model.refreshDeviceRelayOffer("srv_gd32", {
+    endpoint: "agent-relay-cn.ppb.cn:443",
+    useTls: true,
+  });
+
+  expect(enrolled).toEqual([
+    {
+      label: "GD32",
+      offer: {
+        ...gd32Offer,
+        relay: { endpoint: "agent-relay-cn.ppb.cn:443", useTls: true },
+      },
+    },
+  ]);
+  expect(sample.model.getState().devices[0]?.offer.relay.endpoint).toBe(
+    "agent-relay-cn.ppb.cn:443",
+  );
+
+  // Non-hosted custom endpoints are not pushed to the ClawMuse account directory.
+  await sample.model.refreshDeviceRelayOffer("srv_gd32", {
+    endpoint: "custom.example.com:443",
+    useTls: true,
+  });
+  expect(enrolled).toHaveLength(1);
+});

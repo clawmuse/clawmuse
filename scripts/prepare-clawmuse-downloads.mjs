@@ -63,13 +63,17 @@ function parseCliArgs(args) {
   let directory;
   let noMirror = false;
   let beta = false;
+  let mergeExisting = false;
   let metadataPath;
+  let version;
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === "--no-mirror") {
       noMirror = true;
     } else if (arg === "--beta") {
       beta = true;
+    } else if (arg === "--merge-existing") {
+      mergeExisting = true;
     } else if (arg === "--metadata") {
       metadataPath = args[i + 1];
       if (!metadataPath || metadataPath.startsWith("-")) {
@@ -79,6 +83,15 @@ function parseCliArgs(args) {
     } else if (arg.startsWith("--metadata=")) {
       metadataPath = arg.slice("--metadata=".length);
       if (!metadataPath) throw new Error("Missing value for --metadata");
+    } else if (arg === "--version") {
+      version = args[i + 1];
+      if (!version || version.startsWith("-")) {
+        throw new Error("Missing value for --version");
+      }
+      i += 1;
+    } else if (arg.startsWith("--version=")) {
+      version = arg.slice("--version=".length);
+      if (!version) throw new Error("Missing value for --version");
     } else if (arg.startsWith("-")) {
       throw new Error(`Unknown option: ${arg}`);
     } else if (!directory) {
@@ -89,10 +102,10 @@ function parseCliArgs(args) {
   }
   if (!directory) {
     throw new Error(
-      "Usage: node scripts/prepare-clawmuse-downloads.mjs <artifact-directory> [--beta] [--no-mirror] [--metadata <path>]",
+      "Usage: node scripts/prepare-clawmuse-downloads.mjs <artifact-directory> [--beta] [--merge-existing] [--version <ver>] [--no-mirror] [--metadata <path>]",
     );
   }
-  return { directory, beta, noMirror, metadataPath };
+  return { directory, beta, mergeExisting, noMirror, metadataPath, version };
 }
 
 const INSTALLER_PATTERNS = [
@@ -204,13 +217,43 @@ function buildDownloadManifest({
   };
 }
 
+async function loadSameVersionBetaFiles(manifestPath, version) {
+  let raw;
+  try {
+    raw = await readFile(manifestPath, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+  const existing = JSON.parse(raw);
+  if (!existing || existing.version !== version || !Array.isArray(existing.files)) {
+    return [];
+  }
+  return existing.files.filter(
+    (item) =>
+      item &&
+      typeof item.filename === "string" &&
+      typeof item.sha256 === "string" &&
+      sha256Pattern.test(item.sha256) &&
+      Number.isInteger(item.size) &&
+      item.size >= 1_000_000,
+  );
+}
+
 export async function prepareClawmuseDownloads(
   directory,
-  { beta = false, noMirror = false, metadataPath, rootDir = root } = {},
+  {
+    beta = false,
+    mergeExisting = false,
+    noMirror = false,
+    metadataPath,
+    version: explicitVersion,
+    rootDir = root,
+  } = {},
 ) {
-  const { version } = JSON.parse(
-    await readFile(resolve(rootDir, "packages/desktop/package.json"), "utf8"),
-  );
+  const version =
+    explicitVersion ||
+    JSON.parse(await readFile(resolve(rootDir, "packages/desktop/package.json"), "utf8")).version;
   const isBeta = beta || version.includes("-beta.");
   const manifestPath = resolve(
     rootDir,
@@ -263,11 +306,23 @@ export async function prepareClawmuseDownloads(
     throw new Error("Expected an Apple App Store URL");
   }
   // Retain checksums for existing downloads while pointing Windows users to the latest rebuild.
+  const mergedFilesMap = new Map();
+  if (isBeta && mergeExisting) {
+    for (const prev of await loadSameVersionBetaFiles(manifestPath, version)) {
+      mergedFilesMap.set(prev.filename, prev);
+    }
+  }
+  for (const file of files) {
+    mergedFilesMap.set(file.filename, file);
+  }
+  const allFiles = [...mergedFilesMap.values()].sort((a, b) =>
+    a.filename.localeCompare(b.filename),
+  );
   const windowsRevision = (file) => Number(file.filename.match(/-r(\d+)\.exe$/)?.[1] ?? 0);
-  const currentFiles = files.filter(
+  const currentFiles = allFiles.filter(
     (file) =>
       file.platform !== "windows" ||
-      !files.some(
+      !allFiles.some(
         (other) =>
           other.platform === "windows" &&
           other.arch === file.arch &&
@@ -287,20 +342,28 @@ export async function prepareClawmuseDownloads(
   const checksumsPath = resolve(directory, "SHA256SUMS.txt");
   await writeFile(
     checksumsPath,
-    files.map((file) => `${file.sha256}  ${file.filename}\n`).join(""),
+    allFiles.map((file) => `${file.sha256}  ${file.filename}\n`).join(""),
   );
   return {
     version,
     manifestPath,
     checksumsPath,
     currentCount: currentFiles.length,
-    totalCount: files.length,
+    totalCount: allFiles.length,
   };
 }
 
 if (isMainModule(import.meta.url)) {
-  const { directory, beta, noMirror, metadataPath } = parseCliArgs(process.argv.slice(2));
-  const result = await prepareClawmuseDownloads(directory, { beta, noMirror, metadataPath });
+  const { directory, beta, mergeExisting, noMirror, metadataPath, version } = parseCliArgs(
+    process.argv.slice(2),
+  );
+  const result = await prepareClawmuseDownloads(directory, {
+    beta,
+    mergeExisting,
+    noMirror,
+    metadataPath,
+    version,
+  });
   console.log(
     `Prepared ${result.currentCount} current installers for ClawMuse ${result.version}; ${result.totalCount} files checksummed`,
   );

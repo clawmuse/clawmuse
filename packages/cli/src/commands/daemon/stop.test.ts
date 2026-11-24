@@ -9,7 +9,7 @@ import { createStopCommandRunner, type StopCommandDeps } from "./stop.js";
 // The daemon the gate is checked against: a connection whose server_info may or may not
 // advertise terminalsSurviveRestart, and that records any shutdown it is asked for.
 function createFakeDaemon(features: { terminalsSurviveRestart?: boolean } = {}) {
-  const shutdownRequests: Array<{ keepTerminals?: boolean }> = [];
+  const shutdownRequests: Array<{ keepTerminals?: boolean; reason?: string }> = [];
   const deps: StopCommandDeps = {
     connectToDaemon: async () => ({
       getLastServerInfoMessage: () => ({
@@ -19,7 +19,8 @@ function createFakeDaemon(features: { terminalsSurviveRestart?: boolean } = {}) 
         features,
       }),
       shutdownServer: async (options) => {
-        shutdownRequests.push({ keepTerminals: options?.keepTerminals });
+        const { keepTerminals, reason } = options ?? {};
+        shutdownRequests.push({ keepTerminals, ...(reason ? { reason } : {}) });
         return { status: "shutdown_requested", clientId: "fake-client", requestId: "fake-request" };
       },
       close: async () => undefined,
@@ -62,6 +63,15 @@ function homeWithRunningSupervisor(): { home: string; supervisor: ChildProcess }
 }
 
 describe("daemon stop --keep-terminals", () => {
+  test("forwards desktop updates when terminals must be closed", async () => {
+    const daemon = createFakeDaemon();
+    await stop(
+      { daemonTarget: { kind: "endpoint", host: "127.0.0.1:7777" }, appUpdate: true },
+      daemon.deps,
+    );
+    expect(daemon.shutdownRequests).toEqual([{ keepTerminals: false, reason: "app_update" }]);
+  });
+
   test("refuses an endpoint daemon that does not advertise terminalsSurviveRestart", async () => {
     const daemon = createFakeDaemon();
     await expect(

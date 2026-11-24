@@ -8,7 +8,7 @@ import type { AgentArchiveReview, MutableDaemonConfig } from "@getpaseo/protocol
 import type { AggregatedAgent } from "@/hooks/use-aggregated-agents";
 import type { HostRuntimeConnectionStatus } from "@/runtime/host-runtime";
 import { i18n } from "@/i18n/i18next";
-import { AiAgentArchiveSheet } from "./ai-agent-archive";
+import { AiAgentArchiveButton, AiAgentArchiveSheet } from "./ai-agent-archive";
 
 interface MockHostSession {
   client: {
@@ -16,6 +16,7 @@ interface MockHostSession {
     reviewAgentArchive: typeof fixture.review;
     applyAgentArchive: typeof fixture.apply;
     archiveAgent: typeof fixture.manualArchive;
+    archiveWorkspace: typeof fixture.archiveWorkspace;
   };
   serverInfo: {
     features: { aiAgentArchive: boolean; aiArchiveModelConfig: boolean };
@@ -48,6 +49,16 @@ const fixture = vi.hoisted(() => ({
   review: vi.fn<(id: string) => Promise<AgentArchiveReview>>(),
   apply: vi.fn<(id: string, token: string) => Promise<{ archivedAt: string }>>(),
   manualArchive: vi.fn<(id: string) => Promise<{ archivedAt: string }>>(),
+  archiveWorkspace: vi.fn<(workspaceId: string) => Promise<{ error: string | null }>>(),
+  archiveEmptyWorkspaceIfSafe:
+    vi.fn<
+      (input: {
+        serverId: string;
+        workspaceId: string | null | undefined;
+        archivedAgentId: string;
+        client: unknown;
+      }) => Promise<string>
+    >(),
   patchConfig:
     vi.fn<(serverId: string, patch: unknown) => Promise<MutableDaemonConfig | undefined>>(),
   archived: vi.fn(),
@@ -89,6 +100,10 @@ vi.mock("@/stores/navigation-active-workspace-store", () => ({
 
 vi.mock("@/hooks/use-archive-agent", () => ({
   applyArchivedAgentCloseResults: fixture.archived,
+}));
+
+vi.mock("./ai-archive/empty-workspace-archive", () => ({
+  archiveEmptyWorkspaceIfSafe: fixture.archiveEmptyWorkspaceIfSafe,
 }));
 
 vi.mock("@/hooks/use-daemon-config", () => ({
@@ -186,6 +201,7 @@ function makeSession(
       reviewAgentArchive: fixture.review,
       applyAgentArchive: fixture.apply,
       archiveAgent: fixture.manualArchive,
+      archiveWorkspace: fixture.archiveWorkspace,
     },
     serverInfo: {
       features: {
@@ -251,6 +267,8 @@ beforeEach(async () => {
   }));
   fixture.apply.mockReset().mockResolvedValue({ archivedAt: "2026-11-11T10:00:00Z" });
   fixture.manualArchive.mockReset().mockResolvedValue({ archivedAt: "2026-11-11T10:05:00Z" });
+  fixture.archiveWorkspace.mockReset().mockResolvedValue({ error: null });
+  fixture.archiveEmptyWorkspaceIfSafe.mockReset().mockResolvedValue("skipped");
   fixture.patchConfig.mockReset().mockImplementation(async (serverId, patch) => {
     const prev = fixture.daemonConfigs[serverId] ?? makeDaemonConfig();
     const typedPatch = patch as { metadataGeneration?: MutableDaemonConfig["metadataGeneration"] };
@@ -542,4 +560,237 @@ it("configures a custom AI archive model inline for the selected host", async ()
       aiArchiveProviders: [{ provider: "claude", model: "claude-haiku-2026" }],
     },
   });
+});
+
+it("filters agents by project, scopes scans and auto archive to the selected project, and preserves review results", async () => {
+  fixture.sessions.host = makeSession("host");
+  fixture.agents = [
+    makeAgent("Completed work", {
+      cwd: "/work/bianpai",
+      projectPlacement: {
+        projectKey: "proj-bianpai",
+        projectName: "bianpai",
+        workspaceName: "main",
+        checkout: {
+          worktreeRoot: "/work/bianpai",
+          cwd: "/work/bianpai",
+          isGit: true,
+          currentBranch: "main",
+          remoteUrl: null,
+          isPaseoOwnedWorktree: false,
+          mainRepoRoot: "/work/bianpai",
+        },
+      },
+    }),
+    makeAgent("Other repo task", {
+      cwd: "/work/clawmuse",
+      projectPlacement: {
+        projectKey: "proj-clawmuse",
+        projectName: "clawmuse",
+        workspaceName: "main",
+        checkout: {
+          worktreeRoot: "/work/clawmuse",
+          cwd: "/work/clawmuse",
+          isGit: true,
+          currentBranch: "main",
+          remoteUrl: null,
+          isPaseoOwnedWorktree: false,
+          mainRepoRoot: "/work/clawmuse",
+        },
+      },
+    }),
+  ];
+
+  mount();
+
+  await expect.element(page.getByTestId("ai-archive-project-filter")).toBeVisible();
+  await page.getByTestId("ai-archive-project-filter").click();
+  await page.getByTestId("ai-archive-project-option-proj-bianpai").click();
+
+  await expect.element(page.getByTestId("ai-archive-row-Completed work")).toBeVisible();
+  await expect.element(page.getByTestId("ai-archive-row-Other repo task")).not.toBeInTheDocument();
+  await expect
+    .element(page.getByTestId("ai-archive-progress"))
+    .toHaveTextContent("1 open · 0 running · 0 needs attention · 1 idle");
+
+  await page.getByTestId("ai-archive-scan").click();
+  expect(fixture.review).toHaveBeenCalledTimes(1);
+  expect(fixture.review).toHaveBeenCalledWith("Completed work");
+  await expect.element(page.getByText("Ready to archive", { exact: true })).toBeVisible();
+
+  await page.getByTestId("ai-archive-project-filter").click();
+  await page.getByTestId("ai-archive-project-option-__all_projects__").click();
+
+  await expect.element(page.getByTestId("ai-archive-row-Completed work")).toBeVisible();
+  await expect.element(page.getByTestId("ai-archive-row-Other repo task")).toBeVisible();
+  await expect.element(page.getByText("Ready to archive", { exact: true })).toBeVisible();
+});
+
+it("keeps a matching project across hosts and resets when the next host has no matching project", async () => {
+  fixture.hosts = [
+    { serverId: "host-a", label: "Mac Studio" },
+    { serverId: "host-b", label: "Linux Box" },
+  ];
+  fixture.connectionStatuses = { "host-a": "online", "host-b": "online" };
+  fixture.sessions = {
+    "host-a": makeSession("host-a"),
+    "host-b": makeSession("host-b"),
+  };
+  fixture.lastWorkspace = { serverId: "host-a", workspaceId: "ws-1" };
+  const sharedPlacement = {
+    projectKey: "proj-shared",
+    projectName: "shared-repo",
+    workspaceName: "main",
+    checkout: {
+      worktreeRoot: "/work/shared-repo",
+      cwd: "/work/shared-repo",
+      isGit: true as const,
+      currentBranch: "main",
+      remoteUrl: null,
+      isPaseoOwnedWorktree: false as const,
+      mainRepoRoot: "/work/shared-repo",
+    },
+  };
+  fixture.agents = [
+    makeAgent("Shared on A", {
+      serverId: "host-a",
+      serverLabel: "Mac Studio",
+      projectPlacement: sharedPlacement,
+    }),
+    makeAgent("Unique on A", {
+      serverId: "host-a",
+      serverLabel: "Mac Studio",
+      cwd: "/work/only-a",
+    }),
+    makeAgent("Shared on B", {
+      serverId: "host-b",
+      serverLabel: "Linux Box",
+      projectPlacement: sharedPlacement,
+    }),
+    makeAgent("Unique on B", { serverId: "host-b", serverLabel: "Linux Box", cwd: "/work/only-b" }),
+  ];
+
+  mount();
+
+  await page.getByTestId("ai-archive-project-filter").click();
+  await page.getByTestId("ai-archive-project-option-proj-shared").click();
+  await expect.element(page.getByTestId("ai-archive-row-Shared on A")).toBeVisible();
+  await expect.element(page.getByTestId("ai-archive-row-Unique on A")).not.toBeInTheDocument();
+
+  await page.getByTestId("ai-archive-host-filter").click();
+  await page.getByTestId("ai-archive-host-option-host-b").click();
+  await expect.element(page.getByTestId("ai-archive-row-Shared on B")).toBeVisible();
+  await expect.element(page.getByTestId("ai-archive-row-Unique on B")).not.toBeInTheDocument();
+
+  await page.getByTestId("ai-archive-host-filter").click();
+  await page.getByTestId("ai-archive-host-option-host-a").click();
+  await page.getByTestId("ai-archive-project-filter").click();
+  await page.getByTestId("ai-archive-project-option-cwd:/work/only-a").click();
+
+  await page.getByTestId("ai-archive-host-filter").click();
+  await page.getByTestId("ai-archive-host-option-host-b").click();
+  await expect.element(page.getByTestId("ai-archive-row-Shared on B")).toBeVisible();
+  await expect.element(page.getByTestId("ai-archive-row-Unique on B")).toBeVisible();
+});
+
+it("renders a wide, tall desktop modal layout with compact rows", async () => {
+  await page.viewport(1280, 900);
+  fixture.sessions.host = makeSession("host");
+  fixture.agents = Array.from({ length: 8 }, (_, index) => makeAgent(`Agent ${index + 1}`));
+  mount();
+
+  await expect.element(page.getByTestId("ai-archive-row-Agent 1")).toBeVisible();
+  const dialog = document.querySelector('[data-testid="ai-archive-sheet"] [role="dialog"]');
+  if (!(dialog instanceof HTMLElement)) {
+    throw new Error("Missing dialog inside ai-archive-sheet");
+  }
+  const rect = dialog.getBoundingClientRect();
+  expect(rect.width).toBeGreaterThanOrEqual(900);
+  expect(rect.height).toBeGreaterThanOrEqual(700);
+});
+
+it("cascades empty workspace archive by default and respects toggling it off", async () => {
+  fixture.sessions.host = makeSession("host");
+  fixture.agents = [
+    makeAgent("Completed work", { workspaceId: "ws-empty" }),
+    makeAgent("Second task", { workspaceId: "ws-keep" }),
+  ];
+  fixture.archiveEmptyWorkspaceIfSafe.mockResolvedValueOnce("archived");
+  mount();
+
+  await page.getByTestId("ai-archive-manual-Completed work").click();
+  await expect
+    .element(page.getByTestId("ai-archive-workspace-outcome-Completed work"))
+    .toHaveTextContent("Empty workspace also archived.");
+  expect(fixture.archiveEmptyWorkspaceIfSafe).toHaveBeenCalledWith(
+    expect.objectContaining({
+      serverId: "host",
+      workspaceId: "ws-empty",
+      archivedAgentId: "Completed work",
+    }),
+  );
+
+  fixture.archiveEmptyWorkspaceIfSafe.mockClear();
+  await page.getByTestId("ai-archive-empty-workspace-toggle").click();
+  await page.getByTestId("ai-archive-manual-Second task").click();
+  await expect
+    .element(page.getByTestId("ai-archive-row-Second task"))
+    .toHaveTextContent("Archived");
+  expect(fixture.archiveEmptyWorkspaceIfSafe).not.toHaveBeenCalled();
+});
+
+it("minimizes the sheet without stopping an in-flight batch and restores preserved progress", async () => {
+  fixture.sessions.host = makeSession("host");
+  fixture.agents = [makeAgent("Completed work")];
+  let resolveReview!: (value: AgentArchiveReview) => void;
+  fixture.review.mockImplementationOnce(
+    () =>
+      new Promise<AgentArchiveReview>((resolve) => {
+        resolveReview = resolve;
+      }),
+  );
+
+  act(() =>
+    root.render(
+      <QueryClientProvider client={client}>
+        <AiAgentArchiveButton />
+      </QueryClientProvider>,
+    ),
+  );
+
+  await page.getByTestId("sidebar-ai-archive").click();
+  await expect.element(page.getByTestId("ai-archive-minimize")).toBeVisible();
+  await page.getByTestId("ai-archive-scan").click();
+
+  await page.getByTestId("ai-archive-minimize").click();
+  await expect.element(page.getByTestId("ai-archive-sheet")).not.toBeInTheDocument();
+  await expect
+    .element(page.getByTestId("sidebar-ai-archive"))
+    .toHaveAttribute("aria-label", "AI archive (running 0/1)");
+
+  await act(async () => {
+    resolveReview({
+      agentId: "Completed work",
+      eligible: true,
+      token: "bg-token",
+      reason: "Finished while minimized.",
+      decision: "completed",
+      provider: "claude",
+      model: "haiku",
+      durationMs: 300,
+    });
+    await Promise.resolve();
+  });
+
+  await expect
+    .element(page.getByTestId("sidebar-ai-archive"))
+    .toHaveAttribute("aria-label", "AI archive (1 ready)");
+
+  await page.getByTestId("sidebar-ai-archive").click();
+  await expect
+    .element(page.getByTestId("ai-archive-row-Completed work"))
+    .toHaveTextContent("Ready to archive");
+  await expect
+    .element(page.getByTestId("ai-archive-row-Completed work"))
+    .toHaveTextContent("Finished while minimized.");
 });

@@ -18,18 +18,28 @@ function usageEnabled(persisted: PersistedConfig): boolean {
   return persisted.daemon?.usage?.enabled !== false;
 }
 
+function reloadableRelayConfig(
+  relay: NonNullable<NonNullable<PersistedConfig["daemon"]>["relay"]>,
+  relayEnabledFallback?: boolean,
+): NonNullable<MutableDaemonConfig["relay"]> {
+  return {
+    enabled: relay.enabled ?? relayEnabledFallback ?? true,
+    ...(relay.endpoint !== undefined ? { endpoint: relay.endpoint } : {}),
+    ...(relay.publicEndpoint !== undefined ? { publicEndpoint: relay.publicEndpoint } : {}),
+    ...(relay.useTls !== undefined ? { useTls: relay.useTls } : {}),
+    ...(relay.publicUseTls !== undefined ? { publicUseTls: relay.publicUseTls } : {}),
+  };
+}
+
 function reloadableConfig(
   persisted: PersistedConfig,
   options: { relayEnabledFallback?: boolean } = {},
 ): MutableDaemonConfig {
   const daemon = persisted.daemon ?? {};
-  const relay = daemon.relay ?? {};
   const git = daemon.git ?? {};
   const agents = persisted.agents ?? {};
   return {
-    relay: {
-      enabled: relay.enabled ?? options.relayEnabledFallback ?? true,
-    },
+    relay: reloadableRelayConfig(daemon.relay ?? {}, options.relayEnabledFallback),
     mcp: { enabled: true, injectIntoAgents: false },
     usage: { enabled: usageEnabled(persisted) },
     browserTools: { enabled: daemon.browserTools?.enabled ?? false },
@@ -1523,6 +1533,108 @@ describe("DaemonConfigStore", () => {
       env: {},
     });
   });
+
+  test("patch updates relay endpoint, derives public alias, clears stale publicEndpoint, and rejects invalid or locked updates", async () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-relay-"));
+    tempDirs.push(paseoHome);
+    writeFileSync(
+      path.join(paseoHome, "config.json"),
+      `${JSON.stringify(
+        {
+          version: 1,
+          daemon: {
+            relay: {
+              enabled: true,
+              endpoint: "agent-relay.ppb.cn:443",
+              publicEndpoint: "agent-relay.ppb.cn:443",
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const store = new DaemonConfigStore(
+      paseoHome,
+      {
+        relay: {
+          enabled: true,
+          endpoint: "agent-relay.ppb.cn:443",
+          publicEndpoint: "agent-relay.ppb.cn:443",
+          useTls: true,
+          publicUseTls: true,
+          endpointMutable: true,
+        },
+        mcp: { injectIntoAgents: false },
+        browserTools: { enabled: false },
+        providers: {},
+        autoArchiveAfterMerge: false,
+        enableTerminalAgentHooks: false,
+        appendSystemPrompt: "",
+        metadataGeneration: { providers: [] },
+      },
+      undefined,
+    );
+
+    const mainland = await store.patch({
+      relay: { endpoint: "agent-relay-cn.ppb.cn:443" },
+    });
+    expect(mainland.relay).toMatchObject({
+      enabled: true,
+      endpoint: "agent-relay-cn.ppb.cn:443",
+      publicEndpoint: "agent-relay-cn.ppb.cn:443",
+      useTls: true,
+      publicUseTls: true,
+    });
+    expect(loadPersistedConfig(paseoHome).daemon?.relay).toEqual({
+      enabled: true,
+      endpoint: "agent-relay-cn.ppb.cn:443",
+      useTls: true,
+      publicUseTls: true,
+    });
+
+    const overseas = await store.patch({
+      relay: { endpoint: "agent-relay.clawmuse.com:443" },
+    });
+    expect(overseas.relay).toMatchObject({
+      endpoint: "agent-relay.clawmuse.com:443",
+      publicEndpoint: "agent-relay.ppb.cn:443",
+      useTls: true,
+      publicUseTls: true,
+    });
+
+    await expect(store.patch({ relay: { endpoint: "https://not-host-port" } })).rejects.toThrow(
+      /Invalid host:port/,
+    );
+
+    const lockedStore = new DaemonConfigStore(
+      paseoHome,
+      {
+        relay: {
+          enabled: true,
+          endpoint: "agent-relay.clawmuse.com:443",
+          publicEndpoint: "agent-relay.ppb.cn:443",
+          useTls: true,
+          publicUseTls: true,
+          endpointMutable: false,
+        },
+        mcp: { injectIntoAgents: false },
+        browserTools: { enabled: false },
+        providers: {},
+        autoArchiveAfterMerge: false,
+        enableTerminalAgentHooks: false,
+        appendSystemPrompt: "",
+        metadataGeneration: { providers: [] },
+      },
+      undefined,
+      { relayEndpointMutable: false },
+    );
+
+    await expect(
+      lockedStore.patch({ relay: { endpoint: "agent-relay-cn.ppb.cn:443" } }),
+    ).rejects.toThrow(/PASEO_RELAY_ENDPOINT/);
+  });
 });
 
 describe("DaemonConfigStore reload", () => {
@@ -1697,12 +1809,15 @@ describe("DaemonConfigStore reload", () => {
           endpoint: "relay.example.test:443",
           useTls: true,
         },
+        serviceProxy: {
+          listen: "127.0.0.1:7788",
+        },
       },
     });
 
     expect(await store.reload()).toEqual({
-      appliedPaths: ["daemon.relay.enabled"],
-      restartRequiredPaths: ["daemon.relay.endpoint", "daemon.relay.useTls"],
+      appliedPaths: ["daemon.relay.enabled", "daemon.relay.endpoint", "daemon.relay.useTls"],
+      restartRequiredPaths: ["daemon.serviceProxy.listen"],
       overrideControlledPaths: [],
     });
   });
@@ -1729,11 +1844,9 @@ describe("DaemonConfigStore reload", () => {
     writeConfig(paseoHome, { version: 1 });
 
     expect(await store.reload()).toEqual({
-      appliedPaths: ["daemon.browserTools.enabled"],
+      appliedPaths: ["daemon.browserTools.enabled", "daemon.relay.endpoint", "daemon.relay.useTls"],
       restartRequiredPaths: [
         "daemon.listen",
-        "daemon.relay.endpoint",
-        "daemon.relay.useTls",
         "daemon.serviceProxy.listen",
         "daemon.serviceProxy.publicBaseUrl",
       ],
@@ -1745,19 +1858,22 @@ describe("DaemonConfigStore reload", () => {
   test("keeps overridden leaves separate from restart-required siblings", async () => {
     const { paseoHome, store } = createReloadableStore({
       initialPersisted: { version: 1 },
-      overrideControlledPaths: ["daemon.relay.enabled"],
+      overrideControlledPaths: ["daemon.serviceProxy.listen"],
     });
     writeConfig(paseoHome, {
       version: 1,
       daemon: {
-        relay: { enabled: false, endpoint: "relay.example.test:443" },
+        serviceProxy: {
+          listen: "127.0.0.1:7788",
+          publicBaseUrl: "https://services.example.test",
+        },
       },
     });
 
     expect(await store.reload()).toEqual({
       appliedPaths: [],
-      restartRequiredPaths: ["daemon.relay.endpoint"],
-      overrideControlledPaths: ["daemon.relay.enabled"],
+      restartRequiredPaths: ["daemon.serviceProxy.publicBaseUrl"],
+      overrideControlledPaths: ["daemon.serviceProxy.listen"],
     });
   });
 

@@ -1,9 +1,15 @@
 import type pino from "pino";
+import { brand } from "../../../brand.generated.js";
 import type { ProviderAvailability } from "../../agent/agent-manager.js";
 import type { SessionInboundMessage, SessionOutboundMessage } from "../../messages.js";
 import { getPidLockInfo } from "../../pid-lock.js";
 import { readUnconfirmedTerminalCleanup } from "../../../terminal/terminal-worker-reaper.js";
 import { generateLocalPairingOffer } from "../../pairing-offer.js";
+import {
+  getHostedRelayPublicEndpoint,
+  selectRegionalRelay,
+  type RegionalRelaySelection,
+} from "../../regional-relay.js";
 import {
   collectDaemonDiagnostics,
   type DaemonWebSocketRuntimeDiagnosticSnapshot,
@@ -58,6 +64,7 @@ export interface DaemonSessionOptions {
   logger: pino.Logger;
   hubRelationships?: HubRelationshipManagement;
   reloadConfig: () => Promise<DaemonConfigReloadResult>;
+  probeRelayEndpoints?: () => Promise<RegionalRelaySelection>;
 }
 
 /**
@@ -85,6 +92,7 @@ export class DaemonSession {
   private readonly selfUpdate: DaemonSelfUpdateSessionController;
   private readonly hubRelationships: HubRelationshipManagement | null;
   private readonly reloadConfig: () => Promise<DaemonConfigReloadResult>;
+  private readonly probeRelayEndpoints: () => Promise<RegionalRelaySelection>;
 
   constructor(options: DaemonSessionOptions) {
     this.host = options.host;
@@ -103,6 +111,9 @@ export class DaemonSession {
     this.logger = options.logger;
     this.hubRelationships = options.hubRelationships ?? null;
     this.reloadConfig = options.reloadConfig;
+    this.probeRelayEndpoints =
+      options.probeRelayEndpoints ??
+      (() => selectRegionalRelay(brand.regionalRelayEndpoints, brand.relayEndpoint));
     this.selfUpdate = new DaemonSelfUpdateSessionController({
       clientId: this.clientId,
       daemonVersion: this.daemonVersion ?? null,
@@ -278,6 +289,38 @@ export class DaemonSession {
       });
     } catch (error) {
       this.logger.error({ err: error }, "Failed to reload daemon config");
+      this.host.emit({
+        type: "rpc_error",
+        payload: {
+          requestId: msg.requestId,
+          requestType: msg.type,
+          error: error instanceof Error ? error.message : String(error),
+          code: "handler_error",
+        },
+      });
+    }
+  }
+
+  async handleProbeRelayRequest(
+    msg: Extract<SessionInboundMessage, { type: "daemon.relay.probe.request" }>,
+  ): Promise<void> {
+    try {
+      const selection = await this.probeRelayEndpoints();
+      this.host.emit({
+        type: "daemon.relay.probe.response",
+        payload: {
+          requestId: msg.requestId,
+          selected: selection.selected,
+          probes: selection.probes.map((probe) => ({
+            endpoint: probe.endpoint,
+            publicEndpoint: getHostedRelayPublicEndpoint(probe.endpoint),
+            ok: probe.ok,
+            ms: probe.ms,
+          })),
+        },
+      });
+    } catch (error) {
+      this.logger.error({ err: error }, "Failed to probe regional relays");
       this.host.emit({
         type: "rpc_error",
         payload: {

@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync, readFileSync, appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
@@ -345,6 +346,10 @@ function requestClient(method, params) {
 }
 
 const PROMPT_ROUTES = [
+  ["POST_TURN_STALE_TOOL_AND_ORPHAN_ACP", (id) => handlePostTurnStaleToolUpdates(id)],
+  ["POST_TURN_ORPHAN_ACP_CHUNK", (id) => handlePostTurnOrphanAcpChunk(id)],
+  ["BG_WAKEUP_ACP_STALLED_WAITING", (id) => handleBgWakeupAcpStalledWaiting(id)],
+  ["HANG_WITH_DETACHED_STDIO", (id) => handleHangWithDetachedStdio(id)],
   ["BG_WAKEUP_CHAINS_BG_TASK", (id) => handleBgWakeupChainsBgTask(id)],
   ["BG_WAKEUP_CANCEL_FALLOUT", (id) => handleBgWakeupCancelFallout(id)],
   ["BG_LOW_PRIORITY_CANCEL_NOTICE", (id) => handleBgLowPriorityCancelNotice(id)],
@@ -2643,6 +2648,148 @@ function handleBgLowPriorityCancelNotice(id) {
       content: `The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-23T03:56:53Z sender=${bgTaskId} priority=MESSAGE_PRIORITY_LOW content=Task id "${bgTaskId}" was canceled with result:\nTool execution was canceled\n</SYSTEM_MESSAGE>`,
     });
   }, 120);
+}
+
+function handlePostTurnStaleToolUpdates(id) {
+  appendTranscriptStep(sessionId, {
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: "<USER_REQUEST>\nPOST_TURN_STALE_TOOL_AND_ORPHAN_ACP\n</USER_REQUEST>",
+  });
+  notifyUpdate({
+    sessionUpdate: "tool_call",
+    toolCallId: "fg-tool-1",
+    title: "open ego browser",
+    kind: "execute",
+    status: "completed",
+    rawInput: { CommandLine: "ego https://example.com" },
+    rawOutput: { output: "Launched" },
+  });
+  appendTranscriptStep(sessionId, {
+    source: "MODEL",
+    type: "PLANNER_RESPONSE",
+    status: "DONE",
+    content: "FG_TURN_DONE",
+  });
+  notifyUpdate({
+    sessionUpdate: "agent_message_chunk",
+    content: { type: "text", text: "FG_TURN_DONE" },
+  });
+  respond(id, { stopReason: "end_turn" });
+
+  setTimeout(() => {
+    // Standalone already-terminal tool_call after turn end must not open an autonomous turn.
+    notifyUpdate({
+      sessionUpdate: "tool_call",
+      toolCallId: "late-standalone-tool-1",
+      title: "background helper",
+      kind: "execute",
+      status: "completed",
+      rawInput: { CommandLine: "echo done" },
+      rawOutput: { output: "done" },
+    });
+    // Non-terminal update for an already-settled foreground tool must not open an autonomous turn.
+    notifyUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "fg-tool-1",
+      status: "in_progress",
+      rawOutput: { output: "trailing output" },
+    });
+  }, 60);
+}
+
+function handlePostTurnOrphanAcpChunk(id) {
+  appendTranscriptStep(sessionId, {
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: "<USER_REQUEST>\nPOST_TURN_ORPHAN_ACP_CHUNK\n</USER_REQUEST>",
+  });
+  appendTranscriptStep(sessionId, {
+    source: "MODEL",
+    type: "PLANNER_RESPONSE",
+    status: "DONE",
+    content: "INITIAL_REPLY_DONE",
+  });
+  notifyUpdate({
+    sessionUpdate: "agent_message_chunk",
+    content: { type: "text", text: "INITIAL_REPLY_DONE" },
+  });
+  respond(id, { stopReason: "end_turn" });
+
+  setTimeout(() => {
+    // Late ACP text chunk with no accompanying transcript PLANNER_RESPONSE.
+    notifyUpdate({
+      sessionUpdate: "agent_message_chunk",
+      messageId: "orphan-acp-msg-1",
+      content: { type: "text", text: "LATE_ORPHAN_ACP_TEXT" },
+    });
+  }, 60);
+}
+
+function handleBgWakeupAcpStalledWaiting(id) {
+  const bgTaskId = `${sessionId}/task-acp-stall-1`;
+  appendTranscriptStep(sessionId, {
+    source: "USER_EXPLICIT",
+    type: "USER_INPUT",
+    content: "<USER_REQUEST>\nBG_WAKEUP_ACP_STALLED_WAITING\n</USER_REQUEST>",
+  });
+  notifyUpdate({
+    sessionUpdate: "tool_call",
+    toolCallId: "acp-stall-bg-0",
+    title: "sleep 1",
+    kind: "execute",
+    status: "completed",
+    rawInput: { CommandLine: "sleep 1", WaitMsBeforeAsync: 500 },
+    rawOutput: {
+      output: `Command started.\nTool is running as a background task with task id: ${bgTaskId}\n`,
+    },
+  });
+  respond(id, { stopReason: "end_turn" });
+
+  setTimeout(() => {
+    appendTranscriptStep(sessionId, {
+      source: "SYSTEM",
+      type: "SYSTEM_MESSAGE",
+      content: `The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-24T08:00:00Z sender=${bgTaskId} priority=MESSAGE_PRIORITY_HIGH content=Task id "${bgTaskId}" finished with result:\nCommand exited with code 0.\n</SYSTEM_MESSAGE>`,
+    });
+    const plannerIdx = appendTranscriptStep(sessionId, {
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      status: "DONE",
+      tool_calls: [
+        {
+          id: "acp-stalled-shell-1",
+          name: "run_command",
+          args: { CommandLine: JSON.stringify("open -a Ego") },
+        },
+      ],
+    });
+    // ACP streams the tool_call (setting receivedAcpUpdates=true), but never sends session/request_permission
+    // while SQLite marks the step WAITING (9) for approval.
+    notifyUpdate({
+      sessionUpdate: "tool_call",
+      toolCallId: "acp-stalled-shell-1",
+      title: "open -a Ego",
+      kind: "execute",
+      status: "in_progress",
+      rawInput: { CommandLine: "open -a Ego" },
+    });
+    upsertConversationStepDb(sessionId, plannerIdx + 1, 9);
+  }, 100);
+}
+
+function handleHangWithDetachedStdio(id) {
+  activePromptId = id;
+  const grandchild = spawn(process.execPath, ["-e", "setTimeout(() => process.exit(0), 2500)"], {
+    detached: true,
+    stdio: ["ignore", process.stdout, process.stderr],
+  });
+  grandchild.unref();
+  notifyUpdate({
+    sessionUpdate: "agent_message_chunk",
+    messageId: "detached-hang-msg-1",
+    content: { type: "text", text: "Waiting with detached child..." },
+  });
 }
 
 let failedSetModelOnce = false;

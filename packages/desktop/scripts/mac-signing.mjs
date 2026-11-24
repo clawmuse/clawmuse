@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 import { closeSync, openSync, readSync, statSync } from "node:fs";
-import { parseReleaseVersion } from "../../../scripts/release-version-utils.mjs";
 import { isMainModule } from "../../../scripts/is-main-module.mjs";
 
 export const MAC_SIGNING_ENV_KEYS = [
@@ -42,16 +41,12 @@ export function isMacCodePath(file) {
   }
 }
 
-export function resolveMacSigning({ version, env = process.env }) {
-  if (parseReleaseVersion(version).isBeta) {
-    return { identity: "-", forceCodeSigning: false, notarize: false };
-  }
-
+export function resolveMacSigning({ env = process.env }) {
   const identity = (env.APPLE_SIGN_IDENTITY || env.CSC_NAME || "").trim();
   const match = /^Developer ID Application: (.+ \(([A-Z0-9]{10})\))$/.exec(identity);
   if (!match) {
     throw new Error(
-      "Mac stable builds require APPLE_SIGN_IDENTITY (a Developer ID Application certificate).",
+      "Mac builds require APPLE_SIGN_IDENTITY (a Developer ID Application certificate).",
     );
   }
   if (env.APPLE_TEAM_ID !== match[2]) {
@@ -70,9 +65,7 @@ export function resolveMacSigning({ version, env = process.env }) {
       );
     }
   } else if (!env.APPLE_KEYCHAIN_PROFILE) {
-    throw new Error(
-      "Mac stable builds require notarization credentials or APPLE_KEYCHAIN_PROFILE.",
-    );
+    throw new Error("Mac builds require notarization credentials or APPLE_KEYCHAIN_PROFILE.");
   }
 
   // electron-builder rejects the certificate type prefix in its identity qualifier.
@@ -88,14 +81,8 @@ function runVerification(command, args) {
   return output;
 }
 
-export function verifyMacDistribution({
-  appPath,
-  version,
-  env = process.env,
-  run = runVerification,
-}) {
-  if (parseReleaseVersion(version).isBeta) return;
-  resolveMacSigning({ version, env });
+export function verifyMacDistribution({ appPath, env = process.env, run = runVerification }) {
+  resolveMacSigning({ env });
   run("/usr/bin/codesign", ["--verify", "--deep", "--strict", appPath]);
   const signature = run("/usr/bin/codesign", ["--display", "--verbose=4", appPath]);
   const identity = (env.APPLE_SIGN_IDENTITY || env.CSC_NAME).trim();
@@ -103,7 +90,7 @@ export function verifyMacDistribution({
   const team = signature.split(/\r?\n/).includes(`TeamIdentifier=${env.APPLE_TEAM_ID}`);
   if (!authority || !team || !/flags=.*\bruntime\b/.test(signature)) {
     throw new Error(
-      "Mac stable bundle must have the expected Developer ID, Team ID and hardened runtime.",
+      "Mac bundle must have the expected Developer ID, Team ID and hardened runtime.",
     );
   }
   // electron-builder 26 silently skips notarization without credentials; config alone is insufficient.
@@ -116,19 +103,11 @@ export function verifyMacDistribution({
     appPath,
   ]);
   if (!assessment.includes("source=Notarized Developer ID")) {
-    throw new Error(
-      "Gatekeeper did not recognize the Mac stable bundle as Notarized Developer ID.",
-    );
+    throw new Error("Gatekeeper did not recognize the Mac bundle as Notarized Developer ID.");
   }
 }
 
 if (isMainModule(import.meta.url)) {
-  const version = process.argv[2];
-  if (!version) throw new Error("Usage: node mac-signing.mjs <desktop-version>");
-  const options = resolveMacSigning({ version });
-  console.log(
-    options.notarize
-      ? "Mac release: Developer ID signing and notarization required"
-      : "Mac beta: ad-hoc signing",
-  );
+  resolveMacSigning({});
+  console.log("Mac release: Developer ID signing and notarization required");
 }

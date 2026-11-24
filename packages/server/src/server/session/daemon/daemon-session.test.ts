@@ -13,6 +13,7 @@ import type { ProviderAvailability } from "../../agent/agent-manager.js";
 import type { HubRelationshipManagement } from "../../hub/relationship-controller.js";
 import type { SessionOutboundMessage } from "../../messages.js";
 import type { DaemonConfigReloadResult } from "../../daemon-config-store.js";
+import type { RegionalRelaySelection } from "../../regional-relay.js";
 
 const tempDirs: string[] = [];
 
@@ -44,6 +45,7 @@ function makeSubsystem(overrides: {
   getWebSocketRuntimeMetrics?: () => DaemonWebSocketRuntimeDiagnosticSnapshot | null;
   hubRelationships?: HubRelationshipManagement;
   reloadConfig?: () => Promise<DaemonConfigReloadResult>;
+  probeRelayEndpoints?: () => Promise<RegionalRelaySelection>;
 }) {
   const emitted: SessionOutboundMessage[] = [];
   const restartIntents: Parameters<DaemonSessionHost["emitLifecycleIntent"]>[0][] = [];
@@ -72,12 +74,54 @@ function makeSubsystem(overrides: {
         restartRequiredPaths: [],
         overrideControlledPaths: [],
       })),
+    probeRelayEndpoints: overrides.probeRelayEndpoints,
     logger: pino({ level: "silent" }),
   });
   return { subsystem, emitted, paseoHome, restartIntents };
 }
 
 describe("DaemonSession", () => {
+  test("probe relay endpoints returns latency samples with public endpoint aliases", async () => {
+    const { subsystem, emitted } = makeSubsystem({
+      probeRelayEndpoints: async () => ({
+        selected: "agent-relay-cn.ppb.cn:443",
+        probes: [
+          { endpoint: "agent-relay.clawmuse.com:443", ok: true, ms: 48 },
+          { endpoint: "agent-relay-cn.ppb.cn:443", ok: true, ms: 11 },
+        ],
+      }),
+    });
+
+    await subsystem.handleProbeRelayRequest({
+      type: "daemon.relay.probe.request",
+      requestId: "probe-1",
+    });
+
+    expect(emitted).toEqual([
+      {
+        type: "daemon.relay.probe.response",
+        payload: {
+          requestId: "probe-1",
+          selected: "agent-relay-cn.ppb.cn:443",
+          probes: [
+            {
+              endpoint: "agent-relay.clawmuse.com:443",
+              publicEndpoint: "agent-relay.ppb.cn:443",
+              ok: true,
+              ms: 48,
+            },
+            {
+              endpoint: "agent-relay-cn.ppb.cn:443",
+              publicEndpoint: "agent-relay-cn.ppb.cn:443",
+              ok: true,
+              ms: 11,
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
   test("config reload returns the daemon-owned classification", async () => {
     const { subsystem, emitted } = makeSubsystem({
       reloadConfig: async () => ({

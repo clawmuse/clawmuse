@@ -1,6 +1,7 @@
 import type { AgentArchiveReview } from "@getpaseo/protocol/messages";
 import type { AggregatedAgent } from "@/hooks/use-aggregated-agents";
 import type { HostRuntimeConnectionStatus } from "@/runtime/host-runtime";
+import type { EmptyWorkspaceArchiveOutcome } from "./empty-workspace-archive";
 
 export type ReviewPhase =
   | "idle"
@@ -27,6 +28,7 @@ export interface ReviewEntry {
   reason?: string;
   archivedAt?: string;
   archivedBy?: "ai" | "manual";
+  workspaceOutcome?: EmptyWorkspaceArchiveOutcome;
 }
 
 export interface ArchiveRowItem {

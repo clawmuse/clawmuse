@@ -132,7 +132,7 @@ import type { ClawMuseGoalRunner } from "./clawmuse-status/goal-runner.js";
 import type { LocalGoalService } from "./goals/service.js";
 import { getProcessMemoryDiagnostics, getProcessUptimeSeconds } from "./process-diagnostics.js";
 import {
-  CLIENT_SHUTDOWN_RPC_REASON,
+  normalizeClientShutdownRpcReason,
   normalizeClientRestartRpcReason,
 } from "./lifecycle-reasons.js";
 import { CLIENT_CAPS } from "@getpaseo/protocol/client-capabilities";
@@ -2463,6 +2463,8 @@ export class VoiceAssistantWebSocketServer {
         daemonSelfUpdate: this.daemonRuntimeConfig?.desktopManaged !== true,
         // COMPAT(terminalsSurviveRestart): added in v0.12.0, remove gate after 2027-04-21.
         terminalsSurviveRestart: true,
+        // COMPAT(relayEndpointConfig): added in v1.6.1, remove gate after 2027-05-24.
+        relayEndpointConfig: true,
         // COMPAT(agentForkContext): added in v0.1.102, remove gate after 2026-12-28.
         agentForkContext: true,
         // COMPAT(agentForkContextCursor): added in v0.1.108, remove gate after 2027-01-14.
@@ -4027,7 +4029,7 @@ function getControlRpcLogInfo(
     return {
       requestType: message.type,
       requestId: message.requestId,
-      reason: CLIENT_SHUTDOWN_RPC_REASON,
+      reason: normalizeClientShutdownRpcReason(message.reason),
     };
   }
   if (message.type === "restart_server_request") {

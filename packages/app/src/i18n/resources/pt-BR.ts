@@ -3102,6 +3102,42 @@ export const ptBR: TranslationResources = {
         removeErrorMessage: "Não foi possível remover a conexão",
         timeout: "Timeout",
       },
+      relay: {
+        title: "Servidor de retransmissão",
+        nodeTitle: "Nó de retransmissão",
+        currentEndpoint: "Endereço atual: {{endpoint}}",
+        customTitle: "Endereço personalizado",
+        editCustom: "Editar",
+        latencyTitle: "Latência do host",
+        probeAction: "Testar",
+        probing: "Testando...",
+        probeErrorTitle: "Não foi possível testar a latência",
+        nodes: {
+          guangzhou: "Guangzhou",
+          singapore: "Singapura",
+          custom: "Personalizado",
+        },
+        recommendTitle: "O nó de {{node}} é mais rápido para este host",
+        recommendDescription:
+          "{{node}} ({{targetLatency}}) tem menor latência do que o nó atual ({{currentLatency}}).",
+        switchTo: "Trocar para {{node}}",
+        confirmTitle: "Trocar retransmissão para {{target}}?",
+        confirmMessage:
+          "Os agentes em execução continuam sem reiniciar este host. Dispositivos com a mesma conta são atualizados automaticamente; dispositivos pareados apenas por link de convite precisarão parear novamente.",
+        confirmAction: "Trocar",
+        switchErrorTitle: "Não foi possível trocar a retransmissão",
+        switchedNotice: "Retransmissão alterada para {{endpoint}}",
+        lockedTitle: "Endereço de retransmissão bloqueado",
+        lockedDescription:
+          "Controlado por PASEO_RELAY_ENDPOINT ou PASEO_RELAY_PUBLIC_ENDPOINT. Remova a variável de ambiente para alterar aqui.",
+        customSheetTitle: "Endereço de retransmissão personalizado",
+        customEndpointLabel: "Endereço de retransmissão (host:port)",
+        customPublicEndpointLabel: "Endereço público (opcional)",
+        customPublicEndpointHint:
+          "Deixe em branco para usar o endereço de retransmissão ou o alias público padrão.",
+        customPublicEndpointPlaceholder: "Igual ao endereço de retransmissão",
+        customTlsLabel: "Usar TLS (wss://)",
+      },
       pairDevices: {
         title: "Parear dispositivos",
         rowTitle: "Parear um dispositivo",

@@ -1,5 +1,5 @@
-import manifest from "./releases.json";
-import betaManifest from "./beta-releases.json";
+import manifest from "./releases.json" with { type: "json" };
+import betaManifest from "./beta-releases.json" with { type: "json" };
 
 export type DownloadPlatform = "windows" | "macos" | "linux" | "android";
 export interface DownloadFile {

@@ -70,6 +70,7 @@ import { PaseoToolsCard } from "./paseo-tools-card";
 import { SpeechSettingsSection } from "./speech-section";
 import { RestartRecoveryCard } from "./restart-recovery-card";
 import { IdleRuntimeCleanupCard } from "./idle-runtime-cleanup-card";
+import { RelayEndpointSection } from "./relay-endpoint-card";
 import { restartDaemonFromSettings, updateDaemonFromSettings } from "./daemon-lifecycle";
 
 const ThemedRestart = withUnistyles(RotateCw);
@@ -287,6 +288,7 @@ export function HostConnectionsPage({ serverId }: { serverId: string }) {
         </Button>
       ) : null}
       <ConnectionsSection host={host} />
+      <RelayEndpointSection serverId={serverId} />
     </View>
   );
 }

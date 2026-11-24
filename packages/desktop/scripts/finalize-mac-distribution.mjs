@@ -57,7 +57,7 @@ export async function finalizeMacDistribution({
   run = runChecked,
   blockmap = generateBlockmap,
 }) {
-  if (!resolveMacSigning({ version, env }).notarize) return;
+  resolveMacSigning({ env });
   const names = readdirSync(directory);
   const images = names.filter(
     (name) => name.startsWith(`ClawMuse-${version}-`) && name.endsWith(".dmg"),

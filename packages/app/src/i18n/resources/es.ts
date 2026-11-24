@@ -3123,6 +3123,42 @@ export const es: TranslationResources = {
         removeErrorMessage: "No se puede eliminar la conexión",
         timeout: "Se acabó el tiempo",
       },
+      relay: {
+        title: "Servidor de retransmisión",
+        nodeTitle: "Nodo de retransmisión",
+        currentEndpoint: "Dirección actual: {{endpoint}}",
+        customTitle: "Dirección personalizada",
+        editCustom: "Editar",
+        latencyTitle: "Latencia del host",
+        probeAction: "Probar",
+        probing: "Probando...",
+        probeErrorTitle: "No se pudo medir la latencia",
+        nodes: {
+          guangzhou: "Guangzhou",
+          singapore: "Singapur",
+          custom: "Personalizado",
+        },
+        recommendTitle: "El nodo de {{node}} es más rápido para este host",
+        recommendDescription:
+          "{{node}} ({{targetLatency}}) tiene menor latencia que el nodo actual ({{currentLatency}}).",
+        switchTo: "Cambiar a {{node}}",
+        confirmTitle: "¿Cambiar la retransmisión a {{target}}?",
+        confirmMessage:
+          "Los agentes en ejecución continúan sin reiniciar el host. Los dispositivos con la misma cuenta se actualizan automáticamente; los emparejados solo con enlace de invitación deberán volver a emparejarse.",
+        confirmAction: "Cambiar",
+        switchErrorTitle: "No se pudo cambiar la retransmisión",
+        switchedNotice: "Retransmisión cambiada a {{endpoint}}",
+        lockedTitle: "Dirección de retransmisión bloqueada",
+        lockedDescription:
+          "Controlada por PASEO_RELAY_ENDPOINT o PASEO_RELAY_PUBLIC_ENDPOINT. Elimina la variable de entorno para cambiarla aquí.",
+        customSheetTitle: "Dirección de retransmisión personalizada",
+        customEndpointLabel: "Dirección de retransmisión (host:port)",
+        customPublicEndpointLabel: "Dirección pública (opcional)",
+        customPublicEndpointHint:
+          "Déjalo vacío para usar la dirección de retransmisión o el alias público predeterminado.",
+        customPublicEndpointPlaceholder: "Igual que la dirección de retransmisión",
+        customTlsLabel: "Usar TLS (wss://)",
+      },
       pairDevices: {
         title: "Emparejar dispositivos",
         rowTitle: "Emparejar un dispositivo",

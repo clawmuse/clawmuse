@@ -584,6 +584,8 @@ export interface AdaptiveModalSheetProps {
   testID?: string;
   /** Override the max width of the desktop card. */
   desktopMaxWidth?: number;
+  /** Override the max height of the desktop card (defaults to 85%). */
+  desktopMaxHeight?: DimensionValue;
   /** Bound an author-owned list without changing content-sized first-party dialogs. */
   desktopHeight?: DimensionValue;
   /** Whether the host supplies the scroll container. Caller-owned lists still share sheet gestures. */
@@ -683,6 +685,7 @@ export function AdaptiveModalSheet({
   snapPoints,
   testID,
   desktopMaxWidth,
+  desktopMaxHeight,
   desktopHeight,
   scrollable = true,
   scrollRef,
@@ -728,9 +731,10 @@ export function AdaptiveModalSheet({
       styles.desktopCard,
       desktopHeight != null && { height: desktopHeight },
       desktopMaxWidth != null && { maxWidth: desktopMaxWidth },
+      desktopMaxHeight != null && { maxHeight: desktopMaxHeight },
       isWeb && WEB_ENTER_STYLE,
     ],
-    [desktopMaxWidth, desktopHeight],
+    [desktopMaxWidth, desktopMaxHeight, desktopHeight],
   );
   const desktopOverlayStyle = useMemo(
     () => [

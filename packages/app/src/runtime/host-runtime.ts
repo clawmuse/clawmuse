@@ -24,6 +24,7 @@ import {
   forgetUnreadableHost,
   pinRelayProtectedSecurityInProfiles,
   readHostRegistry,
+  replaceHostRelayEndpointInProfiles,
   upsertHostConnectionInProfiles,
   registryHasConnection,
   relayConnectionFromOffer,
@@ -2589,6 +2590,26 @@ export class HostRuntimeStore {
     if (next === this.hosts) return;
     this.setHostsAndSync(next);
     await this.persistHosts();
+  }
+
+  async switchHostRelayEndpoint(
+    serverId: string,
+    input: { relayEndpoint: string; useTls: boolean },
+  ): Promise<void> {
+    const next = replaceHostRelayEndpointInProfiles({
+      profiles: this.hosts,
+      serverId,
+      relayEndpoint: input.relayEndpoint,
+      useTls: input.useTls,
+    });
+    if (next === this.hosts) return;
+    this.setHostsAndSync(next);
+    await this.persistHosts();
+    // If the host is currently connected through the replaced relay, reconnect immediately onto the new origin.
+    const snapshot = this.getSnapshot(serverId);
+    if (snapshot?.activeConnection?.type === "relay") {
+      await this.reconnectHost(serverId);
+    }
   }
 
   private async updateHost(

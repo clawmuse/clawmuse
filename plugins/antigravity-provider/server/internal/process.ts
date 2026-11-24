@@ -3,12 +3,14 @@ import { createInterface } from "node:readline";
 import type { z } from "zod";
 import { execCommand, spawnProcess } from "@getpaseo/plugin/server";
 import type { ProviderLaunch } from "@getpaseo/plugin/server/provider";
+import { unrefTimer } from "./data-dir.js";
 import { signalProcess } from "./signals.js";
 import { AntigravityError, classifyFailure, jsonRpcErrorObjectSchema } from "./wire.js";
 
 const PROBE_TIMEOUT_MS = 15_000;
 const INIT_TIMEOUT_MS = 30_000;
 const EXIT_WAIT_MS = 800;
+const DETACHED_STDIO_EXIT_GRACE_MS = 250;
 const MAX_STDERR_CHARS = 8_192;
 
 interface PendingRpc {
@@ -35,6 +37,7 @@ export class DriverProcess {
   private closing = false;
   private hasExited = false;
   private stopPromise: Promise<void> | null = null;
+  private finalizeProcessExit!: (failure: AntigravityError, notifyExit: boolean) => void;
 
   constructor(
     options: {
@@ -72,22 +75,46 @@ export class DriverProcess {
     const lines = createInterface({ input: this.child.stdout, crlfDelay: Infinity });
     lines.on("line", (line) => this.handleLine(line));
 
+    let exitGraceTimer: ReturnType<typeof setTimeout> | null = null;
+    let resolveExited!: () => void;
     this.exitedPromise = new Promise((resolve) => {
-      this.child.once("error", (error) => {
-        this.hasExited = true;
-        lines.close();
-        this.failAllPending(classifyFailure(this.stderr, error.message));
-        resolve();
-      });
-      this.child.once("close", (code, signal) => {
-        this.hasExited = true;
-        lines.close();
-        const detail = `Antigravity ACP exited (${signal ? `signal ${signal}` : `code ${code ?? "unknown"}`})`;
-        const failure = classifyFailure(this.stderr, detail);
-        this.failAllPending(failure);
-        if (!this.closing) this.handlers.onExit(failure);
-        resolve();
-      });
+      resolveExited = resolve;
+    });
+    const finalize = (failure: AntigravityError, notifyExit: boolean) => {
+      if (this.hasExited) return;
+      this.hasExited = true;
+      if (exitGraceTimer) {
+        clearTimeout(exitGraceTimer);
+        exitGraceTimer = null;
+      }
+      lines.close();
+      this.child.stdout.destroy();
+      this.child.stderr.destroy();
+      this.failAllPending(failure);
+      if (notifyExit && !this.closing) this.handlers.onExit(failure);
+      resolveExited();
+    };
+    this.finalizeProcessExit = finalize;
+
+    this.child.once("error", (error) => {
+      finalize(classifyFailure(this.stderr, error.message), false);
+    });
+    this.child.once("exit", (code, signal) => {
+      if (this.hasExited) return;
+      const detail = `Antigravity ACP exited (${signal ? `signal ${signal}` : `code ${code ?? "unknown"}`})`;
+      // If a detached grandchild (e.g. a browser or background daemon) inherited stdio pipes,
+      // Node's `close` event may never fire after `exit`. Bound the drain window so turns and
+      // driver retirement cannot wedge forever.
+      const graceMs = this.closing ? 25 : DETACHED_STDIO_EXIT_GRACE_MS;
+      exitGraceTimer = setTimeout(() => {
+        exitGraceTimer = null;
+        finalize(classifyFailure(this.stderr, detail), true);
+      }, graceMs);
+      unrefTimer(exitGraceTimer);
+    });
+    this.child.once("close", (code, signal) => {
+      const detail = `Antigravity ACP exited (${signal ? `signal ${signal}` : `code ${code ?? "unknown"}`})`;
+      finalize(classifyFailure(this.stderr, detail), true);
     });
   }
 
@@ -162,17 +189,45 @@ export class DriverProcess {
   private async terminateProcess(): Promise<void> {
     if (process.platform === "win32") {
       await this.signal("SIGKILL", true);
-      await this.exitedPromise;
+      await this.waitForExitOrForceFinalize(EXIT_WAIT_MS);
       return;
     }
     await this.signal("SIGTERM", true);
     const timer = setTimeout(() => {
       void this.signal("SIGKILL", true);
     }, EXIT_WAIT_MS);
-    await this.exitedPromise;
+    unrefTimer(timer);
+    const settled = await this.waitForExitWithTimeout(EXIT_WAIT_MS * 2);
     clearTimeout(timer);
     // A tool can keep running after its CLI leader exits.
     await this.signal("SIGKILL", true);
+    if (!settled) {
+      this.finalizeProcessExit(classifyFailure(this.stderr, "Antigravity ACP stopped"), false);
+    }
+  }
+
+  private async waitForExitOrForceFinalize(timeoutMs: number): Promise<void> {
+    const settled = await this.waitForExitWithTimeout(timeoutMs);
+    if (!settled) {
+      this.finalizeProcessExit(classifyFailure(this.stderr, "Antigravity ACP stopped"), false);
+    }
+  }
+
+  private async waitForExitWithTimeout(timeoutMs: number): Promise<boolean> {
+    if (this.hasExited) return true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const outcome = await Promise.race([
+        this.exitedPromise.then(() => "exited" as const),
+        new Promise<"timeout">((resolve) => {
+          timer = setTimeout(() => resolve("timeout"), timeoutMs);
+          unrefTimer(timer);
+        }),
+      ]);
+      return outcome === "exited";
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   private writeMessage(payload: Record<string, unknown>): void {

@@ -7,15 +7,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import equal from "fast-deep-equal";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { getParentAgentIdFromLabels } from "@getpaseo/protocol/agent-labels";
-import { Settings2 } from "@/components/icons/app-icons";
-import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";
+import { Minimize2, Settings2 } from "@/components/icons/app-icons";
+import {
+  AdaptiveModalSheet,
+  FULL_SHEET_SNAP_POINTS,
+  SheetHeaderIconButton,
+} from "@/components/adaptive-modal-sheet";
 import { HostStatusDot } from "@/components/host-status-dot";
 import { HostFilter } from "@/components/hosts/host-filter";
 import { ALL_HOSTS_OPTION_ID, type HostPickerHost } from "@/components/hosts/host-picker";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ScrollView } from "@/components/ui/scroll-view";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Switch } from "@/components/ui/switch";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { useClawMuseDeviceLabel } from "@/clawmuse/device-label";
 import { useAggregatedAgents, type AggregatedAgent } from "@/hooks/use-aggregated-agents";
 import { applyArchivedAgentCloseResults } from "@/hooks/use-archive-agent";
@@ -34,11 +41,18 @@ import { toErrorMessage } from "@/utils/error-messages";
 import { buildSettingsHostSectionRoute } from "@/utils/host-routes";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { AgentArchiveRow } from "./agent-row";
+import { archiveEmptyWorkspaceIfSafe } from "./empty-workspace-archive";
 import {
   AiArchiveModelConfigCard,
   AllHostsModelConfigList,
   useAiArchiveModelButtonLabel,
 } from "./model-config-panel";
+import { ProjectFilter } from "./project-filter";
+import {
+  ALL_PROJECTS_OPTION_ID,
+  buildProjectArchiveOptions,
+  resolveAgentProject,
+} from "./project-scope";
 import {
   deriveLiveRiskFlags,
   keyOfAgent,
@@ -50,6 +64,8 @@ import {
 } from "./types";
 
 const aiArchiveHostOptionTestID = (serverId: string) => `ai-archive-host-option-${serverId}`;
+const aiArchiveProjectOptionTestID = (projectId: string) =>
+  `ai-archive-project-option-${projectId}`;
 
 const EMPTY_AGENT_META: AgentLiveMeta = {
   model: null,
@@ -363,8 +379,27 @@ function BatchProgressBlock({
   );
 }
 
-export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
+export interface AiArchiveBackgroundStatus {
+  batchBusy: boolean;
+  batchDone: number;
+  batchTotal: number;
+  readyCount: number;
+  archivedCount: number;
+}
+
+export function AiAgentArchiveSheet({
+  visible = true,
+  onClose,
+  onMinimize,
+  onBackgroundStatusChange,
+}: {
+  visible?: boolean;
+  onClose: () => void;
+  onMinimize?: () => void;
+  onBackgroundStatusChange?: (status: AiArchiveBackgroundStatus) => void;
+}) {
   const { t } = useTranslation();
+  const isCompact = useIsCompactFormFactor();
   const visibleHosts = useVisibleHosts();
   const { agents, isInitialLoad } = useAggregatedAgents();
   const lastWorkspace = useLastWorkspaceSelection();
@@ -433,8 +468,12 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
     }
   }, [hosts, selectedHost]);
 
+  const [selectedProject, setSelectedProject] = useState<string>(ALL_PROJECTS_OPTION_ID);
   const [filter, setFilter] = useState<ArchiveStatusFilter>("all");
   const [modelConfigOpen, setModelConfigOpen] = useState(false);
+  const [archiveEmptyWorkspaces, setArchiveEmptyWorkspaces] = useState(true);
+  const archiveEmptyWorkspacesRef = useRef(archiveEmptyWorkspaces);
+  archiveEmptyWorkspacesRef.current = archiveEmptyWorkspaces;
   const [entriesByKey, setEntriesByKey] = useState<Record<string, ReviewEntry>>({});
   const [archivedSnapshots, setArchivedSnapshots] = useState<
     Record<string, { agent: AggregatedAgent; meta: AgentLiveMeta }>
@@ -493,9 +532,31 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
   }, [agents, archivedSnapshots, entriesByKey, storeSlice.agentMetaByKey]);
 
   const isAllHosts = selectedHost === ALL_HOSTS_OPTION_ID;
-  const scopedItems = useMemo(
+  const hostScopedItems = useMemo(
     () => (isAllHosts ? allItems : allItems.filter((item) => item.agent.serverId === selectedHost)),
     [allItems, isAllHosts, selectedHost],
+  );
+  const projectOptions = useMemo(
+    () => buildProjectArchiveOptions(hostScopedItems, t("aiArchive.projectFilter.other")),
+    [hostScopedItems, t],
+  );
+
+  useEffect(() => {
+    if (
+      !isInitialLoad &&
+      selectedProject !== ALL_PROJECTS_OPTION_ID &&
+      !projectOptions.some((project) => project.id === selectedProject)
+    ) {
+      setSelectedProject(ALL_PROJECTS_OPTION_ID);
+    }
+  }, [isInitialLoad, projectOptions, selectedProject]);
+
+  const scopedItems = useMemo(
+    () =>
+      selectedProject === ALL_PROJECTS_OPTION_ID
+        ? hostScopedItems
+        : hostScopedItems.filter((item) => resolveAgentProject(item.agent).id === selectedProject),
+    [hostScopedItems, selectedProject],
   );
 
   const counts = useMemo(() => {
@@ -587,7 +648,7 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
   );
 
   const markArchived = useCallback(
-    (item: ArchiveRowItem, archivedAt: string, archivedBy: "ai" | "manual") => {
+    async (item: ArchiveRowItem, archivedAt: string, archivedBy: "ai" | "manual") => {
       if (mountedRef.current) {
         setArchivedSnapshots((prev) => ({
           ...prev,
@@ -604,6 +665,21 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
         archivedAt,
         archivedBy,
       });
+
+      if (!archiveEmptyWorkspacesRef.current || !item.agent.workspaceId) {
+        return;
+      }
+      const client = useSessionStore.getState().sessions[item.agent.serverId]?.client;
+      if (!client || !client.isConnected || typeof client.archiveWorkspace !== "function") {
+        return;
+      }
+      const workspaceOutcome = await archiveEmptyWorkspaceIfSafe({
+        serverId: item.agent.serverId,
+        workspaceId: item.agent.workspaceId,
+        archivedAgentId: item.agent.id,
+        client,
+      });
+      updateEntry(item.key, { workspaceOutcome });
     },
     [queryClient, updateEntry],
   );
@@ -613,7 +689,7 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
       updateEntry(item.key, { phase: "archiving" });
       const client = requireAiClient(item.agent.serverId);
       const result = await client.applyAgentArchive(item.agent.id, token);
-      markArchived(item, result.archivedAt, "ai");
+      await markArchived(item, result.archivedAt, "ai");
     },
     [markArchived, requireAiClient, updateEntry],
   );
@@ -671,7 +747,7 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
         }
         updateEntry(item.key, { phase: "archiving" });
         const result = await client.archiveAgent(item.agent.id);
-        markArchived(item, result.archivedAt, "manual");
+        await markArchived(item, result.archivedAt, "manual");
       } catch (error) {
         updateEntry(item.key, {
           phase: "failed",
@@ -798,6 +874,11 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
     setFilter("all");
   }, []);
 
+  const handleSelectProject = useCallback((nextProject: string) => {
+    setSelectedProject(nextProject);
+    setFilter("all");
+  }, []);
+
   const handleConfigureHost = useCallback((serverId: string) => {
     setSelectedHost(serverId);
     setFilter("all");
@@ -873,7 +954,35 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
     ],
   );
 
-  const header = useMemo(() => ({ title: t("aiArchive.title") }), [t]);
+  useEffect(() => {
+    onBackgroundStatusChange?.({
+      batchBusy,
+      batchDone,
+      batchTotal,
+      readyCount: counts.ready,
+      archivedCount: counts.archived,
+    });
+  }, [batchBusy, batchDone, batchTotal, counts.archived, counts.ready, onBackgroundStatusChange]);
+
+  const header = useMemo(
+    () => ({
+      title: t("aiArchive.title"),
+      subtitle: (
+        <Text style={styles.headerSubtitle} numberOfLines={2}>
+          {t("aiArchive.description")}
+        </Text>
+      ),
+      actions: onMinimize ? (
+        <SheetHeaderIconButton
+          icon={Minimize2}
+          label={t("aiArchive.minimize")}
+          onPress={onMinimize}
+          testID="ai-archive-minimize"
+        />
+      ) : undefined,
+    }),
+    [onMinimize, t],
+  );
   const footer = useMemo(
     () => (
       <View style={styles.actions}>
@@ -886,7 +995,20 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
           >
             {t("aiArchive.stop")}
           </Button>
-        ) : null}
+        ) : (
+          <View style={styles.emptyWorkspaceToggle}>
+            <Switch
+              value={archiveEmptyWorkspaces}
+              onValueChange={setArchiveEmptyWorkspaces}
+              disabled={batchBusy}
+              accessibilityLabel={t("aiArchive.archiveEmptyWorkspaces")}
+              testID="ai-archive-empty-workspace-toggle"
+            />
+            <Text style={styles.emptyWorkspaceToggleLabel}>
+              {t("aiArchive.archiveEmptyWorkspaces")}
+            </Text>
+          </View>
+        )}
         <View style={styles.actionSpacer} />
         <Button
           variant="outline"
@@ -915,6 +1037,7 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
       </View>
     ),
     [
+      archiveEmptyWorkspaces,
       autoArchive,
       batchBusy,
       canRunAiInScope,
@@ -989,73 +1112,119 @@ export function AiAgentArchiveSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <AdaptiveModalSheet
-      visible
+      visible={visible}
       onClose={closeSheet}
       header={header}
       testID="ai-archive-sheet"
-      desktopMaxWidth={680}
+      desktopMaxWidth={1040}
+      desktopHeight="90%"
+      desktopMaxHeight="92%"
+      snapPoints={FULL_SHEET_SNAP_POINTS}
+      scrollable={false}
+      contentStyle={styles.sheetContentOverride}
       footer={footer}
     >
       <View style={styles.body}>
-        <Text style={styles.description}>{t("aiArchive.description")}</Text>
+        <View style={styles.controlsHeader}>
+          <View style={styles.toolbar}>
+            <View style={styles.scopeControls}>
+              {hostControl}
+              {projectOptions.length > 0 ? (
+                <ProjectFilter
+                  projects={projectOptions}
+                  totalCount={hostScopedItems.length}
+                  selectedProject={selectedProject}
+                  onSelectProject={handleSelectProject}
+                  disabled={batchBusy}
+                  triggerTestID="ai-archive-project-filter"
+                  projectOptionTestID={aiArchiveProjectOptionTestID}
+                />
+              ) : null}
+            </View>
+            <Button
+              variant={modelConfigOpen ? "secondary" : "outline"}
+              size="sm"
+              leftIcon={Settings2}
+              disabled={batchBusy}
+              onPress={toggleModelConfig}
+              testID="ai-archive-model-toggle"
+            >
+              {modelButtonLabel}
+            </Button>
+          </View>
 
-        <View style={styles.toolbar}>
-          <View style={styles.hostSlot}>{hostControl}</View>
-          <Button
-            variant={modelConfigOpen ? "secondary" : "outline"}
-            size="sm"
-            leftIcon={Settings2}
-            disabled={batchBusy}
-            onPress={toggleModelConfig}
-            testID="ai-archive-model-toggle"
-          >
-            {modelButtonLabel}
-          </Button>
+          {isAllHosts && hostInfos.length > 1 ? (
+            <View style={styles.hostChips}>
+              {hostInfos.map((host) => (
+                <HostChipButton
+                  key={host.serverId}
+                  host={host}
+                  disabled={batchBusy}
+                  onSelect={handleSelectHost}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          <View style={isCompact ? styles.statusBarCompact : styles.statusBar}>
+            <View style={styles.statusProgress}>
+              <BatchProgressBlock
+                batchBusy={batchBusy}
+                batchDone={batchDone}
+                batchTotal={batchTotal}
+                progressText={progressText}
+              />
+            </View>
+            {scopedItems.length > 0 ? (
+              <View style={styles.statusFilter}>
+                <SegmentedControl
+                  size="sm"
+                  options={filterOptions}
+                  value={filter}
+                  onValueChange={setFilter}
+                  testID="ai-archive-filter"
+                />
+              </View>
+            ) : null}
+          </View>
         </View>
 
-        {isAllHosts && hostInfos.length > 1 ? (
-          <View style={styles.hostChips}>
-            {hostInfos.map((host) => (
-              <HostChipButton
-                key={host.serverId}
-                host={host}
-                disabled={batchBusy}
-                onSelect={handleSelectHost}
-              />
-            ))}
+        <ScrollView
+          style={styles.listScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
+        >
+          <View style={styles.scrollInner}>
+            {modelConfigContent}
+            <HostCapabilityAlert host={activeHostInfo} />
+            {listContent}
           </View>
-        ) : null}
-
-        {modelConfigContent}
-
-        <HostCapabilityAlert host={activeHostInfo} />
-
-        <BatchProgressBlock
-          batchBusy={batchBusy}
-          batchDone={batchDone}
-          batchTotal={batchTotal}
-          progressText={progressText}
-        />
-
-        {scopedItems.length > 0 ? (
-          <SegmentedControl
-            size="sm"
-            options={filterOptions}
-            value={filter}
-            onValueChange={setFilter}
-            testID="ai-archive-filter"
-          />
-        ) : null}
-
-        {listContent}
+        </ScrollView>
       </View>
     </AdaptiveModalSheet>
   );
 }
 
 const styles = StyleSheet.create((theme) => ({
-  body: { gap: theme.spacing[3] },
-  description: { fontSize: theme.fontSize.sm, color: theme.colors.foregroundMuted },
+  sheetContentOverride: {
+    paddingHorizontal: theme.spacing[6],
+    paddingTop: theme.spacing[3.5],
+    paddingBottom: theme.spacing[3],
+    gap: theme.spacing[2],
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.foregroundMuted,
+  },
+  body: {
+    flex: 1,
+    minHeight: 0,
+    gap: theme.spacing[2],
+  },
+  controlsHeader: {
+    flexShrink: 0,
+    gap: theme.spacing[2],
+  },
   toolbar: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1063,16 +1232,30 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "space-between",
     gap: theme.spacing[2],
   },
-  hostSlot: {
+  scopeControls: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: theme.spacing[2],
     flexGrow: 1,
     flexShrink: 1,
-    minWidth: 120,
+    minWidth: 160,
+  },
+  hostSlot: {
+    flexShrink: 1,
+    minWidth: 0,
     alignItems: "flex-start",
   },
   singleHostPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface1,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   singleHostLabel: {
     fontSize: theme.fontSize.base,
@@ -1084,6 +1267,24 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: theme.spacing[2],
+  },
+  statusBar: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[2],
+  },
+  statusBarCompact: {
+    gap: theme.spacing[2],
+  },
+  statusProgress: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 220,
+  },
+  statusFilter: {
+    flexShrink: 0,
   },
   progressBlock: {
     gap: theme.spacing[1.5],
@@ -1109,6 +1310,14 @@ const styles = StyleSheet.create((theme) => ({
     height: "100%",
     backgroundColor: theme.colors.accent,
   },
+  listScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  scrollInner: {
+    gap: theme.spacing[2],
+    paddingBottom: theme.spacing[2],
+  },
   list: {
     gap: theme.spacing[2],
   },
@@ -1124,6 +1333,15 @@ const styles = StyleSheet.create((theme) => ({
     flexWrap: "wrap",
     alignItems: "center",
     gap: theme.spacing[2],
+  },
+  emptyWorkspaceToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  emptyWorkspaceToggleLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.foregroundMuted,
   },
   actionSpacer: {
     flex: 1,

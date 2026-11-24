@@ -14,11 +14,14 @@ Each live agent in `AgentManager` carries a `lastStatus` of `initializing`, `idl
 
 ## Daemon restart recovery
 
-Restart recovery is off by default. Enable `agents.resumeOnStartup` in host config or
-Host settings → Agents to resume interrupted agents after graceful shutdown or a crash. The daemon
-reopens the saved provider conversation and settings, then sends `Resume working.`. Customize
-the prompt with `agents.resumePrompt` or the same settings page.
+Restart recovery is on by default after a graceful shutdown or a crash. The daemon reopens the
+saved provider conversation and settings, then sends `Resume working.`. Turn off recovery in
+Host settings → Agents or set `agents.resumeOnStartup` to `false` in host config. Customize
+the prompt on the same settings page or with `agents.resumePrompt`.
 Disabling recovery consumes pending intent; enabling it later does not revive old work.
+
+Updates leave a warning in each interrupted chat that survives restarting and reopening the app.
+If you turn off automatic recovery, send a follow-up in the same chat to continue manually.
 
 Only agents recorded as running qualify. Idle and initializing agents stay inactive. Archived
 agents or workspaces, private helpers and Hub-owned executions retain their own lifecycle.
@@ -245,9 +248,11 @@ Archive is a **soft delete**: the agent record stays on disk with `archivedAt` s
 
 An approval expires after ten minutes and belongs to the requesting session. Archive re-reads the
 conversation revision and enters the same settled-task lifecycle guard used by the voice assistant.
-New activity or a background-work veto requires another check. This archives agents only; their
-workspaces and checkouts stay available. Model or host failures remain visible per agent so you can
-retry without losing successful results.
+New activity or a background-work veto requires another check. When **Archive empty workspaces** is
+enabled in the AI archive sheet (on by default), archiving the last active agent in a workspace
+also archives that workspace if it has no other unarchived agents, running scripts, open terminals,
+or (for worktrees) uncommitted/unpushed git changes; otherwise the workspace stays available. Model
+or host failures remain visible per agent so you can retry without losing successful results.
 
 Archive sets `archivedAt`, invokes the provider's native archive hook, and cascades to managed
 children.

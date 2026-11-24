@@ -4,6 +4,12 @@ import {
   loadPersistedConfigAsync,
   type PersistedConfig,
 } from "./persisted-config.js";
+import { brand } from "../brand.generated.js";
+import { getHostedRelayPublicEndpoint } from "./regional-relay.js";
+import {
+  normalizeHostPort,
+  shouldUseTlsForDefaultHostedRelay,
+} from "@getpaseo/protocol/daemon-endpoints";
 import { ProviderOverrideSchema } from "./agent/provider-launch-config.js";
 import { applySpeechSettings, readSpeechSettings } from "./speech/settings.js";
 import {
@@ -29,7 +35,14 @@ type ProviderOverride = import("./agent/provider-launch-config.js").ProviderOver
 
 interface SupportedMutableConfigPatch {
   speech?: MutableDaemonConfigPatch["speech"];
-  relay?: { enabled?: boolean; requireProtectedSecurity?: boolean };
+  relay?: {
+    enabled?: boolean;
+    requireProtectedSecurity?: boolean;
+    endpoint?: string;
+    publicEndpoint?: string;
+    useTls?: boolean;
+    publicUseTls?: boolean;
+  };
   mcp?: { injectIntoAgents?: boolean };
   usage?: { enabled: boolean };
   browserTools?: { enabled?: boolean };
@@ -257,6 +270,10 @@ function isEqualValue(a: unknown, b: unknown): boolean {
 
 const RELOADABLE_PATHS = [
   "daemon.relay.enabled",
+  "daemon.relay.endpoint",
+  "daemon.relay.publicEndpoint",
+  "daemon.relay.useTls",
+  "daemon.relay.publicUseTls",
   "daemon.relay.requireProtectedSecurity",
   "daemon.mcp.enabled",
   "daemon.mcp.injectIntoAgents",
@@ -289,6 +306,10 @@ const RELOADABLE_PATHS = [
 
 const PERSISTED_TO_MUTABLE_PATH = new Map<string, string>([
   ["daemon.relay.enabled", "relay.enabled"],
+  ["daemon.relay.endpoint", "relay.endpoint"],
+  ["daemon.relay.publicEndpoint", "relay.publicEndpoint"],
+  ["daemon.relay.useTls", "relay.useTls"],
+  ["daemon.relay.publicUseTls", "relay.publicUseTls"],
   ["daemon.relay.requireProtectedSecurity", "relay.requireProtectedSecurity"],
   ["daemon.mcp.enabled", "mcp.enabled"],
   ["daemon.mcp.injectIntoAgents", "mcp.injectIntoAgents"],
@@ -359,8 +380,88 @@ function pickRelayPatch(
     ...(relay?.requireProtectedSecurity !== undefined
       ? { requireProtectedSecurity: relay.requireProtectedSecurity }
       : {}),
+    ...(relay?.endpoint !== undefined ? { endpoint: relay.endpoint } : {}),
+    ...(relay?.publicEndpoint !== undefined ? { publicEndpoint: relay.publicEndpoint } : {}),
+    ...(relay?.useTls !== undefined ? { useTls: relay.useTls } : {}),
+    ...(relay?.publicUseTls !== undefined ? { publicUseTls: relay.publicUseTls } : {}),
   };
   return Object.keys(picked).length > 0 ? { relay: picked } : {};
+}
+
+interface NormalizedRelayPatchResult {
+  relay: NonNullable<SupportedMutableConfigPatch["relay"]>;
+  clearPersistedPublicEndpoint: boolean;
+}
+
+function resolveNormalizedPublicEndpoint(
+  endpoint: string,
+  requestedPublicEndpoint: string | undefined,
+): { publicEndpoint: string; clearPersistedPublicEndpoint: boolean } {
+  if (requestedPublicEndpoint === undefined || requestedPublicEndpoint.trim() === "") {
+    return {
+      publicEndpoint: getHostedRelayPublicEndpoint(endpoint),
+      clearPersistedPublicEndpoint: true,
+    };
+  }
+  return {
+    publicEndpoint: normalizeHostPort(requestedPublicEndpoint),
+    clearPersistedPublicEndpoint: false,
+  };
+}
+
+function resolveNormalizedRelayTls(
+  currentRelay: MutableDaemonConfig["relay"],
+  patchRelay: NonNullable<SupportedMutableConfigPatch["relay"]>,
+  endpoint: string,
+): { useTls: boolean; publicUseTls: boolean } {
+  const isHosted = brand.relayEndpoints.some((candidate) => candidate === endpoint);
+  const useTls =
+    patchRelay.useTls ??
+    (isHosted ? true : (currentRelay?.useTls ?? shouldUseTlsForDefaultHostedRelay(endpoint)));
+  const endpointChanged = endpoint !== currentRelay?.endpoint;
+  const publicUseTls =
+    patchRelay.publicUseTls ??
+    (patchRelay.useTls !== undefined || endpointChanged
+      ? useTls
+      : (currentRelay?.publicUseTls ?? useTls));
+  return { useTls, publicUseTls };
+}
+
+function normalizeRelayPatch(
+  currentRelay: MutableDaemonConfig["relay"],
+  patchRelay: NonNullable<SupportedMutableConfigPatch["relay"]>,
+): NormalizedRelayPatchResult {
+  const next: NonNullable<SupportedMutableConfigPatch["relay"]> = { ...patchRelay };
+
+  if (patchRelay.endpoint !== undefined) {
+    const endpoint = normalizeHostPort(patchRelay.endpoint);
+    const publicResult = resolveNormalizedPublicEndpoint(endpoint, patchRelay.publicEndpoint);
+    const tlsResult = resolveNormalizedRelayTls(currentRelay, patchRelay, endpoint);
+    next.endpoint = endpoint;
+    next.publicEndpoint = publicResult.publicEndpoint;
+    next.useTls = tlsResult.useTls;
+    next.publicUseTls = tlsResult.publicUseTls;
+    return {
+      relay: next,
+      clearPersistedPublicEndpoint: publicResult.clearPersistedPublicEndpoint,
+    };
+  }
+
+  let clearPersistedPublicEndpoint = false;
+  if (patchRelay.publicEndpoint !== undefined) {
+    const currentEndpoint = currentRelay?.endpoint ?? brand.relayEndpoint;
+    const publicResult = resolveNormalizedPublicEndpoint(
+      currentEndpoint,
+      patchRelay.publicEndpoint,
+    );
+    next.publicEndpoint = publicResult.publicEndpoint;
+    clearPersistedPublicEndpoint = publicResult.clearPersistedPublicEndpoint;
+  }
+  if (patchRelay.useTls !== undefined && patchRelay.publicUseTls === undefined) {
+    next.publicUseTls = patchRelay.useTls;
+  }
+
+  return { relay: next, clearPersistedPublicEndpoint };
 }
 
 function pickSupportedPatchFields(patch: MutableDaemonConfigPatch): SupportedMutableConfigPatch {
@@ -440,6 +541,7 @@ export class DaemonConfigStore {
   private readonly applyListeners = new Set<ConfigApplyListener>();
   private readonly fieldChangeHandlers = new Map<string, Set<FieldChangeHandler>>();
   private readonly relayEnabledMutable: boolean;
+  private readonly relayEndpointMutable: boolean;
   private readonly reloadSource: DaemonConfigReloadSource | undefined;
   private readonly startupPersisted: PersistedConfig;
   private readonly speechOwner: SpeechSettingsOwner | undefined;
@@ -452,6 +554,7 @@ export class DaemonConfigStore {
     logger?: LoggerLike,
     options: {
       relayEnabledMutable?: boolean;
+      relayEndpointMutable?: boolean;
       reloadSource?: DaemonConfigReloadSource;
       startupPersisted?: PersistedConfig;
       speechEnv?: NodeJS.ProcessEnv;
@@ -461,6 +564,7 @@ export class DaemonConfigStore {
     this.paseoHome = paseoHome;
     this.logger = getLogger(logger);
     this.relayEnabledMutable = options.relayEnabledMutable ?? true;
+    this.relayEndpointMutable = options.relayEndpointMutable ?? true;
     this.reloadSource = options.reloadSource;
     this.speechOwner = options.speech;
     this.startupPersisted = options.startupPersisted ?? loadPersistedConfig(paseoHome, this.logger);
@@ -537,40 +641,63 @@ export class DaemonConfigStore {
     );
   }
 
-  private async applySupportedPatch(
-    parsedPatch: SupportedMutableConfigPatch,
-  ): Promise<MutableDaemonConfig> {
-    if (parsedPatch.relay?.enabled !== undefined && !this.relayEnabledMutable) {
+  private prepareSupportedRelayPatch(parsedPatch: SupportedMutableConfigPatch): {
+    patch: SupportedMutableConfigPatch;
+    clearPersistedPublicEndpoint: boolean;
+  } {
+    const relayPatch = parsedPatch.relay;
+    if (!relayPatch) {
+      return { patch: parsedPatch, clearPersistedPublicEndpoint: false };
+    }
+    if (relayPatch.enabled !== undefined && !this.relayEnabledMutable) {
       throw new Error(
         "Relay is controlled by a daemon launch override. Remove PASEO_RELAY_ENABLED or the relay CLI flag before changing it here.",
       );
     }
-    const { removeProviders = [], ...submittedPatch } = parsedPatch;
+    if (
+      (relayPatch.endpoint !== undefined || relayPatch.publicEndpoint !== undefined) &&
+      !this.relayEndpointMutable
+    ) {
+      throw new Error(
+        "Relay endpoint is controlled by a daemon launch override. Remove PASEO_RELAY_ENDPOINT or PASEO_RELAY_PUBLIC_ENDPOINT before changing it here.",
+      );
+    }
+    const normalizedRelay = normalizeRelayPatch(this.current.relay, relayPatch);
+    return {
+      patch: { ...parsedPatch, relay: normalizedRelay.relay },
+      clearPersistedPublicEndpoint: normalizedRelay.clearPersistedPublicEndpoint,
+    };
+  }
+
+  private async applySupportedPatch(
+    parsedPatch: SupportedMutableConfigPatch,
+  ): Promise<MutableDaemonConfig> {
+    const { patch: normalizedPatch, clearPersistedPublicEndpoint } =
+      this.prepareSupportedRelayPatch(parsedPatch);
+    const { removeProviders = [], ...submittedPatch } = normalizedPatch;
     const patch = this.foldPatchProfiles(submittedPatch);
     const { features: speechPatch, ...configPatch } = patch;
     const removedProviders = Array.from(new Set(removeProviders));
     const next = this.buildNextPatchedConfig(configPatch, speechPatch, removedProviders);
 
     const configChanged = !isEqualValue(this.current, next);
-
-    // A replaced API key leaves the speech view unchanged, so a speech patch always persists.
-    // Profiles held folded in memory may still be on disk with `featureValues`; saving them writes `options`.
-    const profilesStaleOnDisk =
-      patch.agentProfiles !== undefined &&
-      !isEqualValue(patch.agentProfiles, this.lastKnownPersisted.daemon?.agentProfiles);
-    if (
-      !configChanged &&
-      removedProviders.length === 0 &&
-      speechPatch === undefined &&
-      !configPatch.speech &&
-      !profilesStaleOnDisk
-    ) {
+    const hasSideEffect =
+      configChanged ||
+      removedProviders.length > 0 ||
+      speechPatch !== undefined ||
+      Boolean(configPatch.speech) ||
+      (patch.agentProfiles !== undefined &&
+        !isEqualValue(patch.agentProfiles, this.lastKnownPersisted.daemon?.agentProfiles)) ||
+      (clearPersistedPublicEndpoint &&
+        this.lastKnownPersisted.daemon?.relay?.publicEndpoint !== undefined);
+    if (!hasSideEffect) {
       return this.current;
     }
 
     const { previous: persistedBeforePatch, knownNext } = await this.persistConfig(
       patch,
       removedProviders,
+      { clearPersistedPublicEndpoint },
     );
     const speechChanged = this.speechPersistedChanged(this.lastKnownPersisted, knownNext);
     if (configChanged) {
@@ -791,6 +918,7 @@ export class DaemonConfigStore {
   private async persistConfig(
     patch: Omit<SupportedMutableConfigPatch, "removeProviders">,
     removeProviders: readonly string[],
+    options?: { clearPersistedPublicEndpoint?: boolean },
   ): Promise<{ previous: PersistedConfig; knownNext: PersistedConfig }> {
     const persisted = await loadPersistedConfigAsync(this.paseoHome, this.logger);
     const merge = (source: PersistedConfig) =>
@@ -799,6 +927,8 @@ export class DaemonConfigStore {
         patch,
         removeProviders,
         persistRelayEnabled: this.relayEnabledMutable,
+        persistRelayEndpoint: this.relayEndpointMutable,
+        clearPersistedPublicEndpoint: options?.clearPersistedPublicEndpoint === true,
       });
     const nextPersisted = merge(persisted);
     const knownNext = merge(this.lastKnownPersisted);
@@ -812,9 +942,24 @@ function mergeMutablePatchIntoPersistedConfig(params: {
   patch: Omit<SupportedMutableConfigPatch, "removeProviders">;
   removeProviders: readonly string[];
   persistRelayEnabled: boolean;
+  persistRelayEndpoint: boolean;
+  clearPersistedPublicEndpoint: boolean;
 }): PersistedConfig {
-  const { persisted, patch, removeProviders, persistRelayEnabled } = params;
-  const daemon = mergeMutableDaemonPatch(persisted.daemon, patch, persistRelayEnabled);
+  const {
+    persisted,
+    patch,
+    removeProviders,
+    persistRelayEnabled,
+    persistRelayEndpoint,
+    clearPersistedPublicEndpoint,
+  } = params;
+  const daemon = mergeMutableDaemonPatch(
+    persisted.daemon,
+    patch,
+    persistRelayEnabled,
+    persistRelayEndpoint,
+    clearPersistedPublicEndpoint,
+  );
   const agents = mergeMutableAgentPatch(persisted.agents, patch, removeProviders);
   const withSpeech = patch.features
     ? mergeSpeechSettingsPatch(persisted, patch.features)
@@ -902,18 +1047,65 @@ function mergeMutableAgentPatch(
   return Object.keys(next).length > 0 ? (next as PersistedConfig["agents"]) : undefined;
 }
 
+function mergeMutableRelayPatch(
+  persistedRelay: NonNullable<PersistedConfig["daemon"]>["relay"],
+  relayPatch: SupportedMutableConfigPatch["relay"],
+  options: {
+    persistRelayEnabled: boolean;
+    persistRelayEndpoint: boolean;
+    clearPersistedPublicEndpoint: boolean;
+  },
+): NonNullable<PersistedConfig["daemon"]>["relay"] {
+  if (!relayPatch) return persistedRelay;
+  const next = { ...persistedRelay };
+  let changed = false;
+
+  if (options.persistRelayEnabled && relayPatch.enabled !== undefined) {
+    next.enabled = relayPatch.enabled;
+    changed = true;
+  }
+  if (options.persistRelayEndpoint && relayPatch.endpoint !== undefined) {
+    next.endpoint = relayPatch.endpoint;
+    changed = true;
+  }
+  if (options.persistRelayEndpoint && options.clearPersistedPublicEndpoint) {
+    if (next.publicEndpoint !== undefined) {
+      delete next.publicEndpoint;
+      changed = true;
+    }
+  } else if (options.persistRelayEndpoint && relayPatch.publicEndpoint !== undefined) {
+    next.publicEndpoint = relayPatch.publicEndpoint;
+    changed = true;
+  }
+  if (relayPatch.useTls !== undefined) {
+    next.useTls = relayPatch.useTls;
+    changed = true;
+  }
+  if (relayPatch.publicUseTls !== undefined) {
+    next.publicUseTls = relayPatch.publicUseTls;
+    changed = true;
+  }
+  if (relayPatch.requireProtectedSecurity !== undefined) {
+    next.requireProtectedSecurity = relayPatch.requireProtectedSecurity;
+    changed = true;
+  }
+  return changed ? next : persistedRelay;
+}
+
 function mergeMutableDaemonPatch(
   persistedDaemon: PersistedConfig["daemon"],
   patch: Omit<SupportedMutableConfigPatch, "removeProviders">,
   persistRelayEnabled: boolean,
+  persistRelayEndpoint: boolean,
+  clearPersistedPublicEndpoint: boolean,
 ): PersistedConfig["daemon"] {
   const next = { ...persistedDaemon } as NonNullable<PersistedConfig["daemon"]>;
-  if (persistRelayEnabled && patch.relay?.enabled !== undefined) {
-    next.relay = { ...next.relay, enabled: patch.relay.enabled };
-  }
-  if (patch.relay?.requireProtectedSecurity !== undefined) {
-    next.relay = { ...next.relay, requireProtectedSecurity: patch.relay.requireProtectedSecurity };
-  }
+  const mergedRelay = mergeMutableRelayPatch(next.relay, patch.relay, {
+    persistRelayEnabled,
+    persistRelayEndpoint,
+    clearPersistedPublicEndpoint,
+  });
+  if (mergedRelay !== undefined) next.relay = mergedRelay;
   if (patch.mcp?.injectIntoAgents !== undefined) {
     next.mcp = { ...next.mcp, injectIntoAgents: patch.mcp.injectIntoAgents };
   }

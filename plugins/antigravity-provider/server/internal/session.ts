@@ -89,6 +89,7 @@ import {
 const INTERRUPT_GRACE_MS = 350;
 const ROOT_TRANSCRIPT_POLL_MS = 180;
 const AUTONOMOUS_TRANSCRIPT_SETTLE_MS = 120;
+const AUTONOMOUS_ORPHAN_ACP_SETTLE_MS = 1_500;
 const AUTONOMOUS_TOOL_STALL_TIMEOUT_MS = 15_000;
 const SESSION_LOAD_SKIP_QUIET_MS = 45;
 const SESSION_LOAD_REPLAY_QUIET_MS = 150;
@@ -114,9 +115,12 @@ interface PendingPromptStart {
 
 interface AutonomousTurn {
   id: string;
+  source: "acp" | "transcript";
   receivedAcpUpdates: boolean;
+  sawTranscriptActivity: boolean;
   awaitingPlannerResponse: boolean;
   sawTerminalPlannerResponse: boolean;
+  lastActivityAt: number;
   lastPlannerStepIndex: number;
   transcriptReportedWaiting: boolean;
   waitingSince: number | null;
@@ -184,6 +188,7 @@ export class Session {
   private readonly dataDir: string;
   private readonly locatorId: string;
   private readonly autonomousToolStallTimeoutMs: number;
+  private readonly autonomousOrphanAcpSettleMs: number;
 
   private driver: DriverProcess | null = null;
   private driverCredential: CredentialState | null = null;
@@ -251,6 +256,11 @@ export class Session {
       Number.isFinite(customStallMs) && customStallMs > 0
         ? customStallMs
         : AUTONOMOUS_TOOL_STALL_TIMEOUT_MS;
+    const customOrphanAcpSettleMs = Number(mergedEnv.AGY_AUTONOMOUS_ORPHAN_ACP_SETTLE_MS);
+    this.autonomousOrphanAcpSettleMs =
+      Number.isFinite(customOrphanAcpSettleMs) && customOrphanAcpSettleMs > 0
+        ? customOrphanAcpSettleMs
+        : AUTONOMOUS_ORPHAN_ACP_SETTLE_MS;
     if (options.usage) {
       const remembered = options.usage.rememberLaunch(options.launch, options.config.env);
       this.dataDir = remembered.dataDir;
@@ -616,6 +626,7 @@ export class Session {
     });
 
     if (this.autonomousTurn) {
+      this.autonomousTurn.lastActivityAt = Date.now();
       this.syncAutonomousToolStallGuard(this.autonomousTurn);
       this.scheduleAutonomousSettleCheck();
     }
@@ -662,7 +673,16 @@ export class Session {
       return;
     }
 
-    if (!activeTurn || !driver) return;
+    if (!activeTurn) return;
+    if (!driver) {
+      activeTurn.interrupted = true;
+      this.handleForegroundTurnFailure(
+        activeTurn,
+        new AntigravityError("Antigravity ACP process is not running", "PROCESS_FAILED"),
+      );
+      activeTurn.resolveSettled();
+      return;
+    }
     await this.interruptForegroundTurn(activeTurn, driver);
   }
 
@@ -1279,10 +1299,16 @@ export class Session {
 
   private shouldDeferRootTranscriptStep(step: TranscriptStep): boolean {
     if (step.type === "PLANNER_RESPONSE" && isNonTerminalStepStatus(step.status)) {
+      if (this.turn === null && this.autonomousTurn) {
+        this.autonomousTurn.sawTranscriptActivity = true;
+        this.autonomousTurn.lastActivityAt = Date.now();
+      }
       return true;
     }
     if (step.type === "GENERIC" && isWaitingStepStatus(step.status)) {
       if (this.turn === null && this.autonomousTurn) {
+        this.autonomousTurn.sawTranscriptActivity = true;
+        this.autonomousTurn.lastActivityAt = Date.now();
         this.autonomousTurn.transcriptReportedWaiting = true;
         this.syncAutonomousToolStallGuard(this.autonomousTurn);
       }
@@ -1393,6 +1419,8 @@ export class Session {
       this.acknowledgeWakeupTask(wakeup);
       await this.subagents.handleParentWakeupSender(wakeup.sender);
       const auto = this.ensureAutonomousTurn("transcript");
+      auto.sawTranscriptActivity = true;
+      auto.lastActivityAt = Date.now();
       auto.awaitingPlannerResponse = true;
       auto.sawTerminalPlannerResponse = false;
       auto.lastPlannerStepIndex = Math.max(auto.lastPlannerStepIndex, step.stepIndex);
@@ -1403,10 +1431,14 @@ export class Session {
     if (!auto) return;
 
     if (step.type === "PLANNER_RESPONSE") {
+      auto.sawTranscriptActivity = true;
+      auto.lastActivityAt = Date.now();
       this.applyAutonomousPlannerStep(auto, step);
       return;
     }
     if (step.type === "GENERIC" && auto.pendingTranscriptTools.length > 0) {
+      auto.sawTranscriptActivity = true;
+      auto.lastActivityAt = Date.now();
       this.applyAutonomousToolResultStep(auto, step);
     }
   }
@@ -1670,9 +1702,12 @@ export class Session {
     tokenSpeed.start();
     const auto: AutonomousTurn = {
       id: turnId,
+      source,
       receivedAcpUpdates: source === "acp",
+      sawTranscriptActivity: source === "transcript",
       awaitingPlannerResponse: true,
       sawTerminalPlannerResponse: false,
+      lastActivityAt: Date.now(),
       lastPlannerStepIndex: this.lastRootStepIndex,
       transcriptReportedWaiting: false,
       waitingSince: null,
@@ -1705,7 +1740,6 @@ export class Session {
     const shouldMonitor =
       this.autonomousTurn === auto &&
       !this.driver?.skipPermissions &&
-      !auto.receivedAcpUpdates &&
       auto.pendingTranscriptTools.length > 0 &&
       this.pendingPermissions.size === 0;
     if (!shouldMonitor) {
@@ -1721,8 +1755,7 @@ export class Session {
       if (
         auto.pendingTranscriptTools.length === 0 ||
         this.pendingPermissions.size > 0 ||
-        this.driver?.skipPermissions ||
-        auto.receivedAcpUpdates
+        this.driver?.skipPermissions
       ) {
         auto.waitingSince = null;
         return;
@@ -1759,17 +1792,47 @@ export class Session {
     if (this.conversationId) {
       this.driver?.notify("session/cancel", { sessionId: this.conversationId });
     }
+    const emittedFailedIds = new Set<string>();
     for (const pending of auto.pendingTranscriptTools.splice(0)) {
       const failedPayload: AcpToolCallPayload = {
         ...pending,
         status: "failed",
         rawOutput: { error: reason },
       };
-      if (!auto.receivedAcpUpdates) {
+      const existingAcp = this.turnTools.get(pending.toolCallId);
+      if (existingAcp) {
+        const merged = mergeAcpToolCall(existingAcp, failedPayload);
+        this.turnTools.set(pending.toolCallId, merged);
+        emittedFailedIds.add(pending.toolCallId);
+        this.options.emit({
+          type: "timeline.item",
+          sessionId: this.id,
+          item: mapAcpToolCall(merged),
+        });
+      } else if (!auto.receivedAcpUpdates) {
+        emittedFailedIds.add(pending.toolCallId);
         this.options.emit({
           type: "timeline.item",
           sessionId: this.id,
           item: mapAcpToolCall(failedPayload),
+        });
+      }
+    }
+    if (auto.receivedAcpUpdates) {
+      for (const [id, tool] of this.turnTools) {
+        if (emittedFailedIds.has(id) || tool.status === "completed" || tool.status === "failed") {
+          continue;
+        }
+        const failedTool: AcpToolCallPayload = {
+          ...tool,
+          status: "failed",
+          rawOutput: { error: reason },
+        };
+        this.turnTools.set(id, failedTool);
+        this.options.emit({
+          type: "timeline.item",
+          sessionId: this.id,
+          item: mapAcpToolCall(failedTool),
         });
       }
     }
@@ -1808,14 +1871,24 @@ export class Session {
     if (this.closed || this.autonomousTurn !== auto) return;
 
     if (this.pendingPermissions.size > 0) return;
-    if (auto.awaitingPlannerResponse) return;
     if (auto.pendingTranscriptTools.length > 0) return;
-    if (!auto.sawTerminalPlannerResponse) {
-      for (const tool of this.turnTools.values()) {
-        if (tool.status !== "completed" && tool.status !== "failed") {
-          return;
-        }
+    const hasUnfinishedAcpTools = [...this.turnTools.values()].some(
+      (tool) => tool.status !== "completed" && tool.status !== "failed",
+    );
+
+    if (auto.awaitingPlannerResponse) {
+      const canSettleOrphanAcp =
+        auto.source === "acp" && !auto.sawTranscriptActivity && !hasUnfinishedAcpTools;
+      if (!canSettleOrphanAcp) return;
+      const elapsedMs = Date.now() - auto.lastActivityAt;
+      if (elapsedMs < this.autonomousOrphanAcpSettleMs) {
+        this.scheduleAutonomousSettleCheck(
+          Math.max(20, this.autonomousOrphanAcpSettleMs - elapsedMs),
+        );
+        return;
       }
+    } else if (!auto.sawTerminalPlannerResponse && hasUnfinishedAcpTools) {
+      return;
     }
 
     this.settleAutonomousTurn("completed");
@@ -1997,10 +2070,13 @@ export class Session {
 
   private markAutonomousAcpActivity(auto: AutonomousTurn): void {
     auto.receivedAcpUpdates = true;
+    auto.lastActivityAt = Date.now();
     auto.waitingSince = null;
-    this.clearAutonomousToolStallTimeout(auto);
+    this.syncAutonomousToolStallGuard(auto);
     if (!auto.awaitingPlannerResponse) {
       this.scheduleAutonomousSettleCheck(AUTONOMOUS_TRANSCRIPT_SETTLE_MS);
+    } else if (auto.source === "acp" && !auto.sawTranscriptActivity) {
+      this.scheduleAutonomousSettleCheck(this.autonomousOrphanAcpSettleMs);
     }
   }
 
@@ -2121,10 +2197,10 @@ export class Session {
       this.markAutonomousAcpActivity(this.autonomousTurn);
       return;
     }
-    const isTerminalToolUpdate =
-      update.sessionUpdate === "tool_call_update" &&
-      (update.status === "completed" || update.status === "failed");
-    if (!isTerminalToolUpdate) {
+    const isTerminalTool = update.status === "completed" || update.status === "failed";
+    const isExistingTurnToolUpdate =
+      update.sessionUpdate === "tool_call_update" && this.turnTools.has(update.toolCallId);
+    if (!isTerminalTool && !isExistingTurnToolUpdate) {
       this.markAutonomousAcpActivity(this.ensureAutonomousTurn("acp"));
     }
   }
@@ -2504,6 +2580,7 @@ export class Session {
       });
     }
     if (this.autonomousTurn) {
+      this.autonomousTurn.lastActivityAt = Date.now();
       this.syncAutonomousToolStallGuard(this.autonomousTurn);
       this.scheduleAutonomousSettleCheck();
     }

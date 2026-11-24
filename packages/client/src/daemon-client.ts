@@ -142,6 +142,7 @@ import type {
   DaemonGetStatusResponse,
   DaemonGetPairingOfferResponse,
   DaemonConfigReloadResponse,
+  DaemonRelayProbeResponse,
   DiagnosticsResponse,
   AgentRewindResponseMessage,
   ListTerminalsResponse,
@@ -874,6 +875,7 @@ type ShutdownRequestedStatusPayload = z.infer<typeof ShutdownRequestedStatusPayl
 export interface ShutdownServerOptions {
   requestId?: string;
   timeout?: number;
+  reason?: "app_update";
   // Leave terminals running for the next daemon. Only daemons advertising
   // `features.terminalsSurviveRestart` honor it; check before sending.
   keepTerminals?: boolean;
@@ -4814,6 +4816,7 @@ export class DaemonClient {
     const message = SessionInboundMessageSchema.parse({
       type: "shutdown_server_request",
       requestId: resolvedRequestId,
+      ...(options?.reason ? { reason: options.reason } : {}),
       ...(options?.keepTerminals ? { keepTerminals: true } : {}),
     });
     return this.sendRequest({
@@ -6302,6 +6305,14 @@ export class DaemonClient {
     return this.sendNamespacedCorrelatedSessionRequest({
       requestId,
       message: { type: "daemon.config.reload.request" },
+    });
+  }
+
+  async probeRelayEndpoints(requestId?: string): Promise<DaemonRelayProbeResponse["payload"]> {
+    this.requireRelayEndpointConfigSupport();
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId,
+      message: { type: "daemon.relay.probe.request" },
     });
   }
 
@@ -7821,6 +7832,13 @@ export class DaemonClient {
     // COMPAT(daemonConfigReload): added in v0.4.0, remove gate after 2027-02-14.
     if (this.lastServerInfoMessage?.features?.daemonConfigReload !== true) {
       throw new Error("Update the host to reload daemon configuration.");
+    }
+  }
+
+  private requireRelayEndpointConfigSupport(): void {
+    // COMPAT(relayEndpointConfig): added in v1.6.1, remove gate after 2027-05-24.
+    if (this.lastServerInfoMessage?.features?.relayEndpointConfig !== true) {
+      throw new Error("Update the host to configure relay endpoints.");
     }
   }
 

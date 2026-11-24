@@ -134,14 +134,17 @@ test("DMG stapling refreshes checksums and blockmaps before staging Mac updates"
       "unchanged Linux feed",
     );
     let called = false;
-    await finalizeMacDistribution({
-      directory: source,
-      version: "0.13.0-beta.8",
-      env: {},
-      run: () => {
-        called = true;
-      },
-    });
+    await assert.rejects(
+      finalizeMacDistribution({
+        directory: source,
+        version: "0.13.0-beta.8",
+        env: {},
+        run: () => {
+          called = true;
+        },
+      }),
+      /Developer ID/,
+    );
     assert.equal(called, false);
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -604,6 +607,100 @@ test("prepareClawmuseDownloads builds beta-releases.json and SHA256SUMS.txt from
       }),
       /ENOENT/,
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("prepareClawmuseDownloads supports explicit beta version and incremental platform merge", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "clawmuse-beta-merge-"));
+  try {
+    const rootDir = path.join(dir, "repo");
+    const winDir = path.join(dir, "win");
+    const macDir = path.join(dir, "mac");
+    mkdirSync(path.join(rootDir, "packages/desktop"), { recursive: true });
+    mkdirSync(path.join(rootDir, "packages/website/clawmuse"), { recursive: true });
+    mkdirSync(winDir, { recursive: true });
+    mkdirSync(macDir, { recursive: true });
+
+    // Repo package.json remains on stable 1.6.0 while publishing 1.6.1-beta.5 incrementally.
+    writeFileSync(
+      path.join(rootDir, "packages/desktop/package.json"),
+      JSON.stringify({ version: "1.6.0" }),
+    );
+    writeFileSync(
+      path.join(rootDir, "packages/website/clawmuse/releases.json"),
+      JSON.stringify({ ios: { url: "https://apps.apple.com/app/id1234567890" } }),
+    );
+
+    const version = "1.6.1-beta.5";
+    const makeEntry = (filename, seed) => {
+      const bytes = Buffer.alloc(1_048_576, seed);
+      return {
+        filename,
+        size: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        sha512: createHash("sha512").update(bytes).digest("base64"),
+      };
+    };
+
+    const winExe = makeEntry(`ClawMuse-Setup-${version}-x64.exe`, 0x51);
+    const macDmg = makeEntry(`ClawMuse-${version}-arm64.dmg`, 0x52);
+    const macZip = makeEntry(`ClawMuse-${version}-arm64.zip`, 0x53);
+
+    writeFileSync(
+      path.join(winDir, "beta.yml"),
+      dump({
+        version,
+        releaseDate,
+        files: [{ url: winExe.filename, size: winExe.size, sha512: winExe.sha512 }],
+      }),
+    );
+    const winMeta = path.join(winDir, "meta.json");
+    writeFileSync(winMeta, JSON.stringify({ files: [winExe] }));
+
+    const first = await prepareClawmuseDownloads(winDir, {
+      beta: true,
+      mergeExisting: true,
+      version,
+      metadataPath: winMeta,
+      rootDir,
+    });
+    assert.equal(first.version, version);
+    assert.equal(first.currentCount, 1);
+
+    writeFileSync(
+      path.join(macDir, "beta-mac.yml"),
+      dump({
+        version,
+        releaseDate,
+        files: [macZip, macDmg].map(({ filename, size, sha512 }) => ({
+          url: filename,
+          size,
+          sha512,
+        })),
+      }),
+    );
+    const macMeta = path.join(macDir, "meta.json");
+    writeFileSync(macMeta, JSON.stringify({ files: [macDmg, macZip] }));
+
+    const second = await prepareClawmuseDownloads(macDir, {
+      beta: true,
+      mergeExisting: true,
+      version,
+      metadataPath: macMeta,
+      rootDir,
+    });
+    assert.equal(second.currentCount, 2);
+    const merged = JSON.parse(readFileSync(second.manifestPath, "utf8"));
+    assert.equal(merged.version, version);
+    assert.deepEqual(
+      merged.files.map((item) => item.filename),
+      [macDmg.filename, winExe.filename],
+    );
+    const sums = readFileSync(second.checksumsPath, "utf8");
+    assert.match(sums, new RegExp(`${winExe.sha256}  ${winExe.filename}`));
+    assert.match(sums, new RegExp(`${macDmg.sha256}  ${macDmg.filename}`));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

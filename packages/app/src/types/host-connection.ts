@@ -284,6 +284,78 @@ export function pinRelayProtectedSecurityInProfiles(input: {
   return changed ? next : input.profiles;
 }
 
+/**
+ * Replaces a host's existing relay connections with the newly configured relay
+ * endpoint while retaining non-relay connections, daemon public key pinning,
+ * protected security mode, credentials, and password.
+ */
+export function replaceHostRelayEndpointInProfiles(input: {
+  profiles: HostProfile[];
+  serverId: string;
+  relayEndpoint: string;
+  useTls: boolean;
+  now?: string;
+}): HostProfile[] {
+  const relayEndpoint = normalizeHostPort(input.relayEndpoint);
+  const now = input.now ?? new Date().toISOString();
+  let changed = false;
+  const next = input.profiles.map((host) => {
+    if (host.serverId !== input.serverId) return host;
+    const existingRelays = host.connections.filter(
+      (connection): connection is RelayHostConnection => connection.type === "relay",
+    );
+    if (existingRelays.length === 0) return host;
+    const primaryRelay =
+      existingRelays.find((connection) => connection.id === host.preferredConnectionId) ??
+      existingRelays[0]!;
+    const nextId = input.useTls ? `relay:wss:${relayEndpoint}` : `relay:${relayEndpoint}`;
+    const alreadyMatches =
+      existingRelays.length === 1 &&
+      primaryRelay.id === nextId &&
+      primaryRelay.relayEndpoint === relayEndpoint &&
+      primaryRelay.useTls === input.useTls;
+    if (alreadyMatches) return host;
+
+    const minimumSecurityMode = existingRelays.some(
+      (connection) => connection.minimumSecurityMode === "protected",
+    )
+      ? ("protected" as const)
+      : undefined;
+    const replacement: RelayHostConnection = {
+      id: nextId,
+      type: "relay",
+      relayEndpoint,
+      useTls: input.useTls,
+      daemonPublicKeyB64: primaryRelay.daemonPublicKeyB64,
+      ...(minimumSecurityMode ? { minimumSecurityMode } : {}),
+    };
+
+    const nextConnections: HostConnection[] = [];
+    let inserted = false;
+    for (const connection of host.connections) {
+      if (connection.type !== "relay") {
+        nextConnections.push(connection);
+        continue;
+      }
+      if (!inserted) {
+        nextConnections.push(replacement);
+        inserted = true;
+      }
+    }
+    const preferredWasRelay = existingRelays.some(
+      (connection) => connection.id === host.preferredConnectionId,
+    );
+    changed = true;
+    return {
+      ...host,
+      connections: nextConnections,
+      preferredConnectionId: preferredWasRelay ? replacement.id : host.preferredConnectionId,
+      updatedAt: now,
+    };
+  });
+  return changed ? next : input.profiles;
+}
+
 function hasProfileChanged(input: {
   matchingCount: number;
   previous: HostProfile;

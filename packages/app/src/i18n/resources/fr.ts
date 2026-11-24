@@ -3129,6 +3129,42 @@ export const fr: TranslationResources = {
         removeErrorMessage: "Impossible de supprimer la connexion",
         timeout: "Délai dépassé",
       },
+      relay: {
+        title: "Serveur relais",
+        nodeTitle: "Nœud relais",
+        currentEndpoint: "Adresse actuelle : {{endpoint}}",
+        customTitle: "Adresse relais personnalisée",
+        editCustom: "Modifier",
+        latencyTitle: "Latence de l'hôte",
+        probeAction: "Tester",
+        probing: "Test en cours...",
+        probeErrorTitle: "Impossible de mesurer la latence du relais",
+        nodes: {
+          guangzhou: "Guangzhou",
+          singapore: "Singapour",
+          custom: "Personnalisé",
+        },
+        recommendTitle: "Le nœud de {{node}} est plus rapide pour cet hôte",
+        recommendDescription:
+          "{{node}} ({{targetLatency}}) présente une latence inférieure au nœud actuel ({{currentLatency}}).",
+        switchTo: "Passer à {{node}}",
+        confirmTitle: "Basculer le relais vers {{target}} ?",
+        confirmMessage:
+          "Les agents actifs continuent sans redémarrer l'hôte. Les appareils connectés au même compte se mettent à jour automatiquement ; ceux associés uniquement par lien d'invitation devront être réassociés.",
+        confirmAction: "Basculer",
+        switchErrorTitle: "Impossible de changer de relais",
+        switchedNotice: "Relais basculé vers {{endpoint}}",
+        lockedTitle: "L'adresse du relais est verrouillée",
+        lockedDescription:
+          "Gérée par PASEO_RELAY_ENDPOINT ou PASEO_RELAY_PUBLIC_ENDPOINT. Supprimez la variable d'environnement pour la modifier ici.",
+        customSheetTitle: "Adresse relais personnalisée",
+        customEndpointLabel: "Adresse relais (host:port)",
+        customPublicEndpointLabel: "Adresse publique (facultatif)",
+        customPublicEndpointHint:
+          "Laissez vide pour utiliser l'adresse relais ou l'alias public par défaut.",
+        customPublicEndpointPlaceholder: "Identique à l'adresse relais",
+        customTlsLabel: "Utiliser TLS (wss://)",
+      },
       pairDevices: {
         title: "Associer des appareils",
         rowTitle: "Associer un appareil",

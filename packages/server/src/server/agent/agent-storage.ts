@@ -65,6 +65,7 @@ const RAW_STORED_AGENT_SCHEMA = z.object({
   metadata: z.record(z.string(), z.custom<JsonValue>()).default({}),
   lastStatus: AgentStatusSchema.default("closed"),
   resumeOnStartup: z.boolean().optional(),
+  updateInterruptions: z.array(z.iso.datetime()).optional(),
   lastModeId: z.string().nullable().optional(),
   config: SERIALIZABLE_CONFIG_SCHEMA,
   launchEnv: z.record(z.string(), z.string()).optional(),
@@ -450,7 +451,19 @@ export class AgentStorage {
       if (existing?.background) record.background = true;
       record.resumeOnStartup =
         existing?.resumeOnStartup && agent.lifecycle !== "idle" && agent.lifecycle !== "error";
+      record.updateInterruptions = existing?.updateInterruptions;
       return record;
+    });
+  }
+
+  async recordUpdateInterruption(agentId: string, timestamp: string): Promise<void> {
+    await this.load();
+    await this.queueRecordMutation(agentId, (record) => {
+      if (!record) throw new Error(`Agent ${agentId} not found`);
+      return {
+        ...record,
+        updateInterruptions: [...(record.updateInterruptions ?? []), timestamp],
+      };
     });
   }
 

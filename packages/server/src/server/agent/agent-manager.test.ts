@@ -15988,6 +15988,189 @@ test("plugin instructions are recomputed for each launch without changing saved 
   expect((await storage.get(snapshot.id))?.config?.systemPrompt).toBe("Saved");
 });
 
+test("preserves an autonomous turn started during a rejected foreground start so follow-up sends replace instead of deadlocking", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-staged-autonomous-reject-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+
+  class AutonomousRaceSession extends TestAgentSession {
+    activeAutonomousId: string | null = null;
+    interruptedCount = 0;
+
+    override async startTurn(
+      prompt: AgentPromptInput,
+      options?: AgentRunOptions,
+    ): Promise<{ turnId: string }> {
+      if (this.activeAutonomousId === null && this.interruptedCount === 0) {
+        this.activeAutonomousId = "wakeup-staged-1";
+        this.pushEvent({
+          type: "turn_started",
+          provider: "codex",
+          turnId: this.activeAutonomousId,
+        });
+        throw new Error("Antigravity already has an active turn");
+      }
+      if (this.activeAutonomousId !== null) {
+        throw new Error("Antigravity already has an active turn");
+      }
+      return await super.startTurn(prompt, options);
+    }
+
+    override async interrupt(): Promise<void> {
+      this.interruptedCount += 1;
+      if (this.activeAutonomousId) {
+        const canceledId = this.activeAutonomousId;
+        this.activeAutonomousId = null;
+        this.pushEvent({
+          type: "turn_canceled",
+          provider: "codex",
+          turnId: canceledId,
+          reason: "interrupted",
+        });
+      }
+    }
+  }
+
+  const session = new AutonomousRaceSession({ provider: "codex", cwd: workdir });
+  class AutonomousRaceClient extends TestAgentClient {
+    override async createSession(): Promise<AgentSession> {
+      return session;
+    }
+  }
+
+  const manager = new AgentManager({
+    clients: { codex: new AutonomousRaceClient() },
+    registry: storage,
+    logger,
+    idFactory: () => "00000000-0000-4000-8000-000000000911",
+  });
+
+  try {
+    const agent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+
+    await expect(
+      manager.runAgent(agent.id, "first prompt", { clientMessageId: "msg-race-1" }),
+    ).rejects.toThrow("Antigravity already has an active turn");
+
+    expect(manager.getAgent(agent.id)).toMatchObject({
+      lifecycle: "running",
+      activeTurnId: "wakeup-staged-1",
+      activeForegroundTurnId: null,
+    });
+    expect(manager.hasInFlightRun(agent.id)).toBe(true);
+
+    const followUp = await sendPromptToAgent({
+      agentManager: manager,
+      agentStorage: storage,
+      agentId: agent.id,
+      prompt: "retry after wakeup",
+      messageId: "msg-race-2",
+      activeTurnBehavior: "interrupt",
+      logger,
+    });
+    await dispatchStarted(followUp);
+    await vi.waitFor(() => expect(manager.getAgent(agent.id)?.lifecycle).toBe("idle"));
+    expect(session.interruptedCount).toBe(1);
+    expect(manager.hasInFlightRun(agent.id)).toBe(false);
+  } finally {
+    await manager.flush();
+    await storage.flush();
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+test("preserves an already-running autonomous turn whose start dequeued during a rejected foreground start", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-queued-autonomous-reject-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+
+  class QueuedAutonomousRaceSession extends TestAgentSession {
+    activeAutonomousId: string | null = "wakeup-queued-1";
+    interruptedCount = 0;
+
+    override async startTurn(
+      prompt: AgentPromptInput,
+      options?: AgentRunOptions,
+    ): Promise<{ turnId: string }> {
+      if (this.activeAutonomousId !== null) {
+        // Yield so the already-enqueued turn_started dequeues while pendingRun is active.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        throw new Error("Antigravity already has an active turn");
+      }
+      return await super.startTurn(prompt, options);
+    }
+
+    override async interrupt(): Promise<void> {
+      this.interruptedCount += 1;
+      if (this.activeAutonomousId) {
+        const canceledId = this.activeAutonomousId;
+        this.activeAutonomousId = null;
+        this.pushEvent({
+          type: "turn_canceled",
+          provider: "codex",
+          turnId: canceledId,
+          reason: "interrupted",
+        });
+      }
+    }
+  }
+
+  const session = new QueuedAutonomousRaceSession({ provider: "codex", cwd: workdir });
+  class QueuedAutonomousRaceClient extends TestAgentClient {
+    override async createSession(): Promise<AgentSession> {
+      return session;
+    }
+  }
+
+  const manager = new AgentManager({
+    clients: { codex: new QueuedAutonomousRaceClient() },
+    registry: storage,
+    logger,
+    idFactory: () => "00000000-0000-4000-8000-000000000912",
+  });
+
+  try {
+    const agent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
+      workspaceId: undefined,
+    });
+
+    session.pushEvent({
+      type: "turn_started",
+      provider: "codex",
+      turnId: "wakeup-queued-1",
+    });
+
+    await expect(
+      manager.runAgent(agent.id, "first prompt", { clientMessageId: "msg-queued-race-1" }),
+    ).rejects.toThrow("Antigravity already has an active turn");
+
+    expect(manager.getAgent(agent.id)).toMatchObject({
+      lifecycle: "running",
+      activeTurnId: "wakeup-queued-1",
+      activeForegroundTurnId: null,
+    });
+    expect(manager.hasInFlightRun(agent.id)).toBe(true);
+
+    const followUp = await sendPromptToAgent({
+      agentManager: manager,
+      agentStorage: storage,
+      agentId: agent.id,
+      prompt: "retry after queued wakeup",
+      messageId: "msg-queued-race-2",
+      activeTurnBehavior: "interrupt",
+      logger,
+    });
+    await dispatchStarted(followUp);
+    await vi.waitFor(() => expect(manager.getAgent(agent.id)?.lifecycle).toBe("idle"));
+    expect(session.interruptedCount).toBe(1);
+    expect(manager.hasInFlightRun(agent.id)).toBe(false);
+  } finally {
+    await manager.flush();
+    await storage.flush();
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
 function dispatchStarted(dispatch: Awaited<ReturnType<typeof startAgentRun>>): Promise<void> {
   if (dispatch.disposition !== "turn_started") {
     throw new Error(`Expected a started turn, got ${dispatch.disposition}`);

@@ -8,6 +8,7 @@ import {
   pinRelayProtectedSecurityInProfiles,
   readHostRegistry,
   relayConnectionFromOffer,
+  replaceHostRelayEndpointInProfiles,
   resolveActiveHostServerId,
   upsertHostConnectionInProfiles,
   writeHostRegistry,
@@ -541,6 +542,60 @@ describe("relay endpoint security pin", () => {
         daemonPublicKeyB64: "pk_other",
       }),
     ).toBe(profiles);
+  });
+
+  it("replaces relay connections on endpoint switch while preserving key pin, local routes, and preferred selection", () => {
+    const direct: HostConnection = {
+      id: "direct:127.0.0.1:6767",
+      type: "directTcp",
+      endpoint: "127.0.0.1:6767",
+    };
+    const oldRelay: HostConnection = {
+      id: "relay:wss:agent-relay.ppb.cn:443",
+      type: "relay",
+      relayEndpoint: "agent-relay.ppb.cn:443",
+      useTls: true,
+      daemonPublicKeyB64: "pk_gd32",
+      minimumSecurityMode: "protected",
+    };
+    const profiles: HostProfile[] = [
+      {
+        ...makeHost("srv_gd32"),
+        connections: [direct, oldRelay],
+        preferredConnectionId: oldRelay.id,
+      },
+    ];
+
+    const switched = replaceHostRelayEndpointInProfiles({
+      profiles,
+      serverId: "srv_gd32",
+      relayEndpoint: "agent-relay-cn.ppb.cn:443",
+      useTls: true,
+      now: "2026-11-24T04:00:00.000Z",
+    });
+
+    expect(switched[0]!.connections).toEqual([
+      direct,
+      {
+        id: "relay:wss:agent-relay-cn.ppb.cn:443",
+        type: "relay",
+        relayEndpoint: "agent-relay-cn.ppb.cn:443",
+        useTls: true,
+        daemonPublicKeyB64: "pk_gd32",
+        minimumSecurityMode: "protected",
+      },
+    ]);
+    expect(switched[0]!.preferredConnectionId).toBe("relay:wss:agent-relay-cn.ppb.cn:443");
+    expect(switched[0]!.updatedAt).toBe("2026-11-24T04:00:00.000Z");
+
+    expect(
+      replaceHostRelayEndpointInProfiles({
+        profiles: switched,
+        serverId: "srv_gd32",
+        relayEndpoint: "agent-relay-cn.ppb.cn:443",
+        useTls: true,
+      }),
+    ).toBe(switched);
   });
 });
 

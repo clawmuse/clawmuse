@@ -645,3 +645,35 @@ test("speech config reads remain compatible with clients before features and fut
     }).features?.voiceMode?.stt,
   ).toEqual({ provider: "future", region: "eu" });
 });
+
+test("relay endpoint fields in MutableDaemonConfig stay wire-compatible with older peers", () => {
+  const legacyDaemonRead = {
+    providers: {},
+    relay: { enabled: true },
+    mcp: { enabled: true, injectIntoAgents: true },
+  };
+  expect(MutableDaemonConfigSchema.parse(legacyDaemonRead).relay).toEqual({ enabled: true });
+
+  const modernDaemonRead = {
+    ...legacyDaemonRead,
+    relay: {
+      enabled: true,
+      endpoint: "agent-relay-cn.ppb.cn:443",
+      publicEndpoint: "agent-relay-cn.ppb.cn:443",
+      useTls: true,
+      publicUseTls: true,
+      endpointMutable: true,
+    },
+  };
+  expect(MutableDaemonConfigSchema.parse(modernDaemonRead).relay).toEqual(modernDaemonRead.relay);
+
+  const patch = {
+    relay: {
+      endpoint: "agent-relay-cn.ppb.cn:443",
+      publicEndpoint: "",
+      useTls: true,
+      publicUseTls: true,
+    },
+  };
+  expect(MutableDaemonConfigPatchSchema.parse(patch)).toEqual(patch);
+});

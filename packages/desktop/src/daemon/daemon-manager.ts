@@ -460,6 +460,7 @@ export async function stopCapturedDaemon(input: StopCapturedDaemonInput): Promis
           "--host",
           ready.listen,
           ...(keep ? ["--keep-terminals"] : []),
+          ...(input.reason === "app_update" ? ["--app-update"] : []),
           "--json",
         ]);
       },
